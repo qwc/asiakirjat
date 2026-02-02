@@ -1,10 +1,107 @@
-<div id="asiakirjat-overlay" class="doc-overlay">
-    <div class="doc-overlay-content">
-        <a href="/project/{{.Slug}}" class="doc-overlay-link">{{.ProjectName}}</a>
-        <select id="asiakirjat-version-select" class="doc-overlay-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
-            <option value="{{.Version}}" selected>{{.Version}}</option>
-        </select>
-        <a href="/" class="doc-overlay-home" title="Home">&larr; Home</a>
+<style>
+#asiakirjat-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #e2e8f0;
+    padding: 0.75rem 1.5rem;
+    z-index: 9999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    border-bottom: 2px solid #3b82f6;
+    box-sizing: border-box;
+    line-height: 1.4;
+    font-size: 14px;
+}
+#asiakirjat-overlay * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+#asiakirjat-overlay .ao-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+#asiakirjat-overlay .ao-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+#asiakirjat-overlay .ao-home {
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 1.4rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+#asiakirjat-overlay .ao-home:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+#asiakirjat-overlay .ao-project {
+    color: #e2e8f0;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+}
+#asiakirjat-overlay .ao-project:hover {
+    color: #60a5fa;
+}
+#asiakirjat-overlay .ao-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#asiakirjat-overlay .ao-label {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+#asiakirjat-overlay .ao-select {
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #3b82f6;
+    background: #1e3a5f;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    -webkit-appearance: auto;
+    appearance: auto;
+}
+#asiakirjat-overlay .ao-select:hover {
+    background: #1e4a7f;
+    border-color: #60a5fa;
+}
+#asiakirjat-overlay .ao-select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+}
+</style>
+<div id="asiakirjat-overlay">
+    <div class="ao-content">
+        <div class="ao-left">
+            <a href="/" class="ao-home" title="Home">&#8962;</a>
+            <a href="/project/{{.Slug}}" class="ao-project">{{.ProjectName}}</a>
+        </div>
+        <div class="ao-right">
+            <span class="ao-label">Version</span>
+            <select id="asiakirjat-version-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
+                <option value="{{.Version}}" selected>{{.Version}}</option>
+            </select>
+        </div>
     </div>
 </div>
 <script src="/static/js/overlay.js"></script>

@@ -1,6 +1,13 @@
 (function() {
     "use strict";
 
+    var overlay = document.getElementById("asiakirjat-overlay");
+    if (!overlay) return;
+
+    // Push document content down so it's not hidden behind the fixed top bar
+    var overlayHeight = overlay.offsetHeight;
+    document.body.style.marginTop = overlayHeight + "px";
+
     var versionSelect = document.getElementById("asiakirjat-version-select");
     if (!versionSelect) return;
 
