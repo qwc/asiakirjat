@@ -12,8 +12,8 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
     border-bottom: 2px solid #3b82f6;
     box-sizing: border-box;
-    line-height: 1.4;
-    font-size: 14px;
+    line-height: 1.6;
+    font-size: 16px;
 }
 #asiakirjat-overlay * {
     box-sizing: border-box;
@@ -32,28 +32,26 @@
     align-items: center;
     gap: 0.75rem;
 }
-#asiakirjat-overlay .ao-home {
-    color: #94a3b8;
-    text-decoration: none;
-    font-size: 1.4rem;
-    line-height: 1;
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-    transition: color 0.15s, background 0.15s;
-}
-#asiakirjat-overlay .ao-home:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-}
-#asiakirjat-overlay .ao-project {
+#asiakirjat-overlay .ao-brand {
     color: #e2e8f0;
     text-decoration: none;
+    font-size: 0.875rem;
     font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: -0.01em;
+}
+#asiakirjat-overlay .ao-brand:hover {
+    color: #60a5fa;
+}
+#asiakirjat-overlay .ao-sep {
+    color: #475569;
+}
+#asiakirjat-overlay .ao-project {
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.875rem;
 }
 #asiakirjat-overlay .ao-project:hover {
-    color: #60a5fa;
+    color: white;
 }
 #asiakirjat-overlay .ao-right {
     display: flex;
@@ -62,18 +60,18 @@
 }
 #asiakirjat-overlay .ao-label {
     color: #94a3b8;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 #asiakirjat-overlay .ao-select {
-    padding: 0.4rem 0.75rem;
+    padding: 0.2rem 0.5rem;
     border-radius: 4px;
     border: 1px solid #3b82f6;
     background: #1e3a5f;
     color: white;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
@@ -93,7 +91,8 @@
 <div id="asiakirjat-overlay">
     <div class="ao-content">
         <div class="ao-left">
-            <a href="/" class="ao-home" title="Home">&#8962;</a>
+            <a href="/" class="ao-brand">asiakirjat</a>
+            <span class="ao-sep">/</span>
             <a href="/project/{{.Slug}}" class="ao-project">{{.ProjectName}}</a>
         </div>
         <div class="ao-right">
