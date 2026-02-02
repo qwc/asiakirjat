@@ -1965,5 +1965,257 @@ func TestLoginRateLimiting(t *testing.T) {
 	}
 }
 
+func TestAdminResetPasswordBuiltinUser(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	// Create a builtin user to reset
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("oldpass")
+	target := &database.User{
+		Username: "resetme", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, target)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("password", "newpass123")
+
+	req, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/users/%d/password", target.ID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	// Verify login with new password works
+	newCookies := loginUser(t, app, "resetme", "newpass123")
+	if len(newCookies) == 0 {
+		t.Error("expected login to succeed with new password after admin reset")
+	}
+
+	// Verify old password no longer works
+	oldCookies := loginUser(t, app, "resetme", "oldpass")
+	hasSession := false
+	for _, c := range oldCookies {
+		if c.Name == "test_session" {
+			hasSession = true
+		}
+	}
+	if hasSession {
+		t.Error("expected old password to no longer work")
+	}
+}
+
+func TestAdminResetPasswordRejectedForNonBuiltin(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	// Create a non-builtin (LDAP) user
+	ctx := context.Background()
+	ldapUser := &database.User{
+		Username:   "ldapuser",
+		Email:      "ldap@example.com",
+		AuthSource: "ldap",
+		Role:       "viewer",
+	}
+	app.handler.users.Create(ctx, ldapUser)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("password", "newpass123")
+
+	req, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/users/%d/password", ldapUser.ID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-builtin user password reset, got %d", resp.StatusCode)
+	}
+}
+
+func TestSelfServiceChangePasswordSuccess(t *testing.T) {
+	app := setupTestApp(t)
+
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("myoldpass")
+	user := &database.User{
+		Username: "selfchange", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "selfchange", "myoldpass")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("current_password", "myoldpass")
+	form.Set("new_password", "mynewpass")
+	form.Set("confirm_password", "mynewpass")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Password changed successfully") {
+		t.Error("expected success message in response")
+	}
+
+	// Verify login with new password works
+	newCookies := loginUser(t, app, "selfchange", "mynewpass")
+	if len(newCookies) == 0 {
+		t.Error("expected login to succeed with new password")
+	}
+}
+
+func TestSelfServiceChangePasswordWrongCurrent(t *testing.T) {
+	app := setupTestApp(t)
+
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("correctpass")
+	user := &database.User{
+		Username: "wrongcurrent", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "wrongcurrent", "correctpass")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("current_password", "wrongpass")
+	form.Set("new_password", "newpass")
+	form.Set("confirm_password", "newpass")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Current password is incorrect") {
+		t.Error("expected error message about incorrect current password")
+	}
+}
+
+func TestSelfServiceChangePasswordMismatch(t *testing.T) {
+	app := setupTestApp(t)
+
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("mypass")
+	user := &database.User{
+		Username: "mismatch", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "mismatch", "mypass")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("current_password", "mypass")
+	form.Set("new_password", "newpass1")
+	form.Set("confirm_password", "newpass2")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "New passwords do not match") {
+		t.Error("expected error message about password mismatch")
+	}
+}
+
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)

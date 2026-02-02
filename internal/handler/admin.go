@@ -414,6 +414,49 @@ func (h *Handler) handleAdminRevokeToken(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
 
+func (h *Handler) handleAdminResetPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	newPassword := r.FormValue("password")
+	if newPassword == "" {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.users.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	if user.AuthSource != "builtin" {
+		http.Error(w, "Cannot reset password for non-builtin user", http.StatusBadRequest)
+		return
+	}
+
+	hash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		h.logger.Error("hashing password", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	user.Password = &hash
+	if err := h.users.Update(ctx, user); err != nil {
+		h.logger.Error("updating user password", "error", err)
+		http.Error(w, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
 func (h *Handler) handleAdminDeleteRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

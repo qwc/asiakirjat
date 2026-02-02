@@ -91,6 +91,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/project/{slug}/versions", h.withSession(h.handleAPIVersions))
 	mux.HandleFunc("POST /api/project/{slug}/upload", h.handleAPIUpload)
 
+	// Profile routes
+	mux.HandleFunc("GET /profile", h.withSession(h.requireAuth(h.handleProfilePage)))
+	mux.HandleFunc("POST /profile/password", h.withSession(h.requireAuth(h.handleChangePassword)))
+
 	// Admin routes
 	mux.HandleFunc("GET /admin/projects", h.withSession(h.requireAdmin(h.handleAdminProjects)))
 	mux.HandleFunc("POST /admin/projects", h.withSession(h.requireAdmin(h.handleAdminCreateProject)))
@@ -102,6 +106,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST /admin/users", h.withSession(h.requireAdmin(h.handleAdminCreateUser)))
 	mux.HandleFunc("POST /admin/users/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteUser)))
+	mux.HandleFunc("POST /admin/users/{id}/password", h.withSession(h.requireAdmin(h.handleAdminResetPassword)))
 	mux.HandleFunc("GET /admin/robots", h.withSession(h.requireAdmin(h.handleAdminRobots)))
 	mux.HandleFunc("POST /admin/robots", h.withSession(h.requireAdmin(h.handleAdminCreateRobot)))
 	mux.HandleFunc("POST /admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.handleAdminGenerateToken)))

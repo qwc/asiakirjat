@@ -14,7 +14,7 @@
         </div>
         <div class="navbar-menu">
             {{if .User}}
-                <span class="navbar-user">{{.User.Username}}</span>
+                <a href="/profile" class="navbar-user">{{.User.Username}}</a>
                 {{if eq .User.Role "admin"}}
                     <a href="/admin/projects" class="navbar-link">Admin</a>
                 {{end}}
