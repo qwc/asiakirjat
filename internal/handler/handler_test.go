@@ -434,5 +434,220 @@ func TestAPIVersions(t *testing.T) {
 	}
 }
 
+func TestLoginWithInvalidPassword(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("username", "admin")
+	form.Set("password", "wrongpassword")
+	resp, err := client.PostForm(app.server.URL+"/login", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Should re-render login page (200), not redirect
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (re-rendered login), got %d", resp.StatusCode)
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	body := string(bodyBytes)
+	if !strings.Contains(body, "Invalid username or password") {
+		t.Error("expected error message in response")
+	}
+}
+
+func TestLoginWithEmptyFields(t *testing.T) {
+	app := setupTestApp(t)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("username", "")
+	form.Set("password", "")
+	resp, err := client.PostForm(app.server.URL+"/login", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (re-rendered login), got %d", resp.StatusCode)
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	body := string(bodyBytes)
+	if !strings.Contains(body, "Username and password are required") {
+		t.Error("expected validation error message in response")
+	}
+}
+
+func TestLogoutClearsSession(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	// Login
+	cookies := loginUser(t, app, "admin", "admin123")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	// Logout
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, _ := http.NewRequest("GET", app.server.URL+"/logout", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after logout, got %d", resp.StatusCode)
+	}
+
+	// Try to access a protected route with the old cookie — should redirect to login
+	req2, _ := http.NewRequest("GET", app.server.URL+"/project/test-proj/upload", nil)
+	for _, c := range cookies {
+		req2.AddCookie(c)
+	}
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after logout, got %d", resp2.StatusCode)
+	}
+}
+
+func TestRobotUserCannotLogin(t *testing.T) {
+	app := setupTestApp(t)
+
+	// Create a robot user with a password
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("robotpass")
+	robot := &database.User{
+		Username:   "ci-bot",
+		Password:   &hash,
+		AuthSource: "builtin",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("username", "ci-bot")
+	form.Set("password", "robotpass")
+	resp, err := client.PostForm(app.server.URL+"/login", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Should fail login (200 with error message, not 303 redirect)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (re-rendered login), got %d", resp.StatusCode)
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	body := string(bodyBytes)
+	if !strings.Contains(body, "Invalid username or password") {
+		t.Error("expected error message, robot should not be able to log in")
+	}
+}
+
+func TestAdminRequiredReturns403(t *testing.T) {
+	app := setupTestApp(t)
+
+	// Create a non-admin user
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("viewer123")
+	viewer := &database.User{
+		Username:   "viewer",
+		Password:   &hash,
+		AuthSource: "builtin",
+		Role:       "viewer",
+	}
+	app.handler.users.Create(ctx, viewer)
+
+	cookies := loginUser(t, app, "viewer", "viewer123")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/admin/projects", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin user, got %d", resp.StatusCode)
+	}
+}
+
+func TestLoginPageRedirectsAuthenticatedUser(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/login", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect for already-logged-in user visiting /login, got %d", resp.StatusCode)
+	}
+}
+
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)
