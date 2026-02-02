@@ -6,6 +6,7 @@ import (
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/templates"
 )
 
 func (h *Handler) handleServeDoc(w http.ResponseWriter, r *http.Request) {
@@ -44,10 +45,29 @@ func (h *Handler) handleServeDoc(w http.ResponseWriter, r *http.Request) {
 
 	storagePath := h.storage.VersionPath(slug, ver.Tag)
 
-	// Inject overlay for HTML responses
-	if filePath == "" || strings.HasSuffix(filePath, "/") || strings.HasSuffix(filePath, ".html") || strings.HasSuffix(filePath, ".htm") || !strings.Contains(filePath, ".") {
-		// This might be an HTML file — let ServeDoc handle it, then we can inject overlay
-		// For now, just serve the file directly; overlay injection comes in Phase 6
+	// For paths that might be HTML, inject the overlay toolbar
+	maybeHTML := filePath == "" ||
+		strings.HasSuffix(filePath, "/") ||
+		strings.HasSuffix(filePath, ".html") ||
+		strings.HasSuffix(filePath, ".htm") ||
+		!strings.Contains(filePath, ".")
+
+	if maybeHTML {
+		overlayHTML, err := h.templates.RenderOverlay(templates.OverlayData{
+			Slug:        slug,
+			ProjectName: project.Name,
+			Version:     ver.Tag,
+		})
+		if err != nil {
+			h.logger.Error("rendering overlay", "error", err)
+			docs.ServeDoc(w, r, storagePath, filePath)
+			return
+		}
+
+		docs.InjectOverlay(w, r, overlayHTML, func(rw http.ResponseWriter, req *http.Request) {
+			docs.ServeDoc(rw, req, storagePath, filePath)
+		})
+		return
 	}
 
 	docs.ServeDoc(w, r, storagePath, filePath)

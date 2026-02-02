@@ -1502,5 +1502,246 @@ func TestAdminCreateRobotAndGenerateToken(t *testing.T) {
 	}
 }
 
+func TestOverlayInjectedInHTMLDoc(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "overlay-test", "Overlay Test", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("overlay-test", "v1.0.0")
+	versionPath := storage.VersionPath("overlay-test", "v1.0.0")
+	os.WriteFile(filepath.Join(versionPath, "index.html"),
+		[]byte("<html><head><title>Test</title></head><body><h1>Hello</h1></body></html>"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	resp, err := http.Get(app.server.URL + "/project/overlay-test/v1.0.0/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	// Original content preserved
+	if !strings.Contains(bodyStr, "<h1>Hello</h1>") {
+		t.Error("expected original content preserved")
+	}
+
+	// Overlay should be injected
+	if !strings.Contains(bodyStr, "asiakirjat-overlay") {
+		t.Error("expected overlay div in response")
+	}
+
+	// Overlay should contain project name and version
+	if !strings.Contains(bodyStr, "Overlay Test") {
+		t.Error("expected project name in overlay")
+	}
+	if !strings.Contains(bodyStr, "v1.0.0") {
+		t.Error("expected version in overlay")
+	}
+
+	// Overlay should contain script reference
+	if !strings.Contains(bodyStr, "overlay.js") {
+		t.Error("expected overlay.js script tag")
+	}
+
+	// Overlay should appear before </body>
+	overlayIdx := strings.Index(bodyStr, "asiakirjat-overlay")
+	bodyCloseIdx := strings.Index(strings.ToLower(bodyStr), "</body>")
+	if overlayIdx == -1 || bodyCloseIdx == -1 {
+		t.Fatal("could not find overlay or </body> in response")
+	}
+	if overlayIdx > bodyCloseIdx {
+		t.Error("overlay should be injected before </body>")
+	}
+}
+
+func TestOverlayNotInjectedInCSS(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "css-test", "CSS Test", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("css-test", "v1.0.0")
+	versionPath := storage.VersionPath("css-test", "v1.0.0")
+	os.WriteFile(filepath.Join(versionPath, "style.css"),
+		[]byte("body { color: red; }"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	resp, err := http.Get(app.server.URL + "/project/css-test/v1.0.0/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if strings.Contains(bodyStr, "asiakirjat-overlay") {
+		t.Error("overlay should NOT be injected into CSS files")
+	}
+	if !strings.Contains(bodyStr, "body { color: red; }") {
+		t.Error("expected original CSS content")
+	}
+}
+
+func TestOverlayNotInjectedInImage(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "img-test", "Image Test", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("img-test", "v1.0.0")
+	versionPath := storage.VersionPath("img-test", "v1.0.0")
+	// Write a fake PNG file
+	os.WriteFile(filepath.Join(versionPath, "logo.png"),
+		[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	resp, err := http.Get(app.server.URL + "/project/img-test/v1.0.0/logo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if len(body) != 8 {
+		t.Errorf("expected 8 bytes for PNG, got %d", len(body))
+	}
+}
+
+func TestOverlayInjectedInDirectoryIndex(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "dir-test", "Dir Test", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("dir-test", "v2.0")
+	versionPath := storage.VersionPath("dir-test", "v2.0")
+	os.WriteFile(filepath.Join(versionPath, "index.html"),
+		[]byte("<html><body><p>Root index</p></body></html>"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v2.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	// Request the root with empty path (directory index)
+	resp, err := http.Get(app.server.URL + "/project/dir-test/v2.0/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "Root index") {
+		t.Error("expected original content")
+	}
+	if !strings.Contains(bodyStr, "asiakirjat-overlay") {
+		t.Error("expected overlay in directory index response")
+	}
+}
+
+func TestAPIVersionsSortedAndFormatted(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "ver-api", "Version API", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	for _, tag := range []string{"v1.0.0", "v2.0.0", "v1.5.0"} {
+		storage.EnsureVersionDir("ver-api", tag)
+		vp := storage.VersionPath("ver-api", tag)
+		app.handler.versions.Create(ctx, &database.Version{
+			ProjectID:   project.ID,
+			Tag:         tag,
+			StoragePath: vp,
+			UploadedBy:  admin.ID,
+		})
+	}
+
+	resp, err := http.Get(app.server.URL + "/api/project/ver-api/versions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("expected JSON content type, got %s", ct)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	// All three versions should be in the response
+	if !strings.Contains(bodyStr, "v1.0.0") {
+		t.Error("expected v1.0.0 in versions")
+	}
+	if !strings.Contains(bodyStr, "v2.0.0") {
+		t.Error("expected v2.0.0 in versions")
+	}
+	if !strings.Contains(bodyStr, "v1.5.0") {
+		t.Error("expected v1.5.0 in versions")
+	}
+
+	// Should contain created_at fields
+	if !strings.Contains(bodyStr, "created_at") {
+		t.Error("expected created_at in version response")
+	}
+}
+
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)

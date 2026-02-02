@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"html/template"
@@ -13,6 +14,7 @@ var templateFS embed.FS
 
 type Engine struct {
 	templates map[string]*template.Template
+	overlay   *template.Template
 }
 
 func New() (*Engine, error) {
@@ -54,6 +56,13 @@ func New() (*Engine, error) {
 		engine.templates[key] = t
 	}
 
+	// Parse the overlay template separately (not a full page template)
+	overlayTmpl, err := template.New("overlay").Funcs(funcMap).ParseFS(templateFS, "overlay/doc_overlay.html")
+	if err != nil {
+		return nil, fmt.Errorf("parsing overlay template: %w", err)
+	}
+	engine.overlay = overlayTmpl
+
 	return engine, nil
 }
 
@@ -63,4 +72,20 @@ func (e *Engine) Render(w io.Writer, name string, data any) error {
 		return fmt.Errorf("template %q not found", name)
 	}
 	return t.Execute(w, data)
+}
+
+// OverlayData holds the data needed for the doc overlay.
+type OverlayData struct {
+	Slug        string
+	ProjectName string
+	Version     string
+}
+
+// RenderOverlay renders the doc overlay HTML snippet.
+func (e *Engine) RenderOverlay(data OverlayData) (string, error) {
+	var buf bytes.Buffer
+	if err := e.overlay.ExecuteTemplate(&buf, "doc_overlay.html", data); err != nil {
+		return "", fmt.Errorf("rendering overlay: %w", err)
+	}
+	return buf.String(), nil
 }

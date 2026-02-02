@@ -1,18 +1,18 @@
 (function() {
     "use strict";
 
-    var select = document.getElementById("asiakirjat-version-select");
-    if (!select) return;
+    var versionSelect = document.getElementById("asiakirjat-version-select");
+    if (!versionSelect) return;
 
-    var slug = select.getAttribute("data-slug");
-    var current = select.getAttribute("data-current");
+    var slug = versionSelect.getAttribute("data-slug");
+    var current = versionSelect.getAttribute("data-current");
 
     // Fetch versions from API
     fetch("/api/project/" + encodeURIComponent(slug) + "/versions")
         .then(function(resp) { return resp.json(); })
         .then(function(versions) {
             // Clear and rebuild options
-            select.innerHTML = "";
+            versionSelect.innerHTML = "";
             versions.forEach(function(v) {
                 var opt = document.createElement("option");
                 opt.value = v.tag;
@@ -20,7 +20,7 @@
                 if (v.tag === current) {
                     opt.selected = true;
                 }
-                select.appendChild(opt);
+                versionSelect.appendChild(opt);
             });
         })
         .catch(function(err) {
@@ -28,8 +28,8 @@
         });
 
     // Handle version switch
-    select.addEventListener("change", function() {
-        var newVersion = select.value;
+    versionSelect.addEventListener("change", function() {
+        var newVersion = versionSelect.value;
         if (newVersion === current) return;
 
         // Preserve the current path within the doc
