@@ -34,12 +34,29 @@ jobs:
       - name: Build binary
         run: CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-s -w" -o asiakirjat .
 
+      - uses: actions/upload-artifact@v3
+        with:
+          name: asiakirjat
+          path: asiakirjat
+
   docker:
     runs-on: docker
+    container:
+      image: gcr.io/kaniko-project/executor:debug
     needs: build
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t asiakirjat:latest .
+      - name: Configure registry credentials
+        run: |
+          mkdir -p /kaniko/.docker
+          echo "{\"auths\":{\"git.mmo.to\":{\"auth\":\"$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_TOKEN }}" | base64)\"}}}" > /kaniko/.docker/config.json
+
+      - name: Build and push Docker image
+        run: >
+          /kaniko/executor
+          --context .
+          --dockerfile Dockerfile
+          --destination git.mmo.to/qwc-open/asiakirjat:latest
+          --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}
