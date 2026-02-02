@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"io"
 	"io/fs"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -646,6 +649,275 @@ func TestLoginPageRedirectsAuthenticatedUser(t *testing.T) {
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("expected 303 redirect for already-logged-in user visiting /login, got %d", resp.StatusCode)
+	}
+}
+
+func createTestZip(t *testing.T, files map[string]string) *bytes.Buffer {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	for name, content := range files {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Write([]byte(content))
+	}
+	w.Close()
+	return buf
+}
+
+func TestUploadFormRequiresAuth(t *testing.T) {
+	app := setupTestApp(t)
+	seedProject(t, app, "proj", "Project", true)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(app.server.URL + "/project/proj/upload")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect to login, got %d", resp.StatusCode)
+	}
+}
+
+func TestUploadFullFlow(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	_ = admin
+	seedProject(t, app, "docs", "Documentation", true)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+	if len(cookies) == 0 {
+		t.Fatal("expected session cookie after login")
+	}
+
+	// Create a test zip
+	zipBuf := createTestZip(t, map[string]string{
+		"index.html":        "<html><body>Hello docs!</body></html>",
+		"css/style.css":     "body { color: blue; }",
+		"guide/intro.html":  "<html><body>Introduction</body></html>",
+	})
+
+	// Build multipart form
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, err := writer.CreateFormFile("archive", "docs.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Should redirect to project detail page
+	if resp.StatusCode != http.StatusSeeOther {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 303 redirect after upload, got %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	loc := resp.Header.Get("Location")
+	if loc != "/project/docs" {
+		t.Errorf("expected redirect to /project/docs, got %s", loc)
+	}
+
+	// Verify the version was created — check via API
+	apiResp, err := http.Get(app.server.URL + "/api/project/docs/versions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer apiResp.Body.Close()
+
+	apiBody, _ := io.ReadAll(apiResp.Body)
+	if !strings.Contains(string(apiBody), "v1.0.0") {
+		t.Error("expected v1.0.0 in version list after upload")
+	}
+
+	// Verify the actual doc files are served
+	docResp, err := http.Get(app.server.URL + "/project/docs/v1.0.0/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer docResp.Body.Close()
+
+	if docResp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for uploaded doc, got %d", docResp.StatusCode)
+	}
+
+	docBody, _ := io.ReadAll(docResp.Body)
+	if !strings.Contains(string(docBody), "Hello docs!") {
+		t.Error("expected uploaded content in served doc")
+	}
+
+	// Verify nested files
+	cssResp, err := http.Get(app.server.URL + "/project/docs/v1.0.0/css/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cssResp.Body.Close()
+
+	if cssResp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for nested CSS file, got %d", cssResp.StatusCode)
+	}
+}
+
+func TestUploadDuplicateVersion(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "proj", "Project", true)
+
+	// Create existing version
+	ctx := context.Background()
+	app.handler.storage.EnsureVersionDir("proj", "v1.0.0")
+	app.handler.versions.Create(ctx, &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: app.handler.storage.VersionPath("proj", "v1.0.0"),
+		UploadedBy:  admin.ID,
+	})
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	zipBuf := createTestZip(t, map[string]string{"index.html": "new"})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/proj/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Should re-render upload page with error (200), not redirect
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (upload page with error), got %d", resp.StatusCode)
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(respBody), "tag may already exist") {
+		t.Error("expected duplicate version error message")
+	}
+}
+
+func TestUploadMissingVersion(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "proj", "Project", true)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	zipBuf := createTestZip(t, map[string]string{"index.html": "test"})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	// Intentionally omit version field
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/proj/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (upload page with error), got %d", resp.StatusCode)
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(respBody), "Version tag is required") {
+		t.Error("expected version tag required error message")
+	}
+}
+
+func TestViewerCannotUpload(t *testing.T) {
+	app := setupTestApp(t)
+	seedProject(t, app, "proj", "Project", true)
+
+	// Create viewer user
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("viewer123")
+	app.handler.users.Create(ctx, &database.User{
+		Username: "viewer", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	})
+
+	cookies := loginUser(t, app, "viewer", "viewer123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/proj/upload", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for viewer on upload page, got %d", resp.StatusCode)
 	}
 }
 
