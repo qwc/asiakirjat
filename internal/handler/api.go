@@ -176,6 +176,15 @@ func (h *Handler) handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Async index for full-text search
+	if h.searchIndex != nil {
+		go func() {
+			if err := h.searchIndex.IndexVersion(project.ID, version.ID, slug, project.Name, versionTag, destPath); err != nil {
+				h.logger.Error("indexing version", "error", err, "project", slug, "version", versionTag)
+			}
+		}()
+	}
+
 	h.jsonResponse(w, map[string]string{
 		"status":  "ok",
 		"version": versionTag,

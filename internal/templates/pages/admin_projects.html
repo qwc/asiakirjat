@@ -36,6 +36,13 @@
         </form>
     </div>
 
+    <div style="margin-bottom: 1.5rem;">
+        <form method="POST" action="/admin/reindex" class="inline-form"
+            onsubmit="return confirm('Rebuild the full-text search index? This runs in the background.')">
+            <button type="submit" class="btn btn-secondary">Rebuild Search Index</button>
+        </form>
+    </div>
+
     <table class="admin-table">
         <thead>
             <tr>

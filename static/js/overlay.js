@@ -46,4 +46,84 @@
 
         window.location.href = "/project/" + slug + "/" + newVersion + suffix;
     });
+
+    // Overlay in-doc search
+    var searchInput = document.getElementById("asiakirjat-overlay-search");
+    var searchDropdown = document.getElementById("asiakirjat-overlay-search-dropdown");
+
+    if (searchInput && searchDropdown) {
+        var searchTimer = null;
+        var searchSlug = searchInput.getAttribute("data-slug");
+        var searchVersion = searchInput.getAttribute("data-version");
+
+        function overlaySearch() {
+            var q = searchInput.value.trim();
+            if (q.length < 2) {
+                searchDropdown.style.display = "none";
+                searchDropdown.innerHTML = "";
+                return;
+            }
+
+            var url = "/api/search?q=" + encodeURIComponent(q) +
+                "&project=" + encodeURIComponent(searchSlug) +
+                "&version=" + encodeURIComponent(searchVersion) +
+                "&limit=8";
+
+            fetch(url)
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    searchDropdown.innerHTML = "";
+
+                    if (!data.results || data.results.length === 0) {
+                        var empty = document.createElement("div");
+                        empty.className = "ao-search-empty";
+                        empty.textContent = "No results found";
+                        searchDropdown.appendChild(empty);
+                        searchDropdown.style.display = "block";
+                        return;
+                    }
+
+                    data.results.forEach(function(r) {
+                        var item = document.createElement("a");
+                        item.href = r.url;
+
+                        var title = document.createElement("div");
+                        title.className = "ao-search-item-title";
+                        title.textContent = r.page_title || r.file_path;
+                        item.appendChild(title);
+
+                        if (r.snippet) {
+                            var snippet = document.createElement("div");
+                            snippet.className = "ao-search-item-snippet";
+                            snippet.innerHTML = r.snippet;
+                            item.appendChild(snippet);
+                        }
+
+                        searchDropdown.appendChild(item);
+                    });
+
+                    searchDropdown.style.display = "block";
+                })
+                .catch(function() {
+                    searchDropdown.style.display = "none";
+                });
+        }
+
+        searchInput.addEventListener("input", function() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(overlaySearch, 300);
+        });
+
+        searchInput.addEventListener("keydown", function(e) {
+            if (e.key === "Escape") {
+                searchDropdown.style.display = "none";
+            }
+        });
+
+        document.addEventListener("click", function(e) {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                searchDropdown.style.display = "none";
+            }
+        });
+    }
 })();

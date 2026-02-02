@@ -28,6 +28,7 @@ type Handler struct {
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
 	loginLimiter   *RateLimiter
+	searchIndex    *docs.SearchIndex
 	logger         *slog.Logger
 }
 
@@ -45,6 +46,7 @@ type Deps struct {
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
+	SearchIndex    *docs.SearchIndex
 	Logger         *slog.Logger
 }
 
@@ -64,6 +66,7 @@ func New(deps Deps) *Handler {
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
+		searchIndex:    deps.SearchIndex,
 		logger:         deps.Logger,
 	}
 }
@@ -85,6 +88,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /project/{slug}/{version}/{path...}", h.withSession(h.handleServeDoc))
 	mux.HandleFunc("GET /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))
 	mux.HandleFunc("POST /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
+
+	// Search
+	mux.HandleFunc("GET /search", h.withSession(h.handleSearchPage))
+	mux.HandleFunc("GET /api/search", h.withSession(h.handleAPISearch))
 
 	// API endpoints
 	mux.HandleFunc("GET /api/projects", h.withSession(h.handleAPIProjects))
@@ -112,6 +119,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.handleAdminGenerateToken)))
 	mux.HandleFunc("POST /admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeToken)))
 	mux.HandleFunc("POST /admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteRobot)))
+	mux.HandleFunc("POST /admin/reindex", h.withSession(h.requireAdmin(h.handleAdminReindex)))
 
 	// Health check
 	mux.HandleFunc("GET /healthz", h.handleHealthz)

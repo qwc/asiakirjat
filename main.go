@@ -74,6 +74,14 @@ func main() {
 	// Ensure storage directory exists
 	os.MkdirAll(cfg.Storage.BasePath, 0755)
 
+	// Initialize search index
+	searchIndex, err := docs.NewSearchIndex(cfg.Storage.BasePath)
+	if err != nil {
+		logger.Error("opening search index", "error", err)
+		os.Exit(1)
+	}
+	defer searchIndex.Close()
+
 	// Initialize auth
 	sessionMgr := auth.NewSessionManager(
 		sessionStore, userStore,
@@ -140,6 +148,7 @@ func main() {
 		Authenticators: authenticators,
 		OAuth2Auth:     oauth2Auth,
 		SessionMgr:     sessionMgr,
+		SearchIndex:    searchIndex,
 		Logger:         logger,
 	})
 

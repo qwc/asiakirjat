@@ -51,6 +51,13 @@ func setupTestApp(t *testing.T) *testApp {
 	tokenStore := sqlstore.NewTokenStore(db)
 
 	storage := docs.NewFilesystemStorage(storageDir)
+
+	searchIndex, err := docs.NewSearchIndex(storageDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { searchIndex.Close() })
+
 	sessionMgr := auth.NewSessionManager(sessionStore, userStore, "test_session", 86400, false)
 	builtinAuth := auth.NewBuiltinAuthenticator(userStore)
 
@@ -66,6 +73,7 @@ func setupTestApp(t *testing.T) *testApp {
 	os.WriteFile(filepath.Join(staticDir, "css", "style.css"), []byte("/* test */"), 0644)
 	os.WriteFile(filepath.Join(staticDir, "js", "search.js"), []byte("// test"), 0644)
 	os.WriteFile(filepath.Join(staticDir, "js", "overlay.js"), []byte("// test"), 0644)
+	os.WriteFile(filepath.Join(staticDir, "js", "navbar-search.js"), []byte("// test"), 0644)
 	staticFS := os.DirFS(staticDir)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -83,6 +91,7 @@ func setupTestApp(t *testing.T) *testApp {
 		Tokens:         tokenStore,
 		Authenticators: []auth.Authenticator{builtinAuth},
 		SessionMgr:     sessionMgr,
+		SearchIndex:    searchIndex,
 		Logger:         logger,
 	})
 
@@ -2214,6 +2223,234 @@ func TestSelfServiceChangePasswordMismatch(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), "New passwords do not match") {
 		t.Error("expected error message about password mismatch")
+	}
+}
+
+func TestSearchAPIReturnsResultsAfterIndexing(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "searchable", "Searchable Docs", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("searchable", "v1.0.0")
+	versionPath := storage.VersionPath("searchable", "v1.0.0")
+
+	os.WriteFile(filepath.Join(versionPath, "index.html"),
+		[]byte("<html><head><title>Getting Started</title></head><body><p>Welcome to the comprehensive installation guide for our software.</p></body></html>"), 0644)
+	os.WriteFile(filepath.Join(versionPath, "advanced.html"),
+		[]byte("<html><head><title>Advanced Configuration</title></head><body><p>This section covers advanced configuration and tuning parameters.</p></body></html>"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	// Index synchronously for the test
+	err := app.handler.searchIndex.IndexVersion(project.ID, version.ID, "searchable", "Searchable Docs", "v1.0.0", versionPath)
+	if err != nil {
+		t.Fatal("indexing failed:", err)
+	}
+
+	// Search for "installation"
+	resp, err := http.Get(app.server.URL + "/api/search?q=installation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "searchable") {
+		t.Error("expected project slug in search results")
+	}
+	if !strings.Contains(bodyStr, "Getting Started") {
+		t.Error("expected page title in search results")
+	}
+}
+
+func TestSearchAPIAccessControlFiltersPrivateProjects(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create public and private projects
+	pubProject := seedProject(t, app, "public-search", "Public Search", true)
+	privProject := seedProject(t, app, "private-search", "Private Search", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up public project docs
+	storage.EnsureVersionDir("public-search", "v1.0.0")
+	pubPath := storage.VersionPath("public-search", "v1.0.0")
+	os.WriteFile(filepath.Join(pubPath, "index.html"),
+		[]byte("<html><body><p>Public documentation about widgets</p></body></html>"), 0644)
+
+	pubVersion := &database.Version{
+		ProjectID: pubProject.ID, Tag: "v1.0.0",
+		StoragePath: pubPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, pubVersion)
+	app.handler.searchIndex.IndexVersion(pubProject.ID, pubVersion.ID, "public-search", "Public Search", "v1.0.0", pubPath)
+
+	// Set up private project docs
+	storage.EnsureVersionDir("private-search", "v1.0.0")
+	privPath := storage.VersionPath("private-search", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private documentation about widgets</p></body></html>"), 0644)
+
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-search", "Private Search", "v1.0.0", privPath)
+
+	// Anonymous search should only see public results
+	resp, err := http.Get(app.server.URL + "/api/search?q=widgets&all_versions=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "public-search") {
+		t.Error("expected public project in anonymous search results")
+	}
+	if strings.Contains(bodyStr, "private-search") {
+		t.Error("private project should NOT appear in anonymous search results")
+	}
+}
+
+func TestAdminReindexEndpoint(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/reindex", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after reindex, got %d", resp.StatusCode)
+	}
+
+	loc := resp.Header.Get("Location")
+	if loc != "/admin/projects" {
+		t.Errorf("expected redirect to /admin/projects, got %s", loc)
+	}
+}
+
+func TestAdminReindexRequiresAdmin(t *testing.T) {
+	app := setupTestApp(t)
+
+	// Create a viewer user
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("viewer123")
+	app.handler.users.Create(ctx, &database.User{
+		Username: "viewer", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	})
+
+	cookies := loginUser(t, app, "viewer", "viewer123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/reindex", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin reindex, got %d", resp.StatusCode)
+	}
+}
+
+func TestSearchPageRendered(t *testing.T) {
+	app := setupTestApp(t)
+
+	resp, err := http.Get(app.server.URL + "/search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Search Documentation") {
+		t.Error("expected search page content")
+	}
+}
+
+func TestSearchPageWithQuery(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "page-search", "Page Search", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("page-search", "v1.0.0")
+	versionPath := storage.VersionPath("page-search", "v1.0.0")
+	os.WriteFile(filepath.Join(versionPath, "index.html"),
+		[]byte("<html><head><title>Test Page</title></head><body><p>Unique searchable content about foobar</p></body></html>"), 0644)
+
+	version := &database.Version{
+		ProjectID: project.ID, Tag: "v1.0.0",
+		StoragePath: versionPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+	app.handler.searchIndex.IndexVersion(project.ID, version.ID, "page-search", "Page Search", "v1.0.0", versionPath)
+
+	resp, err := http.Get(app.server.URL + "/search?q=foobar&all_versions=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "page-search") || !strings.Contains(bodyStr, "Test Page") {
+		t.Error("expected search results on search page")
 	}
 }
 

@@ -1,0 +1,69 @@
+{{define "title"}}Search - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="search-page">
+    <h1>Search Documentation</h1>
+
+    <form method="GET" action="/search" class="search-form">
+        <div class="search-form-row">
+            <div class="search-form-input">
+                <input type="text" name="q" value="{{.Query}}" placeholder="Search documentation..." autofocus>
+            </div>
+            <div class="search-form-filter">
+                <select name="project">
+                    <option value="">All projects</option>
+                    {{range .Projects}}
+                    <option value="{{.Slug}}" {{if eq $.Project .Slug}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="search-form-check">
+                <label>
+                    <input type="checkbox" name="all_versions" value="1" {{if .AllVersions}}checked{{end}}>
+                    All versions
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </form>
+
+    {{if .Error}}
+    <div class="flash flash-error">{{.Error}}</div>
+    {{end}}
+
+    {{if .Query}}
+    <div class="search-results-header">
+        <p>{{.Total}} result{{if ne .Total 1}}s{{end}} for <strong>{{.Query}}</strong></p>
+    </div>
+
+    {{if .Results}}
+    <div class="search-results">
+        {{range .Results}}
+        <div class="search-result-item">
+            <div class="search-result-meta">
+                <span class="search-result-project">{{.ProjectName}}</span>
+                <span class="search-result-version">{{.VersionTag}}</span>
+            </div>
+            <h3 class="search-result-title">
+                <a href="{{.URL}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>
+            </h3>
+            <div class="search-result-path">{{.FilePath}}</div>
+            {{if .Snippet}}
+            <div class="search-result-snippet">{{safe .Snippet}}</div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+
+    <div class="search-pagination">
+        {{if .HasPrev}}
+        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.PrevOffset}}&limit={{.Limit}}" class="btn btn-secondary">&larr; Previous</a>
+        {{end}}
+        {{if .HasNext}}
+        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.NextOffset}}&limit={{.Limit}}" class="btn btn-secondary">Next &rarr;</a>
+        {{end}}
+    </div>
+    {{end}}
+    {{end}}
+</div>
+{{end}}

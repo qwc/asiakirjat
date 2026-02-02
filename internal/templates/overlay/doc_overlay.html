@@ -56,7 +56,74 @@
 #asiakirjat-overlay .ao-right {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
+}
+#asiakirjat-overlay .ao-search-wrap {
+    position: relative;
+}
+#asiakirjat-overlay .ao-search-input {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #475569;
+    background: #1e3a5f;
+    color: white;
+    font-size: 0.8rem;
+    width: 180px;
+    transition: border-color 0.15s, width 0.15s;
+}
+#asiakirjat-overlay .ao-search-input::placeholder {
+    color: #94a3b8;
+}
+#asiakirjat-overlay .ao-search-input:focus {
+    outline: none;
+    border-color: #60a5fa;
+    width: 240px;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+}
+#asiakirjat-overlay .ao-search-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    background: #1e293b;
+    border: 1px solid #3b82f6;
+    border-radius: 4px;
+    width: 360px;
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+#asiakirjat-overlay .ao-search-dropdown a {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    text-decoration: none;
+    color: #e2e8f0;
+    border-bottom: 1px solid #334155;
+    font-size: 0.8rem;
+}
+#asiakirjat-overlay .ao-search-dropdown a:hover {
+    background: #334155;
+}
+#asiakirjat-overlay .ao-search-dropdown a:last-child {
+    border-bottom: none;
+}
+#asiakirjat-overlay .ao-search-item-title {
+    font-weight: 600;
+    margin-bottom: 0.125rem;
+}
+#asiakirjat-overlay .ao-search-item-snippet {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#asiakirjat-overlay .ao-search-empty {
+    padding: 0.5rem 0.75rem;
+    color: #94a3b8;
+    font-size: 0.8rem;
 }
 #asiakirjat-overlay .ao-label {
     color: #94a3b8;
@@ -96,6 +163,11 @@
             <a href="/project/{{.Slug}}" class="ao-project">{{.ProjectName}}</a>
         </div>
         <div class="ao-right">
+            <div class="ao-search-wrap">
+                <input type="text" class="ao-search-input" id="asiakirjat-overlay-search" placeholder="Search in {{.ProjectName}}..." autocomplete="off"
+                    data-slug="{{.Slug}}" data-version="{{.Version}}">
+                <div class="ao-search-dropdown" id="asiakirjat-overlay-search-dropdown"></div>
+            </div>
             <span class="ao-label">Version</span>
             <select id="asiakirjat-version-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
                 <option value="{{.Version}}" selected>{{.Version}}</option>

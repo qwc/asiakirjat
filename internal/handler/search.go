@@ -1,0 +1,250 @@
+package handler
+
+import (
+	"context"
+	"net/http"
+	"strconv"
+
+	"github.com/qwc/asiakirjat/internal/auth"
+	"github.com/qwc/asiakirjat/internal/database"
+	"github.com/qwc/asiakirjat/internal/docs"
+)
+
+func (h *Handler) handleAPISearch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		h.jsonResponse(w, &docs.SearchResults{Results: []docs.SearchResult{}, Total: 0})
+		return
+	}
+
+	projectSlug := r.URL.Query().Get("project")
+	versionTag := r.URL.Query().Get("version")
+	allVersions := r.URL.Query().Get("all_versions") == "1"
+
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := 0
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	sq := docs.SearchQuery{
+		Query:       q,
+		ProjectSlug: projectSlug,
+		VersionTag:  versionTag,
+		AllVersions: allVersions,
+		Limit:       limit,
+		Offset:      offset,
+	}
+
+	latestTags := h.getLatestVersionTags(ctx)
+
+	results, err := h.searchIndex.Search(sq, latestTags)
+	if err != nil {
+		h.logger.Error("search failed", "error", err)
+		h.jsonError(w, "Search failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Filter results by user's project access
+	results = h.filterSearchResults(ctx, user, results)
+
+	h.jsonResponse(w, results)
+}
+
+func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+
+	q := r.URL.Query().Get("q")
+	projectSlug := r.URL.Query().Get("project")
+	allVersions := r.URL.Query().Get("all_versions") == "1"
+
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := 0
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	// Get all accessible projects for the filter dropdown
+	allProjects, _ := h.projects.List(ctx)
+	var accessibleProjects []database.Project
+	for _, p := range allProjects {
+		if h.canViewProject(ctx, user, &p) {
+			accessibleProjects = append(accessibleProjects, p)
+		}
+	}
+
+	data := map[string]any{
+		"User":        user,
+		"Query":       q,
+		"Project":     projectSlug,
+		"AllVersions": allVersions,
+		"Limit":       limit,
+		"Offset":      offset,
+		"Projects":    accessibleProjects,
+	}
+
+	if q != "" {
+		sq := docs.SearchQuery{
+			Query:       q,
+			ProjectSlug: projectSlug,
+			AllVersions: allVersions,
+			Limit:       limit,
+			Offset:      offset,
+		}
+
+		latestTags := h.getLatestVersionTags(ctx)
+
+		results, err := h.searchIndex.Search(sq, latestTags)
+		if err != nil {
+			h.logger.Error("search failed", "error", err)
+			data["Error"] = "Search failed"
+		} else {
+			results = h.filterSearchResults(ctx, user, results)
+			data["Results"] = results.Results
+			data["Total"] = results.Total
+			data["HasPrev"] = offset > 0
+			data["HasNext"] = uint64(offset+limit) < results.Total
+			data["PrevOffset"] = offset - limit
+			data["NextOffset"] = offset + limit
+		}
+	}
+
+	h.render(w, "search", data)
+}
+
+func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	allProjects, err := h.projects.List(ctx)
+	if err != nil {
+		h.logger.Error("listing projects for reindex", "error", err)
+		http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+		return
+	}
+
+	var projects []docs.ReindexProject
+	var versions []docs.ReindexVersion
+
+	for _, p := range allProjects {
+		projects = append(projects, docs.ReindexProject{
+			ID:   p.ID,
+			Slug: p.Slug,
+			Name: p.Name,
+		})
+
+		vlist, err := h.versions.ListByProject(ctx, p.ID)
+		if err != nil {
+			continue
+		}
+		for _, v := range vlist {
+			versions = append(versions, docs.ReindexVersion{
+				ID:          v.ID,
+				ProjectID:   v.ProjectID,
+				Tag:         v.Tag,
+				StoragePath: v.StoragePath,
+			})
+		}
+	}
+
+	go func() {
+		if err := h.searchIndex.ReindexAll(projects, versions); err != nil {
+			h.logger.Error("reindex failed", "error", err)
+		} else {
+			h.logger.Info("reindex completed")
+		}
+	}()
+
+	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+}
+
+// getLatestVersionTags returns a map of projectSlug -> latest version tag.
+func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
+	result := make(map[string]string)
+
+	projects, err := h.projects.List(ctx)
+	if err != nil {
+		return result
+	}
+
+	for _, p := range projects {
+		versions, err := h.versions.ListByProject(ctx, p.ID)
+		if err != nil || len(versions) == 0 {
+			continue
+		}
+		tags := make([]string, len(versions))
+		for i, v := range versions {
+			tags[i] = v.Tag
+		}
+		docs.SortVersionTags(tags)
+		result[p.Slug] = tags[0]
+	}
+
+	return result
+}
+
+// filterSearchResults removes results for projects the user can't access.
+func (h *Handler) filterSearchResults(ctx context.Context, user *database.User, results *docs.SearchResults) *docs.SearchResults {
+	// Cache project access checks
+	projectCache := make(map[string]bool)
+
+	var filtered []docs.SearchResult
+	for _, r := range results.Results {
+		allowed, ok := projectCache[r.ProjectSlug]
+		if !ok {
+			p, err := h.projects.GetBySlug(ctx, r.ProjectSlug)
+			if err != nil {
+				allowed = false
+			} else {
+				allowed = h.canViewProject(ctx, user, p)
+			}
+			projectCache[r.ProjectSlug] = allowed
+		}
+		if allowed {
+			filtered = append(filtered, r)
+		}
+	}
+
+	if filtered == nil {
+		filtered = []docs.SearchResult{}
+	}
+
+	return &docs.SearchResults{
+		Results: filtered,
+		Total:   uint64(len(filtered)),
+	}
+}
+
+// canViewProject checks if a user can view a project.
+func (h *Handler) canViewProject(ctx context.Context, user *database.User, project *database.Project) bool {
+	if project.IsPublic {
+		return true
+	}
+	if user == nil {
+		return false
+	}
+	if user.Role == "admin" {
+		return true
+	}
+	access, err := h.access.GetAccess(ctx, project.ID, user.ID)
+	return err == nil && access != nil
+}
