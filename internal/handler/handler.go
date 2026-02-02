@@ -24,6 +24,7 @@ type Handler struct {
 	access         store.ProjectAccessStore
 	tokens         store.TokenStore
 	authenticators []auth.Authenticator
+	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
 	logger         *slog.Logger
 }
@@ -40,6 +41,7 @@ type Deps struct {
 	Access         store.ProjectAccessStore
 	Tokens         store.TokenStore
 	Authenticators []auth.Authenticator
+	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
 	Logger         *slog.Logger
 }
@@ -57,6 +59,7 @@ func New(deps Deps) *Handler {
 		access:         deps.Access,
 		tokens:         deps.Tokens,
 		authenticators: deps.Authenticators,
+		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
 		logger:         deps.Logger,
 	}
@@ -71,6 +74,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /login", h.withSession(h.handleLoginPage))
 	mux.HandleFunc("POST /login", h.withSession(h.handleLoginSubmit))
 	mux.HandleFunc("GET /logout", h.withSession(h.handleLogout))
+	mux.HandleFunc("GET /auth/oauth2", h.handleOAuth2Login)
 	mux.HandleFunc("GET /auth/callback", h.withSession(h.handleOAuth2Callback))
 
 	// Project pages

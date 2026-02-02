@@ -90,6 +90,18 @@ func main() {
 		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
 	}
 
+	// Add OAuth2 authenticator if enabled
+	var oauth2Auth *auth.OAuth2Authenticator
+	if cfg.Auth.OAuth2.Enabled {
+		if err := auth.ValidateOAuth2Config(cfg.Auth.OAuth2); err != nil {
+			logger.Error("invalid OAuth2 config", "error", err)
+			os.Exit(1)
+		}
+		oauth2Auth = auth.NewOAuth2Authenticator(cfg.Auth.OAuth2, userStore, logger)
+		authenticators = append(authenticators, oauth2Auth)
+		logger.Info("OAuth2 authentication enabled")
+	}
+
 	// Create initial admin user if no users exist
 	ensureInitialAdmin(logger, userStore, cfg)
 
@@ -120,6 +132,7 @@ func main() {
 		Access:         accessStore,
 		Tokens:         tokenStore,
 		Authenticators: authenticators,
+		OAuth2Auth:     oauth2Auth,
 		SessionMgr:     sessionMgr,
 		Logger:         logger,
 	})

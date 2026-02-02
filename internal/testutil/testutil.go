@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -27,4 +29,11 @@ func NewTestDB(t *testing.T) *sqlx.DB {
 	})
 
 	return db
+}
+
+// TestLogger returns a logger suitable for tests (writes to stdout).
+func TestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+	}))
 }
