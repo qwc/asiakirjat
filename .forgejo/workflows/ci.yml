@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: golang:1.24-alpine
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: apk add --no-cache git
+
+      - name: Run tests
+        run: go test -mod=vendor -count=1 ./...
+
+  build:
+    runs-on: docker
+    container:
+      image: golang:1.24-alpine
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build binary
+        run: CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-s -w" -o asiakirjat .
+
+  docker:
+    runs-on: docker
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t asiakirjat:latest .

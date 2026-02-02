@@ -1,0 +1,12 @@
+services:
+  asiakirjat:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - data:/app/data
+    restart: unless-stopped
+
+volumes:
+  data:

@@ -1,0 +1,9 @@
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+config.yaml
+.git
+.mcp.json
+details.md

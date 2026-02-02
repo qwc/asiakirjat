@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
@@ -26,6 +27,7 @@ type Handler struct {
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
+	loginLimiter   *RateLimiter
 	logger         *slog.Logger
 }
 
@@ -61,6 +63,7 @@ func New(deps Deps) *Handler {
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
+		loginLimiter:   NewRateLimiter(10, 60*time.Second),
 		logger:         deps.Logger,
 	}
 }
@@ -72,7 +75,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Public pages
 	mux.HandleFunc("GET /{$}", h.withSession(h.handleFrontpage))
 	mux.HandleFunc("GET /login", h.withSession(h.handleLoginPage))
-	mux.HandleFunc("POST /login", h.withSession(h.handleLoginSubmit))
+	mux.HandleFunc("POST /login", withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
 	mux.HandleFunc("GET /logout", h.withSession(h.handleLogout))
 	mux.HandleFunc("GET /auth/oauth2", h.handleOAuth2Login)
 	mux.HandleFunc("GET /auth/callback", h.withSession(h.handleOAuth2Callback))

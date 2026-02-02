@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
@@ -1903,6 +1904,64 @@ func TestProjectDetailSemverSortedVersions(t *testing.T) {
 	}
 	if idx200 > idx100 {
 		t.Error("v2.0.0 should appear before v1.0.0")
+	}
+}
+
+func TestLoginRateLimiting(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	// Set a low limit for testing
+	app.handler.loginLimiter = NewRateLimiter(3, time.Minute)
+
+	// Re-register routes with the new limiter
+	mux := http.NewServeMux()
+	app.handler.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Make 3 login attempts with X-Forwarded-For (all allowed)
+	for i := range 3 {
+		form := url.Values{}
+		form.Set("username", "admin")
+		form.Set("password", "wrongpass")
+
+		req, _ := http.NewRequest("POST", server.URL+"/login", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("X-Forwarded-For", "10.0.0.99")
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Errorf("request %d should not be rate limited", i+1)
+		}
+	}
+
+	// 4th attempt should be rate limited
+	form := url.Values{}
+	form.Set("username", "admin")
+	form.Set("password", "wrongpass")
+
+	req, _ := http.NewRequest("POST", server.URL+"/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Forwarded-For", "10.0.0.99")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("expected 429 after rate limit exceeded, got %d", resp.StatusCode)
 	}
 }
 
