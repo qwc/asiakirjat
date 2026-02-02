@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
@@ -31,7 +33,7 @@ func DetectDialect(driver string) Dialect {
 func Open(driver, dsn string) (*sqlx.DB, Dialect, error) {
 	dialect := DetectDialect(driver)
 
-	driverName := string(dialect)
+	var driverName string
 	switch dialect {
 	case DialectSQLite:
 		driverName = "sqlite"
@@ -39,6 +41,8 @@ func Open(driver, dsn string) (*sqlx.DB, Dialect, error) {
 		driverName = "pgx"
 	case DialectMySQL:
 		driverName = "mysql"
+	default:
+		driverName = "sqlite"
 	}
 
 	slog.Info("opening database", "driver", driverName, "dialect", dialect)

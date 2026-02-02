@@ -17,8 +17,14 @@ func NewProjectAccessStore(db *sqlx.DB) *ProjectAccessStore {
 }
 
 func (s *ProjectAccessStore) Grant(ctx context.Context, access *database.ProjectAccess) error {
-	query := `INSERT INTO project_access (project_id, user_id, role) VALUES (?, ?, ?)
-		ON CONFLICT(project_id, user_id) DO UPDATE SET role = ?`
+	var query string
+	if s.db.DriverName() == "mysql" {
+		query = `INSERT INTO project_access (project_id, user_id, role) VALUES (?, ?, ?)
+			ON DUPLICATE KEY UPDATE role = ?`
+	} else {
+		query = `INSERT INTO project_access (project_id, user_id, role) VALUES (?, ?, ?)
+			ON CONFLICT(project_id, user_id) DO UPDATE SET role = ?`
+	}
 	_, err := s.db.ExecContext(ctx, s.db.Rebind(query),
 		access.ProjectID, access.UserID, access.Role, access.Role)
 	if err != nil {
