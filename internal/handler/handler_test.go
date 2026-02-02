@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -918,6 +919,332 @@ func TestViewerCannotUpload(t *testing.T) {
 
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("expected 403 for viewer on upload page, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdminCreateProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("slug", "new-project")
+	form.Set("name", "New Project")
+	form.Set("description", "A test project")
+	form.Set("is_public", "1")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	// Verify project was created
+	ctx := context.Background()
+	project, err := app.handler.projects.GetBySlug(ctx, "new-project")
+	if err != nil {
+		t.Fatal("expected project to be created")
+	}
+	if project.Name != "New Project" {
+		t.Errorf("expected project name 'New Project', got %q", project.Name)
+	}
+	if !project.IsPublic {
+		t.Error("expected project to be public")
+	}
+}
+
+func TestAdminUpdateProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "update-me", "Original Name", false)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("slug", "update-me")
+	form.Set("name", "Updated Name")
+	form.Set("description", "Updated description")
+	form.Set("is_public", "1")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/update-me/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	ctx := context.Background()
+	project, _ := app.handler.projects.GetBySlug(ctx, "update-me")
+	if project.Name != "Updated Name" {
+		t.Errorf("expected 'Updated Name', got %q", project.Name)
+	}
+	if !project.IsPublic {
+		t.Error("expected project to be public after update")
+	}
+}
+
+func TestAdminDeleteProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "delete-me", "Delete Me", true)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/delete-me/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	ctx := context.Background()
+	_, err = app.handler.projects.GetBySlug(ctx, "delete-me")
+	if err == nil {
+		t.Error("expected project to be deleted")
+	}
+}
+
+func TestAdminCreateUser(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("username", "neweditor")
+	form.Set("password", "pass123")
+	form.Set("email", "editor@example.com")
+	form.Set("role", "editor")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/users", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	ctx := context.Background()
+	user, err := app.handler.users.GetByUsername(ctx, "neweditor")
+	if err != nil {
+		t.Fatal("expected user to be created")
+	}
+	if user.Role != "editor" {
+		t.Errorf("expected role 'editor', got %q", user.Role)
+	}
+}
+
+func TestAdminDeleteUser(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	// Create a user to delete
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("pass")
+	deleteMe := &database.User{
+		Username: "deleteme", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, deleteMe)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/users/"+strings.TrimSpace(fmt.Sprintf("%d", deleteMe.ID))+"/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	_, err = app.handler.users.GetByUsername(ctx, "deleteme")
+	if err == nil {
+		t.Error("expected user to be deleted")
+	}
+}
+
+func TestEditorCanUploadToAssignedProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "proj", "Project", true)
+
+	// Create an editor user
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "editor", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, editor)
+
+	// Grant editor access to the project
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "editor", "editor123")
+
+	// Check editor can see upload page
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/proj/upload", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for editor with access, got %d", resp.StatusCode)
+	}
+}
+
+func TestPrivateProjectAccessForGrantedUser(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "private-proj", "Private", false)
+
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "granteduser", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	// Grant access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    user.ID,
+		Role:      "viewer",
+	})
+
+	cookies := loginUser(t, app, "granteduser", "user123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/private-proj", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for user with access, got %d", resp.StatusCode)
+	}
+}
+
+func TestPrivateProjectForbiddenWithoutAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "secret", "Secret", false)
+
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "noaccess", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "noaccess", "user123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/secret", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for user without access, got %d", resp.StatusCode)
 	}
 }
 
