@@ -46,20 +46,12 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout source
-        run: |
-          cd /workspace
-          git clone --depth 1 --branch ${{ github.ref_name }} ${{ github.server_url }}/${{ github.repository }}.git .
-
-      - name: Configure registry credentials
+      - name: Configure registry and build image
         run: |
           mkdir -p /kaniko/.docker
           echo "{\"auths\":{\"git.mmo.to\":{\"auth\":\"$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_TOKEN }}" | base64)\"}}}" > /kaniko/.docker/config.json
-
-      - name: Build and push Docker image
-        run: >
-          /kaniko/executor
-          --context /workspace
-          --dockerfile /workspace/Dockerfile
-          --destination git.mmo.to/qwc-open/asiakirjat:latest
-          --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}
+          /kaniko/executor \
+            --context git://${{ github.server_url }}/${{ github.repository }}.git#refs/heads/${{ github.ref_name }} \
+            --dockerfile Dockerfile \
+            --destination git.mmo.to/qwc-open/asiakirjat:latest \
+            --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}
