@@ -51,7 +51,7 @@ jobs:
           mkdir -p /kaniko/.docker
           echo "{\"auths\":{\"git.mmo.to\":{\"auth\":\"$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_TOKEN }}" | base64)\"}}}" > /kaniko/.docker/config.json
           /kaniko/executor \
-            --context ${{ github.server_url }}/${{ github.repository }}.git#refs/heads/${{ github.ref_name }} \
+            --context git://git.mmo.to/qwc-open/asiakirjat.git#refs/heads/${{ github.ref_name }} \
             --dockerfile Dockerfile \
             --destination git.mmo.to/qwc-open/asiakirjat:latest \
             --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}
