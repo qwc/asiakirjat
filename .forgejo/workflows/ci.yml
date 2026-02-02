@@ -46,7 +46,10 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        run: |
+          cd /workspace
+          git clone --depth 1 --branch ${{ github.ref_name }} ${{ github.server_url }}/${{ github.repository }}.git .
 
       - name: Configure registry credentials
         run: |
@@ -56,7 +59,7 @@ jobs:
       - name: Build and push Docker image
         run: >
           /kaniko/executor
-          --context .
-          --dockerfile Dockerfile
+          --context /workspace
+          --dockerfile /workspace/Dockerfile
           --destination git.mmo.to/qwc-open/asiakirjat:latest
           --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}
