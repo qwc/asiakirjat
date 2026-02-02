@@ -1248,5 +1248,259 @@ func TestPrivateProjectForbiddenWithoutAccess(t *testing.T) {
 	}
 }
 
+func TestAPIUploadWithBearerToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "api-proj", "API Project", true)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "ci-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Grant upload access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    robot.ID,
+		Role:      "editor",
+	})
+
+	// Generate token
+	rawToken, _ := auth.GenerateToken(32)
+	tokenHash := auth.HashToken(rawToken)
+	app.handler.tokens.Create(ctx, &database.APIToken{
+		UserID:    robot.ID,
+		TokenHash: tokenHash,
+		Name:      "ci-token",
+		Scopes:    "upload",
+	})
+
+	// Build multipart upload
+	zipBuf := createTestZip(t, map[string]string{
+		"index.html": "<html>API uploaded</html>",
+	})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v2.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/api-proj/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(respBody), "v2.0.0") {
+		t.Error("expected version in response")
+	}
+
+	// Verify docs are served
+	docResp, _ := http.Get(app.server.URL + "/project/api-proj/v2.0.0/index.html")
+	defer docResp.Body.Close()
+
+	if docResp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for API-uploaded doc, got %d", docResp.StatusCode)
+	}
+
+	docBody, _ := io.ReadAll(docResp.Body)
+	if !strings.Contains(string(docBody), "API uploaded") {
+		t.Error("expected uploaded content")
+	}
+}
+
+func TestAPIUploadUnauthorized(t *testing.T) {
+	app := setupTestApp(t)
+	seedProject(t, app, "proj", "Project", true)
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(createTestZip(t, map[string]string{"index.html": "test"}).Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/proj/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	// No Authorization header
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 without auth, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIUploadInvalidToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedProject(t, app, "proj", "Project", true)
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(createTestZip(t, map[string]string{"index.html": "test"}).Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/proj/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer invalidtoken123")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 for invalid token, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIUploadWithoutProjectAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "restricted", "Restricted", false)
+
+	ctx := context.Background()
+
+	// Create robot with NO access to the project
+	robot := &database.User{
+		Username:   "no-access-bot",
+		AuthSource: "robot",
+		Role:       "viewer", // viewer role, no project access
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	rawToken, _ := auth.GenerateToken(32)
+	tokenHash := auth.HashToken(rawToken)
+	app.handler.tokens.Create(ctx, &database.APIToken{
+		UserID:    robot.ID,
+		TokenHash: tokenHash,
+		Name:      "limited-token",
+		Scopes:    "upload",
+	})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(createTestZip(t, map[string]string{"index.html": "test"}).Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/restricted/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 without project access, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdminCreateRobotAndGenerateToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Create robot
+	form := url.Values{}
+	form.Set("username", "deploy-bot")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/robots", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 after creating robot, got %d", resp.StatusCode)
+	}
+
+	// Verify robot was created
+	ctx := context.Background()
+	robot, err := app.handler.users.GetByUsername(ctx, "deploy-bot")
+	if err != nil {
+		t.Fatal("expected robot to be created")
+	}
+	if !robot.IsRobot {
+		t.Error("expected user to be a robot")
+	}
+	if robot.AuthSource != "robot" {
+		t.Errorf("expected auth_source 'robot', got %q", robot.AuthSource)
+	}
+
+	// Generate token for the robot
+	form2 := url.Values{}
+	form2.Set("name", "deploy-token")
+
+	req2, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/robots/%d/tokens", robot.ID), strings.NewReader(form2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req2.AddCookie(c)
+	}
+
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+
+	// Should render page with new token (200, not redirect)
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 with new token displayed, got %d", resp2.StatusCode)
+	}
+
+	respBody, _ := io.ReadAll(resp2.Body)
+	body2 := string(respBody)
+	if !strings.Contains(body2, "New API Token Generated") {
+		t.Error("expected token display message in response")
+	}
+}
+
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)
