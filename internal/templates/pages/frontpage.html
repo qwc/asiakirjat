@@ -1,0 +1,23 @@
+{{define "title"}}asiakirjat - Documentation{{end}}
+
+{{define "content"}}
+<div class="frontpage">
+    <div class="frontpage-header">
+        <h1>Documentation</h1>
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Search projects..." autocomplete="off">
+        </div>
+    </div>
+    <div class="project-grid" id="project-grid">
+        {{range .Projects}}
+        {{template "project_card" .}}
+        {{else}}
+        <p class="no-projects">No projects available.</p>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/search.js"></script>
+{{end}}

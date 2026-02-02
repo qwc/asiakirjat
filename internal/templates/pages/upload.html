@@ -1,0 +1,26 @@
+{{define "title"}}Upload - {{.Project.Name}} - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="upload-page">
+    <h1>Upload Documentation</h1>
+    <p>Project: <strong>{{.Project.Name}}</strong></p>
+
+    {{if .Error}}
+    <div class="flash flash-error">{{.Error}}</div>
+    {{end}}
+
+    <form method="POST" action="/project/{{.Project.Slug}}/upload" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="version">Version Tag</label>
+            <input type="text" id="version" name="version" placeholder="e.g. v1.0.0" required>
+        </div>
+        <div class="form-group">
+            <label for="archive">Documentation Archive</label>
+            <input type="file" id="archive" name="archive" accept=".zip,.tar.gz,.tar.bz2,.tgz,.tbz2" required>
+            <small>Supported formats: ZIP, tar.gz, tar.bz2</small>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload</button>
+        <a href="/project/{{.Project.Slug}}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{{end}}

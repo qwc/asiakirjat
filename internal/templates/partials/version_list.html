@@ -1,0 +1,12 @@
+{{define "version_list"}}
+<ul class="version-list">
+    {{range .}}
+    <li class="version-item">
+        <a href="{{.URL}}" class="version-link">{{.Tag}}</a>
+        <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
+    </li>
+    {{else}}
+    <li class="version-item version-empty">No versions uploaded yet.</li>
+    {{end}}
+</ul>
+{{end}}

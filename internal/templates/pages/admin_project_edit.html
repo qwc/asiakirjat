@@ -1,0 +1,80 @@
+{{define "title"}}Edit {{.Project.Name}} - Admin - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Edit Project: {{.Project.Name}}</h1>
+
+    <form method="POST" action="/admin/projects/{{.Project.Slug}}/edit">
+        <div class="form-group">
+            <label for="slug">Slug</label>
+            <input type="text" id="slug" name="slug" value="{{.Project.Slug}}" required pattern="[a-z0-9-]+">
+        </div>
+        <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" value="{{.Project.Name}}" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="5">{{.Project.Description}}</textarea>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="is_public" value="1" {{if .Project.IsPublic}}checked{{end}}> Public
+            </label>
+        </div>
+
+        <h2>Project Access</h2>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .AccessList}}
+                <tr>
+                    <td>{{.Username}}</td>
+                    <td>{{.Role}}</td>
+                    <td>
+                        <form method="POST" action="/admin/projects/{{$.Project.Slug}}/access/revoke" class="inline-form">
+                            <input type="hidden" name="user_id" value="{{.UserID}}">
+                            <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+                        </form>
+                    </td>
+                </tr>
+                {{else}}
+                <tr><td colspan="3">No specific access grants.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="grant_user">Grant Access</label>
+                <select id="grant_user" name="grant_user_id" form="grant-form">
+                    {{range .Users}}
+                    <option value="{{.ID}}">{{.Username}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="grant_role">Role</label>
+                <select id="grant_role" name="grant_role" form="grant-form">
+                    <option value="viewer">Viewer</option>
+                    <option value="editor">Editor</option>
+                </select>
+            </div>
+        </div>
+        <form id="grant-form" method="POST" action="/admin/projects/{{.Project.Slug}}/access/grant">
+            <button type="submit" class="btn btn-secondary">Grant Access</button>
+        </form>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="/admin/projects" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}}

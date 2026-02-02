@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{block "title" .}}asiakirjat{{end}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {{block "head" .}}{{end}}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="/">asiakirjat</a>
+        </div>
+        <div class="navbar-menu">
+            {{if .User}}
+                <span class="navbar-user">{{.User.Username}}</span>
+                {{if eq .User.Role "admin"}}
+                    <a href="/admin/projects" class="navbar-link">Admin</a>
+                {{end}}
+                <a href="/logout" class="navbar-link">Logout</a>
+            {{else}}
+                <a href="/login" class="navbar-link">Login</a>
+            {{end}}
+        </div>
+    </nav>
+    <main class="container">
+        {{template "flash" .}}
+        {{block "content" .}}{{end}}
+    </main>
+    <footer class="footer">
+        <p>asiakirjat &mdash; versioned documentation service</p>
+    </footer>
+    {{block "scripts" .}}{{end}}
+</body>
+</html>

@@ -1,0 +1,27 @@
+{{define "title"}}Login - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="login-page">
+    <div class="login-card">
+        <h2>Login</h2>
+        {{if .Error}}
+        <div class="flash flash-error">{{.Error}}</div>
+        {{end}}
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Login</button>
+        </form>
+        {{if .OAuth2Enabled}}
+        <div class="login-divider"><span>or</span></div>
+        <a href="/auth/oauth2/redirect" class="btn btn-secondary btn-block">Login with SSO</a>
+        {{end}}
+    </div>
+</div>
+{{end}}

@@ -1,0 +1,7 @@
+{{define "flash"}}
+{{if .Flash}}
+<div class="flash flash-{{.Flash.Type}}">
+    {{.Flash.Message}}
+</div>
+{{end}}
+{{end}}

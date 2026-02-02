@@ -1,0 +1,70 @@
+{{define "title"}}Admin: Projects - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Manage Projects</h1>
+
+    <div class="admin-nav">
+        <a href="/admin/projects" class="admin-nav-link active">Projects</a>
+        <a href="/admin/users" class="admin-nav-link">Users</a>
+        <a href="/admin/robots" class="admin-nav-link">Robot Users</a>
+    </div>
+
+    <div class="admin-create-form">
+        <h2>Create Project</h2>
+        <form method="POST" action="/admin/projects">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="slug">Slug</label>
+                    <input type="text" id="slug" name="slug" required pattern="[a-z0-9-]+" placeholder="my-project">
+                </div>
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required placeholder="My Project">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <input type="text" id="description" name="description" placeholder="Optional description">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="is_public" value="1"> Public
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+        </form>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Slug</th>
+                <th>Name</th>
+                <th>Public</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Projects}}
+            <tr>
+                <td><a href="/project/{{.Slug}}">{{.Slug}}</a></td>
+                <td>{{.Name}}</td>
+                <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
+                <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+                <td>
+                    <a href="/admin/projects/{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>
+                    <form method="POST" action="/admin/projects/{{.Slug}}/delete" class="inline-form"
+                        onsubmit="return confirm('Delete project {{.Name}}?')">
+                        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="5">No projects yet.</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}

@@ -1,0 +1,10 @@
+<div id="asiakirjat-overlay" class="doc-overlay">
+    <div class="doc-overlay-content">
+        <a href="/project/{{.Slug}}" class="doc-overlay-link">{{.ProjectName}}</a>
+        <select id="asiakirjat-version-select" class="doc-overlay-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
+            <option value="{{.Version}}" selected>{{.Version}}</option>
+        </select>
+        <a href="/" class="doc-overlay-home" title="Home">&larr; Home</a>
+    </div>
+</div>
+<script src="/static/js/overlay.js"></script>

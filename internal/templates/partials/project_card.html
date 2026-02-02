@@ -1,0 +1,15 @@
+{{define "project_card"}}
+<div class="project-card" data-name="{{lower .Name}}" data-slug="{{lower .Slug}}">
+    <h3 class="project-card-title">{{.Name}}</h3>
+    <p class="project-card-slug">{{.Slug}}</p>
+    {{if .Description}}
+    <p class="project-card-desc">{{.Description}}</p>
+    {{end}}
+    <div class="project-card-actions">
+        <a href="/project/{{.Slug}}" class="btn btn-secondary">Details</a>
+        {{if .LatestVersion}}
+        <a href="/project/{{.Slug}}/{{.LatestVersion}}/" class="btn btn-primary">Latest</a>
+        {{end}}
+    </div>
+</div>
+{{end}}

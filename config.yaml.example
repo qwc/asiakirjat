@@ -1,0 +1,37 @@
+server:
+  address: "0.0.0.0"
+  port: 8080
+
+database:
+  driver: "sqlite"     # sqlite, postgres, mysql
+  dsn: "data/asiakirjat.db"
+
+auth:
+  initial_admin:
+    username: "admin"
+    password: "changeme"
+  session:
+    cookie_name: "asiakirjat_session"
+    max_age: 86400       # seconds (24h)
+    secure: false        # set to true behind HTTPS
+  ldap:
+    enabled: false
+    url: "ldap://localhost:389"
+    bind_dn: "cn=admin,dc=example,dc=com"
+    bind_password: ""
+    base_dn: "dc=example,dc=com"
+    user_filter: "(uid={{.Username}})"
+    admin_group: "cn=admins,ou=groups,dc=example,dc=com"
+    editor_group: "cn=editors,ou=groups,dc=example,dc=com"
+  oauth2:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    auth_url: ""
+    token_url: ""
+    userinfo_url: ""
+    redirect_url: "http://localhost:8080/auth/callback"
+    scopes: "openid profile email"
+
+storage:
+  base_path: "data/projects"

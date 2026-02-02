@@ -1,0 +1,77 @@
+{{define "title"}}Admin: Robot Users - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Manage Robot Users</h1>
+
+    <div class="admin-nav">
+        <a href="/admin/projects" class="admin-nav-link">Projects</a>
+        <a href="/admin/users" class="admin-nav-link">Users</a>
+        <a href="/admin/robots" class="admin-nav-link active">Robot Users</a>
+    </div>
+
+    <div class="admin-create-form">
+        <h2>Create Robot User</h2>
+        <form method="POST" action="/admin/robots">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required placeholder="ci-bot">
+                </div>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+        </form>
+    </div>
+
+    {{if .NewToken}}
+    <div class="flash flash-success">
+        <strong>New API Token Generated!</strong> Copy it now — it won't be shown again:<br>
+        <code class="token-display">{{.NewToken}}</code>
+    </div>
+    {{end}}
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Created</th>
+                <th>Tokens</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Robots}}
+            <tr>
+                <td>{{.User.Username}}</td>
+                <td>{{.User.CreatedAt.Format "2006-01-02"}}</td>
+                <td>
+                    {{range .Tokens}}
+                    <div class="token-row">
+                        <span>{{.Name}}</span>
+                        <span class="token-date">{{.CreatedAt.Format "2006-01-02"}}</span>
+                        <form method="POST" action="/admin/robots/{{$.RobotID}}/tokens/{{.ID}}/revoke" class="inline-form">
+                            <button type="submit" class="btn btn-tiny btn-danger">Revoke</button>
+                        </form>
+                    </div>
+                    {{else}}
+                    <em>No tokens</em>
+                    {{end}}
+                </td>
+                <td>
+                    <form method="POST" action="/admin/robots/{{.User.ID}}/tokens" class="inline-form">
+                        <input type="text" name="name" placeholder="Token name" required class="input-small">
+                        <button type="submit" class="btn btn-small btn-secondary">Generate Token</button>
+                    </form>
+                    <form method="POST" action="/admin/robots/{{.User.ID}}/delete" class="inline-form"
+                        onsubmit="return confirm('Delete robot {{.User.Username}}?')">
+                        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="4">No robot users.</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}

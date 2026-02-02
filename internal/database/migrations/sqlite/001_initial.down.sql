@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS api_tokens;
+DROP TABLE IF EXISTS project_access;
+DROP TABLE IF EXISTS versions;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS users;

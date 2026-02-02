@@ -1,0 +1,22 @@
+{{define "title"}}{{.Project.Name}} - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="project-detail">
+    <div class="project-detail-header">
+        <h1>{{.Project.Name}}</h1>
+        <span class="project-slug">{{.Project.Slug}}</span>
+        {{if .CanUpload}}
+        <a href="/project/{{.Project.Slug}}/upload" class="btn btn-primary">Upload Version</a>
+        {{end}}
+    </div>
+
+    {{if .Project.Description}}
+    <div class="project-description">
+        {{.Project.Description}}
+    </div>
+    {{end}}
+
+    <h2>Versions</h2>
+    {{template "version_list" .Versions}}
+</div>
+{{end}}
