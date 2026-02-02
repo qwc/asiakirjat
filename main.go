@@ -79,6 +79,17 @@ func main() {
 	builtinAuth := auth.NewBuiltinAuthenticator(userStore)
 	authenticators := []auth.Authenticator{builtinAuth}
 
+	// Add LDAP authenticator if enabled
+	if cfg.Auth.LDAP.Enabled {
+		if err := auth.ValidateLDAPConfig(cfg.Auth.LDAP); err != nil {
+			logger.Error("invalid LDAP config", "error", err)
+			os.Exit(1)
+		}
+		ldapAuth := auth.NewLDAPAuthenticator(cfg.Auth.LDAP, userStore, logger)
+		authenticators = append(authenticators, ldapAuth)
+		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
+	}
+
 	// Create initial admin user if no users exist
 	ensureInitialAdmin(logger, userStore, cfg)
 
