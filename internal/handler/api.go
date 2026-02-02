@@ -83,13 +83,23 @@ func (h *Handler) handleAPIVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sort versions by semver (descending)
+	tags := make([]string, len(versions))
+	versionMap := make(map[string]database.Version)
+	for i, v := range versions {
+		tags[i] = v.Tag
+		versionMap[v.Tag] = v
+	}
+	docs.SortVersionTags(tags)
+
 	type versionJSON struct {
 		Tag       string `json:"tag"`
 		CreatedAt string `json:"created_at"`
 	}
 
-	result := make([]versionJSON, 0, len(versions))
-	for _, v := range versions {
+	result := make([]versionJSON, 0, len(tags))
+	for _, tag := range tags {
+		v := versionMap[tag]
 		result = append(result, versionJSON{
 			Tag:       v.Tag,
 			CreatedAt: v.CreatedAt.Format("2006-01-02T15:04:05Z"),

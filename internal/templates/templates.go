@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"io"
 	"strings"
+
+	"github.com/yuin/goldmark"
 )
 
 //go:embed layouts/*.html pages/*.html partials/*.html overlay/*.html
@@ -22,12 +24,21 @@ func New() (*Engine, error) {
 		templates: make(map[string]*template.Template),
 	}
 
+	md := goldmark.New()
+
 	funcMap := template.FuncMap{
 		"upper":    strings.ToUpper,
 		"lower":    strings.ToLower,
 		"contains": strings.Contains,
 		"join":     strings.Join,
 		"safe":     func(s string) template.HTML { return template.HTML(s) },
+		"markdown": func(s string) template.HTML {
+			var buf bytes.Buffer
+			if err := md.Convert([]byte(s), &buf); err != nil {
+				return template.HTML(template.HTMLEscapeString(s))
+			}
+			return template.HTML(buf.String())
+		},
 	}
 
 	// Parse page templates, each extending the base layout

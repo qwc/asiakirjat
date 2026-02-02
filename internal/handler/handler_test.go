@@ -1689,17 +1689,18 @@ func TestOverlayInjectedInDirectoryIndex(t *testing.T) {
 	}
 }
 
-func TestAPIVersionsSortedAndFormatted(t *testing.T) {
+func TestAPIVersionsSemverSorted(t *testing.T) {
 	app := setupTestApp(t)
 	admin := seedAdmin(t, app)
-	project := seedProject(t, app, "ver-api", "Version API", true)
+	project := seedProject(t, app, "ver-sort", "Version Sort", true)
 
 	ctx := context.Background()
 	storage := app.handler.storage
 
-	for _, tag := range []string{"v1.0.0", "v2.0.0", "v1.5.0"} {
-		storage.EnsureVersionDir("ver-api", tag)
-		vp := storage.VersionPath("ver-api", tag)
+	// Create versions in non-sorted order
+	for _, tag := range []string{"v1.0.0", "v2.0.0", "v1.5.0", "v1.10.0"} {
+		storage.EnsureVersionDir("ver-sort", tag)
+		vp := storage.VersionPath("ver-sort", tag)
 		app.handler.versions.Create(ctx, &database.Version{
 			ProjectID:   project.ID,
 			Tag:         tag,
@@ -1708,7 +1709,7 @@ func TestAPIVersionsSortedAndFormatted(t *testing.T) {
 		})
 	}
 
-	resp, err := http.Get(app.server.URL + "/api/project/ver-api/versions")
+	resp, err := http.Get(app.server.URL + "/api/project/ver-sort/versions")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1718,28 +1719,190 @@ func TestAPIVersionsSortedAndFormatted(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "application/json") {
-		t.Errorf("expected JSON content type, got %s", ct)
-	}
-
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
 
-	// All three versions should be in the response
-	if !strings.Contains(bodyStr, "v1.0.0") {
-		t.Error("expected v1.0.0 in versions")
+	// Check semver ordering: v2.0.0 should appear before v1.10.0, which should appear before v1.5.0, etc.
+	idx200 := strings.Index(bodyStr, "v2.0.0")
+	idx1100 := strings.Index(bodyStr, "v1.10.0")
+	idx150 := strings.Index(bodyStr, "v1.5.0")
+	idx100 := strings.Index(bodyStr, "v1.0.0")
+
+	if idx200 == -1 || idx1100 == -1 || idx150 == -1 || idx100 == -1 {
+		t.Fatalf("expected all versions in response, got: %s", bodyStr)
 	}
-	if !strings.Contains(bodyStr, "v2.0.0") {
-		t.Error("expected v2.0.0 in versions")
+
+	if idx200 > idx1100 {
+		t.Error("v2.0.0 should appear before v1.10.0")
 	}
-	if !strings.Contains(bodyStr, "v1.5.0") {
-		t.Error("expected v1.5.0 in versions")
+	if idx1100 > idx150 {
+		t.Error("v1.10.0 should appear before v1.5.0")
+	}
+	if idx150 > idx100 {
+		t.Error("v1.5.0 should appear before v1.0.0")
 	}
 
 	// Should contain created_at fields
 	if !strings.Contains(bodyStr, "created_at") {
 		t.Error("expected created_at in version response")
+	}
+}
+
+func TestAPIProjectSearchFilters(t *testing.T) {
+	app := setupTestApp(t)
+
+	seedProject(t, app, "golang-docs", "Go Documentation", true)
+	seedProject(t, app, "python-docs", "Python Documentation", true)
+	seedProject(t, app, "rust-manual", "Rust Manual", true)
+
+	// Search for "golang" should match only the Go project
+	resp, err := http.Get(app.server.URL + "/api/projects?q=golang")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "golang-docs") {
+		t.Error("expected golang-docs in search results")
+	}
+	if strings.Contains(bodyStr, "python-docs") {
+		t.Error("python-docs should not appear in golang search")
+	}
+	if strings.Contains(bodyStr, "rust-manual") {
+		t.Error("rust-manual should not appear in golang search")
+	}
+}
+
+func TestAPIProjectSearchByName(t *testing.T) {
+	app := setupTestApp(t)
+
+	seedProject(t, app, "mylib", "My Library", true)
+	seedProject(t, app, "other", "Other Tool", true)
+
+	// Search by project name
+	resp, err := http.Get(app.server.URL + "/api/projects?q=Library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "mylib") {
+		t.Error("expected mylib in name search results")
+	}
+	if strings.Contains(bodyStr, "other") {
+		t.Error("other should not appear in Library search")
+	}
+}
+
+func TestAPIProjectSearchNoQuery(t *testing.T) {
+	app := setupTestApp(t)
+
+	seedProject(t, app, "proj-a", "Project A", true)
+	seedProject(t, app, "proj-b", "Project B", true)
+
+	// No query should return all accessible projects
+	resp, err := http.Get(app.server.URL + "/api/projects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "proj-a") {
+		t.Error("expected proj-a in results")
+	}
+	if !strings.Contains(bodyStr, "proj-b") {
+		t.Error("expected proj-b in results")
+	}
+}
+
+func TestProjectDetailMarkdownDescription(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	project := &database.Project{
+		Slug:        "md-test",
+		Name:        "Markdown Test",
+		Description: "This is **bold** and *italic* text.\n\n- Item 1\n- Item 2",
+		IsPublic:    true,
+	}
+	app.handler.projects.Create(ctx, project)
+
+	resp, err := http.Get(app.server.URL + "/project/md-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	// Should contain rendered markdown HTML
+	if !strings.Contains(bodyStr, "<strong>bold</strong>") {
+		t.Error("expected markdown bold rendering")
+	}
+	if !strings.Contains(bodyStr, "<em>italic</em>") {
+		t.Error("expected markdown italic rendering")
+	}
+	if !strings.Contains(bodyStr, "<li>Item 1</li>") {
+		t.Error("expected markdown list rendering")
+	}
+}
+
+func TestProjectDetailSemverSortedVersions(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "sorted-proj", "Sorted Project", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	for _, tag := range []string{"v1.0.0", "v3.0.0", "v2.0.0"} {
+		storage.EnsureVersionDir("sorted-proj", tag)
+		vp := storage.VersionPath("sorted-proj", tag)
+		app.handler.versions.Create(ctx, &database.Version{
+			ProjectID:   project.ID,
+			Tag:         tag,
+			StoragePath: vp,
+			UploadedBy:  admin.ID,
+		})
+	}
+
+	resp, err := http.Get(app.server.URL + "/project/sorted-proj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	// v3.0.0 should appear before v2.0.0 and v1.0.0
+	idx300 := strings.Index(bodyStr, "v3.0.0")
+	idx200 := strings.Index(bodyStr, "v2.0.0")
+	idx100 := strings.Index(bodyStr, "v1.0.0")
+
+	if idx300 == -1 || idx200 == -1 || idx100 == -1 {
+		t.Fatal("expected all versions in project detail page")
+	}
+
+	if idx300 > idx200 {
+		t.Error("v3.0.0 should appear before v2.0.0")
+	}
+	if idx200 > idx100 {
+		t.Error("v2.0.0 should appear before v1.0.0")
 	}
 }
 

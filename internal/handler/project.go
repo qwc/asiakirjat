@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/qwc/asiakirjat/internal/auth"
+	"github.com/qwc/asiakirjat/internal/docs"
 )
 
 type versionViewData struct {
@@ -45,8 +46,18 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sort versions by semver descending
+	tags := make([]string, len(versions))
+	versionMap := make(map[string]int)
+	for i, v := range versions {
+		tags[i] = v.Tag
+		versionMap[v.Tag] = i
+	}
+	docs.SortVersionTags(tags)
+
 	var versionViews []versionViewData
-	for _, v := range versions {
+	for _, tag := range tags {
+		v := versions[versionMap[tag]]
 		versionViews = append(versionViews, versionViewData{
 			Tag:       v.Tag,
 			URL:       "/project/" + slug + "/" + v.Tag + "/",

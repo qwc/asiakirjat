@@ -320,7 +320,64 @@ body {
     border-radius: var(--radius);
     padding: 1rem;
     margin-bottom: 1.5rem;
-    white-space: pre-wrap;
+}
+
+.project-description p {
+    margin-bottom: 0.5rem;
+}
+
+.project-description p:last-child {
+    margin-bottom: 0;
+}
+
+.project-description h1,
+.project-description h2,
+.project-description h3 {
+    margin-bottom: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.project-description h1:first-child,
+.project-description h2:first-child,
+.project-description h3:first-child {
+    margin-top: 0;
+}
+
+.project-description ul,
+.project-description ol {
+    margin-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.project-description code {
+    background: var(--color-bg);
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+    font-size: 0.875em;
+}
+
+.project-description pre {
+    background: var(--color-bg);
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    margin-bottom: 0.5rem;
+}
+
+.project-description pre code {
+    background: none;
+    padding: 0;
+}
+
+.project-description a {
+    color: var(--color-primary);
+}
+
+.project-description blockquote {
+    border-left: 3px solid var(--color-border);
+    padding-left: 0.75rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
 }
 
 /* Version list */
