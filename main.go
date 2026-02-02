@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/qwc/asiakirjat/internal/auth"
@@ -38,6 +39,11 @@ func main() {
 	if err != nil {
 		logger.Error("loading config", "error", err)
 		os.Exit(1)
+	}
+
+	// Ensure database directory exists (SQLite needs it before opening)
+	if dbDir := filepath.Dir(cfg.Database.DSN); dbDir != "" && dbDir != "." {
+		os.MkdirAll(dbDir, 0755)
 	}
 
 	// Open database
