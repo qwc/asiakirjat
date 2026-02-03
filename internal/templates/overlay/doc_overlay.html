@@ -174,77 +174,75 @@
     border-color: #60a5fa;
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
 }
-/* Diff modal */
-#asiakirjat-diff-modal {
+/* Inline diff styles */
+ins {
+    background-color: #dcfce7;
+    text-decoration: none;
+}
+del {
+    background-color: #fee2e2;
+    text-decoration: line-through;
+}
+/* Diff indicator banner - positioned below main overlay */
+#asiakirjat-diff-indicator {
     display: none;
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+    padding: 0.5rem 1.5rem;
+    z-index: 9998;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-bottom: 2px solid #f59e0b;
+    box-sizing: border-box;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+}
+#asiakirjat-diff-indicator span {
+    font-weight: 500;
+}
+#asiakirjat-diff-indicator strong {
+    color: #78350f;
+}
+#asiakirjat-exit-diff {
+    background: #1e293b;
+    color: #e2e8f0;
+    border: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+#asiakirjat-exit-diff:hover {
+    background: #334155;
+}
+/* Loading overlay */
+#asiakirjat-diff-loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 10001;
-    overflow: auto;
-    padding: 2rem;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 10002;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-#asiakirjat-diff-modal.ao-visible {
-    display: block;
-}
-#asiakirjat-diff-content {
-    background: #fff;
-    color: #1f2937;
-    max-width: 1000px;
-    margin: 0 auto;
-    border-radius: 8px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-    overflow: hidden;
-}
-#asiakirjat-diff-header {
+.ao-loading-spinner {
     background: #1e293b;
     color: #e2e8f0;
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-#asiakirjat-diff-header h3 {
-    font-size: 1rem;
-    font-weight: 600;
-}
-#asiakirjat-diff-close {
-    background: none;
-    border: none;
-    color: #94a3b8;
-    font-size: 1.5rem;
-    cursor: pointer;
-    line-height: 1;
-}
-#asiakirjat-diff-close:hover {
-    color: #fff;
-}
-#asiakirjat-diff-body {
-    padding: 1rem;
-    max-height: 70vh;
-    overflow: auto;
-    font-family: ui-monospace, monospace;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-#asiakirjat-diff-body .diff-add {
-    background: #dcfce7;
-    color: #166534;
-}
-#asiakirjat-diff-body .diff-del {
-    background: #fee2e2;
-    color: #991b1b;
-    text-decoration: line-through;
-}
-#asiakirjat-diff-loading {
-    padding: 2rem;
-    text-align: center;
-    color: #6b7280;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 </style>
 <script>window.BASE_PATH = "{{basePath}}";</script>
@@ -272,15 +270,9 @@
         </div>
     </div>
 </div>
-<div id="asiakirjat-diff-modal">
-    <div id="asiakirjat-diff-content">
-        <div id="asiakirjat-diff-header">
-            <h3 id="asiakirjat-diff-title">Comparing versions</h3>
-            <button id="asiakirjat-diff-close">&times;</button>
-        </div>
-        <div id="asiakirjat-diff-body">
-            <div id="asiakirjat-diff-loading">Loading...</div>
-        </div>
-    </div>
+<div id="asiakirjat-diff-indicator">
+    <span>Showing changes from version <strong id="asiakirjat-diff-from-version"></strong></span>
+    <button id="asiakirjat-exit-diff">Exit Diff View</button>
 </div>
+<script src="{{url "/static/js/htmldiff.min.js"}}"></script>
 <script src="{{url "/static/js/overlay.js"}}"></script>

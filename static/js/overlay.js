@@ -49,14 +49,18 @@
         window.location.href = basePath + "/project/" + slug + "/" + newVersion + suffix;
     });
 
-    // Version comparison feature
+    // Version comparison feature - inline diff
     var compareSelect = document.getElementById("asiakirjat-compare-select");
-    var diffModal = document.getElementById("asiakirjat-diff-modal");
-    var diffBody = document.getElementById("asiakirjat-diff-body");
-    var diffTitle = document.getElementById("asiakirjat-diff-title");
-    var diffClose = document.getElementById("asiakirjat-diff-close");
+    var diffIndicator = document.getElementById("asiakirjat-diff-indicator");
+    var diffFromVersion = document.getElementById("asiakirjat-diff-from-version");
+    var exitDiffBtn = document.getElementById("asiakirjat-exit-diff");
 
-    if (compareSelect && diffModal) {
+    // State for diff mode
+    var originalContentHtml = null;
+    var contentContainer = null;
+    var diffModeActive = false;
+
+    if (compareSelect) {
         // Populate compare dropdown with versions (excluding current)
         fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
             .then(function(resp) { return resp.json(); })
@@ -75,133 +79,337 @@
                 console.error("Failed to load versions for compare:", err);
             });
 
-        // Simple line-based diff algorithm
-        function computeDiff(oldText, newText) {
-            var oldLines = oldText.split("\n");
-            var newLines = newText.split("\n");
-            var result = [];
+        // Find the main content container (works with various doc themes)
+        function findContentContainer() {
+            // Try known theme-specific selectors first (most specific)
+            var themeSelectors = [
+                // MkDocs Material
+                '.md-content__inner > .md-typeset',
+                '.md-content__inner',
+                // MkDocs default
+                '.content article',
+                // Sphinx ReadTheDocs
+                '.rst-content',
+                'div[itemprop="articleBody"]',
+                '.document .documentwrapper .bodywrapper .body',
+                '.document .body',
+                // Sphinx alabaster/basic
+                'div.body',
+                'div.document',
+                // Doxygen
+                '.contents',
+                '.doc-content',
+                '#doc-content',
+                // Hugo docsy
+                '.td-content',
+                // Docusaurus
+                '.markdown',
+                'article .markdown',
+                // GitBook
+                '.page-inner .page-body',
+                '.book-body .body-inner',
+                // VuePress
+                '.theme-default-content',
+                // Generic semantic
+                'main [role="main"]',
+                'article[role="main"]',
+                '[role="main"]'
+            ];
 
-            // Simple LCS-based diff
-            var dp = [];
-            for (var i = 0; i <= oldLines.length; i++) {
-                dp[i] = [];
-                for (var j = 0; j <= newLines.length; j++) {
-                    if (i === 0 || j === 0) {
-                        dp[i][j] = 0;
-                    } else if (oldLines[i - 1] === newLines[j - 1]) {
-                        dp[i][j] = dp[i - 1][j - 1] + 1;
-                    } else {
-                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            for (var i = 0; i < themeSelectors.length; i++) {
+                var el = document.querySelector(themeSelectors[i]);
+                if (el && !isOverlayElement(el)) return el;
+            }
+
+            // Try semantic HTML5 elements
+            var main = document.querySelector('main');
+            if (main && !isOverlayElement(main) && hasSubstantialContent(main)) {
+                return main;
+            }
+
+            var article = document.querySelector('article');
+            if (article && !isOverlayElement(article) && hasSubstantialContent(article)) {
+                return article;
+            }
+
+            // Heuristic: find the element with the most text content
+            // that doesn't look like navigation/sidebar
+            var best = findLargestContentBlock();
+            if (best) return best;
+
+            return null;
+        }
+
+        function isOverlayElement(el) {
+            return el.closest('#asiakirjat-overlay') || el.closest('#asiakirjat-diff-indicator');
+        }
+
+        function hasSubstantialContent(el) {
+            var text = (el.textContent || '').trim();
+            return text.length > 200; // At least some meaningful content
+        }
+
+        function findLargestContentBlock() {
+            var candidates = document.querySelectorAll('div, section');
+            var best = null;
+            var bestScore = 0;
+
+            // Patterns that indicate non-content areas
+            var excludePattern = /nav|sidebar|menu|header|footer|toc|breadcrumb|pagination|search|overlay|modal|drawer/i;
+
+            for (var i = 0; i < candidates.length; i++) {
+                var el = candidates[i];
+
+                // Skip overlay elements
+                if (isOverlayElement(el)) continue;
+
+                // Skip elements that look like navigation/sidebar
+                var identifier = (el.className || '') + ' ' + (el.id || '');
+                if (excludePattern.test(identifier)) continue;
+
+                // Skip if it contains very little text
+                var text = (el.textContent || '').trim();
+                if (text.length < 500) continue;
+
+                // Score: prefer elements with more paragraphs and less nesting of other large blocks
+                var paragraphs = el.querySelectorAll('p, li, pre, code').length;
+                var score = text.length + (paragraphs * 100);
+
+                // Penalize if it's a wrapper of almost the entire body
+                var bodyText = (document.body.textContent || '').length;
+                if (text.length > bodyText * 0.9) {
+                    score = score * 0.5; // Likely too broad
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = el;
+                }
+            }
+
+            return best;
+        }
+
+        // Build a list of selectors to try for an element
+        function getSelectorsForElement(el) {
+            var selectors = [];
+
+            // ID selector (most reliable)
+            if (el.id) {
+                selectors.push('#' + el.id);
+            }
+
+            // Class-based selectors
+            if (el.className && typeof el.className === 'string') {
+                var classes = el.className.split(' ').filter(function(c) { return c.trim(); });
+                if (classes.length > 0) {
+                    // Try tag + all classes
+                    selectors.push(el.tagName.toLowerCase() + '.' + classes.join('.'));
+                    // Try just the first distinctive class
+                    for (var i = 0; i < classes.length; i++) {
+                        if (!/^(container|wrapper|row|col|clearfix)$/i.test(classes[i])) {
+                            selectors.push('.' + classes[i]);
+                            break;
+                        }
                     }
                 }
             }
 
-            // Backtrack to find diff
-            var i = oldLines.length, j = newLines.length;
-            var stack = [];
-            while (i > 0 || j > 0) {
-                if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-                    stack.push({ type: "same", text: oldLines[i - 1] });
-                    i--; j--;
-                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-                    stack.push({ type: "add", text: newLines[j - 1] });
-                    j--;
-                } else {
-                    stack.push({ type: "del", text: oldLines[i - 1] });
-                    i--;
-                }
-            }
+            // Tag name as last resort
+            selectors.push(el.tagName.toLowerCase());
 
-            // Reverse to get correct order
-            while (stack.length > 0) {
-                result.push(stack.pop());
-            }
-            return result;
+            return selectors;
         }
 
-        function escapeHtml(text) {
-            var div = document.createElement("div");
-            div.appendChild(document.createTextNode(text));
-            return div.innerHTML;
-        }
-
-        function renderDiff(diff) {
-            var html = [];
-            diff.forEach(function(line) {
-                var escaped = escapeHtml(line.text);
-                if (line.type === "add") {
-                    html.push('<span class="diff-add">+ ' + escaped + '</span>');
-                } else if (line.type === "del") {
-                    html.push('<span class="diff-del">- ' + escaped + '</span>');
-                } else {
-                    html.push('  ' + escaped);
-                }
-            });
-            return html.join("\n");
-        }
-
-        function extractTextContent(html) {
+        // Extract content from fetched HTML trying multiple selectors
+        function extractContentFromHtml(html, selectors) {
             var parser = new DOMParser();
             var doc = parser.parseFromString(html, "text/html");
-            // Remove script and style elements
-            var scripts = doc.querySelectorAll("script, style, noscript");
-            scripts.forEach(function(el) { el.remove(); });
-            return doc.body.textContent || "";
+
+            // Try each selector
+            for (var i = 0; i < selectors.length; i++) {
+                var el = doc.querySelector(selectors[i]);
+                if (el) {
+                    return el.innerHTML;
+                }
+            }
+
+            // Fallback: try to find content using same theme-specific selectors
+            var themeSelectors = [
+                '.md-content__inner > .md-typeset',
+                '.md-content__inner',
+                '.rst-content',
+                'div[itemprop="articleBody"]',
+                '.document .body',
+                'div.body',
+                '.contents',
+                '.td-content',
+                '.markdown',
+                'main',
+                'article'
+            ];
+
+            for (var i = 0; i < themeSelectors.length; i++) {
+                var el = doc.querySelector(themeSelectors[i]);
+                if (el) {
+                    return el.innerHTML;
+                }
+            }
+
+            return null;
+        }
+
+        // Show diff indicator banner
+        function showDiffIndicator(targetVersion, hasChanges) {
+            var indicator = document.getElementById("asiakirjat-diff-indicator");
+            var fromVersion = document.getElementById("asiakirjat-diff-from-version");
+            if (indicator && fromVersion) {
+                if (hasChanges) {
+                    fromVersion.textContent = targetVersion;
+                } else {
+                    fromVersion.innerHTML = targetVersion + ' <em>(no changes on this page)</em>';
+                }
+                // Position indicator below the main overlay
+                indicator.style.top = overlay.offsetHeight + "px";
+                indicator.style.display = "flex";
+                // Update body margin to account for both bars
+                document.body.style.marginTop = (overlay.offsetHeight + indicator.offsetHeight) + "px";
+            }
+            diffModeActive = true;
+        }
+
+        // Exit diff mode
+        function exitDiffMode() {
+            if (originalContentHtml && contentContainer) {
+                contentContainer.innerHTML = originalContentHtml;
+                originalContentHtml = null;
+            }
+            var indicator = document.getElementById("asiakirjat-diff-indicator");
+            if (indicator) {
+                indicator.style.display = "none";
+            }
+            // Reset body margin
+            document.body.style.marginTop = overlay.offsetHeight + "px";
+            // Reset compare select
+            var cmpSelect = document.getElementById("asiakirjat-compare-select");
+            if (cmpSelect) {
+                cmpSelect.value = "";
+            }
+            diffModeActive = false;
+            contentContainer = null;
+        }
+
+        // Show loading state
+        function showLoading() {
+            var loadingDiv = document.createElement("div");
+            loadingDiv.id = "asiakirjat-diff-loading-overlay";
+            loadingDiv.innerHTML = '<div class="ao-loading-spinner">Computing diff...</div>';
+            document.body.appendChild(loadingDiv);
+        }
+
+        function hideLoading() {
+            var loading = document.getElementById("asiakirjat-diff-loading-overlay");
+            if (loading) loading.remove();
+        }
+
+        // Show error message
+        function showError(message) {
+            var indicator = document.getElementById("asiakirjat-diff-indicator");
+            var fromVersion = document.getElementById("asiakirjat-diff-from-version");
+            if (indicator && fromVersion) {
+                fromVersion.innerHTML = '<span style="color: #dc2626;">' + message + '</span>';
+                indicator.style.display = "flex";
+                document.body.style.marginTop = (overlay.offsetHeight + indicator.offsetHeight) + "px";
+            }
+            diffModeActive = true;
         }
 
         compareSelect.addEventListener("change", function() {
             var targetVersion = compareSelect.value;
-            if (!targetVersion) return;
+            if (!targetVersion) {
+                if (diffModeActive) {
+                    exitDiffMode();
+                }
+                return;
+            }
+
+            // Find content container
+            contentContainer = findContentContainer();
+            if (!contentContainer) {
+                showError("Could not find content area");
+                return;
+            }
+
+            // Store original content for toggle
+            if (!originalContentHtml) {
+                originalContentHtml = contentContainer.innerHTML;
+            }
 
             // Get current document path
             var path = window.location.pathname;
             var prefix = basePath + "/project/" + slug + "/" + current;
             var suffix = path.substring(prefix.length);
 
-            // Build URLs for both versions
-            var currentUrl = basePath + "/project/" + slug + "/" + current + suffix;
+            // Build URL for target version
             var targetUrl = basePath + "/project/" + slug + "/" + targetVersion + suffix;
+            var containerSelectors = getSelectorsForElement(contentContainer);
 
-            diffTitle.textContent = "Comparing " + current + " → " + targetVersion;
-            diffBody.innerHTML = '<div id="asiakirjat-diff-loading">Loading...</div>';
-            diffModal.classList.add("ao-visible");
+            showLoading();
 
-            // Fetch both versions
-            Promise.all([
-                fetch(currentUrl).then(function(r) { return r.text(); }),
-                fetch(targetUrl).then(function(r) {
+            // Fetch target version
+            fetch(targetUrl)
+                .then(function(r) {
                     if (!r.ok) throw new Error("Page not found in " + targetVersion);
                     return r.text();
                 })
-            ])
-            .then(function(results) {
-                var currentText = extractTextContent(results[0]);
-                var targetText = extractTextContent(results[1]);
-                var diff = computeDiff(currentText, targetText);
-                diffBody.innerHTML = renderDiff(diff);
-            })
-            .catch(function(err) {
-                diffBody.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Error: ' + escapeHtml(err.message) + '</div>';
-            });
+                .then(function(targetHtml) {
+                    var currentContent = originalContentHtml;
+                    var targetContent = extractContentFromHtml(targetHtml, containerSelectors);
 
-            // Reset select
-            compareSelect.value = "";
+                    if (!targetContent) {
+                        throw new Error("Could not extract content from " + targetVersion + " (different page structure?)");
+                    }
+
+                    // Check if htmldiff is available
+                    if (typeof htmldiff !== 'function') {
+                        throw new Error("Diff library not loaded");
+                    }
+
+                    // Check if content is identical
+                    var normalizedCurrent = currentContent.replace(/\s+/g, ' ').trim();
+                    var normalizedTarget = targetContent.replace(/\s+/g, ' ').trim();
+                    var hasChanges = normalizedCurrent !== normalizedTarget;
+
+                    if (hasChanges) {
+                        // Compute HTML diff (target = old version, current = new version)
+                        var diffHtml = htmldiff(targetContent, currentContent);
+                        contentContainer.innerHTML = diffHtml;
+                    }
+
+                    showDiffIndicator(targetVersion, hasChanges);
+                    hideLoading();
+                })
+                .catch(function(err) {
+                    hideLoading();
+                    showError("Error: " + err.message);
+                    // Restore original on error
+                    if (originalContentHtml && contentContainer) {
+                        contentContainer.innerHTML = originalContentHtml;
+                        originalContentHtml = null;
+                    }
+                    contentContainer = null;
+                });
         });
 
-        // Close modal handlers
-        diffClose.addEventListener("click", function() {
-            diffModal.classList.remove("ao-visible");
-        });
+        // Bind exit button
+        if (exitDiffBtn) {
+            exitDiffBtn.addEventListener("click", exitDiffMode);
+        }
 
-        diffModal.addEventListener("click", function(e) {
-            if (e.target === diffModal) {
-                diffModal.classList.remove("ao-visible");
-            }
-        });
-
+        // Escape key to exit diff mode
         document.addEventListener("keydown", function(e) {
-            if (e.key === "Escape" && diffModal.classList.contains("ao-visible")) {
-                diffModal.classList.remove("ao-visible");
+            if (e.key === "Escape" && diffModeActive) {
+                exitDiffMode();
             }
         });
     }
