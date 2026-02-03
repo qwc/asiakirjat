@@ -21,6 +21,7 @@ type VersionStore interface {
 	Create(ctx context.Context, version *database.Version) error
 	GetByProjectAndTag(ctx context.Context, projectID int64, tag string) (*database.Version, error)
 	ListByProject(ctx context.Context, projectID int64) ([]database.Version, error)
+	Update(ctx context.Context, version *database.Version) error
 	Delete(ctx context.Context, id int64) error
 }
 

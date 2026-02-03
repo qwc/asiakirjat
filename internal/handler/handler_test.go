@@ -797,7 +797,7 @@ func TestUploadFullFlow(t *testing.T) {
 	}
 }
 
-func TestUploadDuplicateVersion(t *testing.T) {
+func TestUploadVersionReupload(t *testing.T) {
 	app := setupTestApp(t)
 	admin := seedAdmin(t, app)
 	project := seedProject(t, app, "proj", "Project", true)
@@ -814,7 +814,7 @@ func TestUploadDuplicateVersion(t *testing.T) {
 
 	cookies := loginUser(t, app, "admin", "admin123")
 
-	zipBuf := createTestZip(t, map[string]string{"index.html": "new"})
+	zipBuf := createTestZip(t, map[string]string{"index.html": "new content"})
 
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
@@ -841,14 +841,18 @@ func TestUploadDuplicateVersion(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Should re-render upload page with error (200), not redirect
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 (upload page with error), got %d", resp.StatusCode)
+	// Re-upload should succeed and redirect
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after re-upload, got %d", resp.StatusCode)
 	}
 
-	respBody, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(respBody), "tag may already exist") {
-		t.Error("expected duplicate version error message")
+	// Verify version still exists with same ID
+	version, err := app.handler.versions.GetByProjectAndTag(ctx, project.ID, "v1.0.0")
+	if err != nil {
+		t.Fatalf("version should still exist: %v", err)
+	}
+	if version == nil {
+		t.Fatal("version should not be nil")
 	}
 }
 

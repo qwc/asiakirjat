@@ -49,6 +49,15 @@ func (s *VersionStore) ListByProject(ctx context.Context, projectID int64) ([]da
 	return versions, nil
 }
 
+func (s *VersionStore) Update(ctx context.Context, version *database.Version) error {
+	query := `UPDATE versions SET storage_path = ?, uploaded_by = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), version.StoragePath, version.UploadedBy, version.ID)
+	if err != nil {
+		return fmt.Errorf("updating version: %w", err)
+	}
+	return nil
+}
+
 func (s *VersionStore) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM versions WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), id)

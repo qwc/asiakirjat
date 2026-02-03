@@ -98,22 +98,49 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create version record
-	version := &database.Version{
-		ProjectID:   project.ID,
-		Tag:         versionTag,
-		StoragePath: destPath,
-		UploadedBy:  user.ID,
-	}
-	if err := h.versions.Create(ctx, version); err != nil {
-		h.storage.DeleteVersion(slug, versionTag)
-		h.logger.Error("creating version record", "error", err)
-		h.render(w, "upload", map[string]any{
-			"User":    user,
-			"Project": project,
-			"Error":   "Failed to create version (tag may already exist)",
-		})
-		return
+	// Check if version already exists (for re-upload)
+	existingVersion, _ := h.versions.GetByProjectAndTag(ctx, project.ID, versionTag)
+	isReupload := existingVersion != nil
+
+	var version *database.Version
+	if isReupload {
+		// Update existing version
+		existingVersion.StoragePath = destPath
+		existingVersion.UploadedBy = user.ID
+		if err := h.versions.Update(ctx, existingVersion); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.logger.Error("updating version record", "error", err)
+			h.render(w, "upload", map[string]any{
+				"User":    user,
+				"Project": project,
+				"Error":   "Failed to update version",
+			})
+			return
+		}
+		version = existingVersion
+
+		// Delete old index entries before reindexing
+		if h.searchIndex != nil {
+			h.searchIndex.DeleteVersion(project.ID, version.ID)
+		}
+	} else {
+		// Create new version record
+		version = &database.Version{
+			ProjectID:   project.ID,
+			Tag:         versionTag,
+			StoragePath: destPath,
+			UploadedBy:  user.ID,
+		}
+		if err := h.versions.Create(ctx, version); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.logger.Error("creating version record", "error", err)
+			h.render(w, "upload", map[string]any{
+				"User":    user,
+				"Project": project,
+				"Error":   "Failed to create version",
+			})
+			return
+		}
 	}
 
 	// Async index for full-text search
