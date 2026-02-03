@@ -21,15 +21,23 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"User":     user,
-		"Projects": projects,
+		"User":            user,
+		"Projects":        projects,
+		"ReindexRunning":  h.reindexRunning,
+		"ReindexProgress": h.reindexProgress,
 	}
 
 	// Check for flash message from query parameter
-	if msg := r.URL.Query().Get("msg"); msg == "reindex_started" {
+	switch r.URL.Query().Get("msg") {
+	case "reindex_started":
 		data["Flash"] = &Flash{
 			Type:    "success",
 			Message: "Search index rebuild started in background",
+		}
+	case "reindex_already_running":
+		data["Flash"] = &Flash{
+			Type:    "warning",
+			Message: "Reindex is already running",
 		}
 	}
 

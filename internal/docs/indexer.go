@@ -397,8 +397,24 @@ type ReindexVersion struct {
 	StoragePath string
 }
 
+// ReindexProgress reports reindexing progress.
+type ReindexProgress struct {
+	Current int
+	Total   int
+	Project string
+	Version string
+}
+
+// ReindexProgressFunc is called for each version during reindexing.
+type ReindexProgressFunc func(progress ReindexProgress)
+
 // ReindexAll rebuilds the entire search index from scratch.
 func (si *SearchIndex) ReindexAll(projects []ReindexProject, versions []ReindexVersion) error {
+	return si.ReindexAllWithProgress(projects, versions, nil)
+}
+
+// ReindexAllWithProgress rebuilds the index with progress reporting.
+func (si *SearchIndex) ReindexAllWithProgress(projects []ReindexProject, versions []ReindexVersion, progressFn ReindexProgressFunc) error {
 	// Delete all existing documents
 	q := bleve.NewMatchAllQuery()
 	req := bleve.NewSearchRequest(q)
@@ -419,11 +435,22 @@ func (si *SearchIndex) ReindexAll(projects []ReindexProject, versions []ReindexV
 		projectMap[p.ID] = p
 	}
 
-	for _, v := range versions {
+	total := len(versions)
+	for i, v := range versions {
 		p, ok := projectMap[v.ProjectID]
 		if !ok {
 			continue
 		}
+
+		if progressFn != nil {
+			progressFn(ReindexProgress{
+				Current: i + 1,
+				Total:   total,
+				Project: p.Slug,
+				Version: v.Tag,
+			})
+		}
+
 		si.IndexVersion(p.ID, v.ID, p.Slug, p.Name, v.Tag, v.StoragePath)
 	}
 

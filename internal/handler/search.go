@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -167,6 +168,12 @@ func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Check if reindex is already running
+	if h.reindexRunning {
+		http.Redirect(w, r, "/admin/projects?msg=reindex_already_running", http.StatusSeeOther)
+		return
+	}
+
 	allProjects, err := h.projects.List(ctx)
 	if err != nil {
 		h.logger.Error("listing projects for reindex", "error", err)
@@ -198,11 +205,25 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Mark reindex as running
+	h.reindexRunning = true
+	h.reindexProgress = "Starting..."
+
 	go func() {
-		if err := h.searchIndex.ReindexAll(projects, versions); err != nil {
+		defer func() {
+			h.reindexRunning = false
+			h.reindexProgress = ""
+		}()
+
+		progressFn := func(p docs.ReindexProgress) {
+			h.reindexProgress = fmt.Sprintf("%d/%d: %s %s", p.Current, p.Total, p.Project, p.Version)
+			h.logger.Info("reindex progress", "current", p.Current, "total", p.Total, "project", p.Project, "version", p.Version)
+		}
+
+		if err := h.searchIndex.ReindexAllWithProgress(projects, versions, progressFn); err != nil {
 			h.logger.Error("reindex failed", "error", err)
 		} else {
-			h.logger.Info("reindex completed")
+			h.logger.Info("reindex completed", "versions", len(versions))
 		}
 	}()
 

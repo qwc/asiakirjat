@@ -36,11 +36,18 @@
         </form>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
+    <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
         <form method="POST" action="/admin/reindex" class="inline-form"
             onsubmit="return confirm('Rebuild the full-text search index? This runs in the background.')">
-            <button type="submit" class="btn btn-secondary">Rebuild Search Index</button>
+            <button type="submit" class="btn btn-secondary" {{if .ReindexRunning}}disabled{{end}}>
+                {{if .ReindexRunning}}Reindexing...{{else}}Rebuild Search Index{{end}}
+            </button>
         </form>
+        {{if .ReindexRunning}}
+        <span style="color: var(--color-text-muted); font-size: 0.875rem;">
+            Progress: {{.ReindexProgress}}
+        </span>
+        {{end}}
     </div>
 
     <table class="admin-table">

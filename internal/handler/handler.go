@@ -34,6 +34,10 @@ type Handler struct {
 	// Cache for latest version tags (invalidated on upload/delete)
 	latestTagsCache     map[string]string
 	latestTagsCacheTime time.Time
+
+	// Reindex state tracking
+	reindexRunning  bool
+	reindexProgress string
 }
 
 type Deps struct {
