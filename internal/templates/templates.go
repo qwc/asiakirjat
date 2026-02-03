@@ -14,6 +14,16 @@ import (
 // basePath is the URL prefix for subdirectory deployment (e.g., "/docs")
 var basePath string
 
+// branding holds customizable branding options
+var branding Branding
+
+// Branding contains customizable branding options.
+type Branding struct {
+	AppName   string // Custom app name (default: "asiakirjat")
+	LogoURL   string // URL or path to custom logo
+	CustomCSS string // Path to custom CSS file
+}
+
 // SetBasePath sets the URL prefix for all template URLs.
 // This should be called during initialization.
 func SetBasePath(bp string) {
@@ -23,6 +33,19 @@ func SetBasePath(bp string) {
 // GetBasePath returns the current base path.
 func GetBasePath() string {
 	return basePath
+}
+
+// SetBranding sets the branding options for templates.
+func SetBranding(b Branding) {
+	branding = b
+	if branding.AppName == "" {
+		branding.AppName = "asiakirjat"
+	}
+}
+
+// GetBranding returns the current branding options.
+func GetBranding() Branding {
+	return branding
 }
 
 //go:embed layouts/*.html pages/*.html partials/*.html overlay/*.html
@@ -48,6 +71,14 @@ func New() (*Engine, error) {
 		"safe":     func(s string) template.HTML { return template.HTML(s) },
 		"url":      func(path string) string { return basePath + path },
 		"basePath": func() string { return basePath },
+		"appName":  func() string { return branding.AppName },
+		"logoURL":  func() string { return branding.LogoURL },
+		"customCSS": func() string {
+			if branding.CustomCSS != "" {
+				return basePath + "/static/custom/" + branding.CustomCSS
+			}
+			return ""
+		},
 		"markdown": func(s string) template.HTML {
 			var buf bytes.Buffer
 			if err := md.Convert([]byte(s), &buf); err != nil {

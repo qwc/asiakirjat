@@ -64,3 +64,11 @@ auth:
 
 storage:
   base_path: "data/projects"
+
+branding:
+  # app_name: Custom application name displayed in navbar (default: "asiakirjat")
+  # app_name: "My Docs"
+  # logo_url: URL or path to custom logo image (displayed in navbar)
+  # logo_url: "/static/custom/logo.png"
+  # custom_css: Filename of custom CSS in static/custom/ directory (for colors/branding)
+  # custom_css: "custom.css"

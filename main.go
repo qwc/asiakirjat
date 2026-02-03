@@ -139,6 +139,11 @@ func main() {
 
 	// Initialize templates
 	templates.SetBasePath(cfg.Server.BasePath)
+	templates.SetBranding(templates.Branding{
+		AppName:   cfg.Branding.AppName,
+		LogoURL:   cfg.Branding.LogoURL,
+		CustomCSS: cfg.Branding.CustomCSS,
+	})
 	tmpl, err := templates.New()
 	if err != nil {
 		logger.Error("loading templates", "error", err)

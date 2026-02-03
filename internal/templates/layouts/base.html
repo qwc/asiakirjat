@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{block "title" .}}asiakirjat{{end}}</title>
+    <title>{{block "title" .}}{{appName}}{{end}}</title>
     <link rel="stylesheet" href="{{url "/static/css/style.css"}}">
+    {{if customCSS}}<link rel="stylesheet" href="{{customCSS}}">{{end}}
     {{block "head" .}}{{end}}
 </head>
 <body>
     <nav class="navbar">
         <div class="navbar-brand">
-            <a href="{{url "/"}}">asiakirjat</a>
+            {{if logoURL}}<img src="{{logoURL}}" alt="{{appName}}" class="navbar-logo">{{end}}
+            <a href="{{url "/"}}">{{appName}}</a>
         </div>
         <div class="navbar-search">
             <input type="text" id="navbar-search-input" placeholder="Search docs..." autocomplete="off">
@@ -34,7 +36,7 @@
         {{block "content" .}}{{end}}
     </main>
     <footer class="footer">
-        <p>asiakirjat &mdash; versioned documentation service</p>
+        <p><a href="https://git.mmo.to/qwc-open/asiakirjat" target="_blank" rel="noopener">asiakirjat</a> &mdash; versioned documentation service</p>
     </footer>
     {{block "scripts" .}}{{end}}
     <script>window.BASE_PATH = "{{basePath}}";</script>

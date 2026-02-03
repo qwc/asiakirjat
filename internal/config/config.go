@@ -15,6 +15,13 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	Auth     AuthConfig     `yaml:"auth"`
 	Storage  StorageConfig  `yaml:"storage"`
+	Branding BrandingConfig `yaml:"branding"`
+}
+
+type BrandingConfig struct {
+	AppName   string `yaml:"app_name" env:"ASIAKIRJAT_BRANDING_APP_NAME"`     // Custom app name displayed in navbar
+	LogoURL   string `yaml:"logo_url" env:"ASIAKIRJAT_BRANDING_LOGO_URL"`     // URL or path to custom logo
+	CustomCSS string `yaml:"custom_css" env:"ASIAKIRJAT_BRANDING_CUSTOM_CSS"` // Path to custom CSS file
 }
 
 type ServerConfig struct {
