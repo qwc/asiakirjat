@@ -848,3 +848,12 @@ mark, .search-result-snippet b {
         align-items: stretch;
     }
 }
+
+/* Search term highlighting */
+mark.search-highlight {
+    background-color: #fef08a;
+    color: inherit;
+    padding: 0.1em 0.2em;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px #fde047;
+}

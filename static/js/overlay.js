@@ -85,7 +85,7 @@
 
                     data.results.forEach(function(r) {
                         var item = document.createElement("a");
-                        item.href = r.url;
+                        item.href = r.url + "?highlight=" + encodeURIComponent(q);
 
                         var title = document.createElement("div");
                         title.className = "ao-search-item-title";
@@ -125,5 +125,94 @@
                 searchDropdown.style.display = "none";
             }
         });
+    }
+
+    // Highlight search terms from URL parameter
+    function highlightSearchTerms() {
+        var params = new URLSearchParams(window.location.search);
+        var highlight = params.get("highlight");
+        if (!highlight) return;
+
+        var terms = highlight.toLowerCase().split(/\s+/).filter(function(t) {
+            return t.length >= 2;
+        });
+        if (terms.length === 0) return;
+
+        // Find the main content area (iframe or document body)
+        var content = document.body;
+
+        // Walk text nodes and wrap matches
+        var walker = document.createTreeWalker(
+            content,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: function(node) {
+                    // Skip script, style, and already marked elements
+                    var parent = node.parentNode;
+                    if (!parent) return NodeFilter.FILTER_REJECT;
+                    var tag = parent.tagName;
+                    if (tag === "SCRIPT" || tag === "STYLE" || tag === "MARK" ||
+                        tag === "NOSCRIPT" || tag === "TEXTAREA" || tag === "INPUT") {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    // Skip overlay elements
+                    if (parent.closest && parent.closest("#asiakirjat-overlay")) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+
+        var nodesToProcess = [];
+        while (walker.nextNode()) {
+            nodesToProcess.push(walker.currentNode);
+        }
+
+        nodesToProcess.forEach(function(textNode) {
+            var text = textNode.textContent;
+            var lowerText = text.toLowerCase();
+            var hasMatch = terms.some(function(term) {
+                return lowerText.indexOf(term) !== -1;
+            });
+            if (!hasMatch) return;
+
+            // Build regex to match any term
+            var escapedTerms = terms.map(function(t) {
+                return t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            });
+            var regex = new RegExp("(" + escapedTerms.join("|") + ")", "gi");
+            var parts = text.split(regex);
+
+            if (parts.length <= 1) return;
+
+            var frag = document.createDocumentFragment();
+            parts.forEach(function(part) {
+                if (regex.test(part)) {
+                    var mark = document.createElement("mark");
+                    mark.className = "search-highlight";
+                    mark.textContent = part;
+                    frag.appendChild(mark);
+                    regex.lastIndex = 0; // reset regex
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            });
+
+            textNode.parentNode.replaceChild(frag, textNode);
+        });
+
+        // Scroll to first highlight
+        var firstMark = document.querySelector("mark.search-highlight");
+        if (firstMark) {
+            firstMark.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    // Run highlighting after DOM is ready
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", highlightSearchTerms);
+    } else {
+        highlightSearchTerms();
     }
 })();

@@ -47,7 +47,7 @@
                 data.results.forEach(function(r) {
                     var item = document.createElement("a");
                     item.className = "navbar-search-item";
-                    item.href = r.url;
+                    item.href = r.url + "?highlight=" + encodeURIComponent(q);
 
                     var title = document.createElement("div");
                     title.className = "navbar-search-item-title";

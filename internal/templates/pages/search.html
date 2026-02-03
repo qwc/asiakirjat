@@ -57,7 +57,7 @@
                 <span class="search-result-version">{{.VersionTag}}</span>
             </div>
             <h3 class="search-result-title">
-                <a href="{{.URL}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>
+                <a href="{{.URL}}?highlight={{urlquery $.Query}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>
             </h3>
             <div class="search-result-path">{{.FilePath}}</div>
             {{if .Snippet}}
