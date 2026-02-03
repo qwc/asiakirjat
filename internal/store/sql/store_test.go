@@ -453,6 +453,15 @@ func TestTokenStoreCRUD(t *testing.T) {
 		t.Errorf("expected name ci-token, got %q", got.Name)
 	}
 
+	// GetByID
+	gotByID, err := tStore.GetByID(ctx, token.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotByID.Name != "ci-token" {
+		t.Errorf("expected name ci-token, got %q", gotByID.Name)
+	}
+
 	// ListByUser
 	tokens, err := tStore.ListByUser(ctx, user.ID)
 	if err != nil {
@@ -469,5 +478,121 @@ func TestTokenStoreCRUD(t *testing.T) {
 	_, err = tStore.GetByHash(ctx, "abc123hash")
 	if err == nil {
 		t.Error("expected error after delete")
+	}
+}
+
+func TestTokenStoreProjectScoped(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	tStore := NewTokenStore(db)
+	uStore := NewUserStore(db)
+	pStore := NewProjectStore(db)
+	ctx := context.Background()
+
+	// Create user
+	user := &database.User{Username: "robot", AuthSource: "robot", Role: "editor", IsRobot: true}
+	uStore.Create(ctx, user)
+
+	// Create projects
+	project1 := &database.Project{Slug: "proj1", Name: "Project 1", IsPublic: true}
+	pStore.Create(ctx, project1)
+	project2 := &database.Project{Slug: "proj2", Name: "Project 2", IsPublic: true}
+	pStore.Create(ctx, project2)
+
+	// Create global token (no project_id)
+	globalToken := &database.APIToken{
+		UserID:    user.ID,
+		ProjectID: nil,
+		TokenHash: "global-hash",
+		Name:      "global-token",
+		Scopes:    "upload",
+	}
+	if err := tStore.Create(ctx, globalToken); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create project-scoped token for project1
+	scopedToken1 := &database.APIToken{
+		UserID:    user.ID,
+		ProjectID: &project1.ID,
+		TokenHash: "scoped1-hash",
+		Name:      "scoped-token-1",
+		Scopes:    "upload",
+	}
+	if err := tStore.Create(ctx, scopedToken1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create another project-scoped token for project1
+	scopedToken2 := &database.APIToken{
+		UserID:    user.ID,
+		ProjectID: &project1.ID,
+		TokenHash: "scoped2-hash",
+		Name:      "scoped-token-2",
+		Scopes:    "upload",
+	}
+	if err := tStore.Create(ctx, scopedToken2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create project-scoped token for project2
+	scopedToken3 := &database.APIToken{
+		UserID:    user.ID,
+		ProjectID: &project2.ID,
+		TokenHash: "scoped3-hash",
+		Name:      "scoped-token-3",
+		Scopes:    "upload",
+	}
+	if err := tStore.Create(ctx, scopedToken3); err != nil {
+		t.Fatal(err)
+	}
+
+	// ListByProject for project1 should return 2 tokens
+	proj1Tokens, err := tStore.ListByProject(ctx, project1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(proj1Tokens) != 2 {
+		t.Errorf("expected 2 tokens for project1, got %d", len(proj1Tokens))
+	}
+
+	// ListByProject for project2 should return 1 token
+	proj2Tokens, err := tStore.ListByProject(ctx, project2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(proj2Tokens) != 1 {
+		t.Errorf("expected 1 token for project2, got %d", len(proj2Tokens))
+	}
+
+	// Verify global token has nil ProjectID
+	gotGlobal, _ := tStore.GetByHash(ctx, "global-hash")
+	if gotGlobal.ProjectID != nil {
+		t.Error("expected nil ProjectID for global token")
+	}
+
+	// Verify scoped token has correct ProjectID
+	gotScoped, _ := tStore.GetByHash(ctx, "scoped1-hash")
+	if gotScoped.ProjectID == nil {
+		t.Fatal("expected non-nil ProjectID for scoped token")
+	}
+	if *gotScoped.ProjectID != project1.ID {
+		t.Errorf("expected ProjectID %d, got %d", project1.ID, *gotScoped.ProjectID)
+	}
+
+	// GetByID should return ProjectID
+	gotByID, _ := tStore.GetByID(ctx, scopedToken1.ID)
+	if gotByID.ProjectID == nil || *gotByID.ProjectID != project1.ID {
+		t.Error("GetByID should return correct ProjectID")
+	}
+}
+
+func TestTokenStoreGetByIDNotFound(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	tStore := NewTokenStore(db)
+	ctx := context.Background()
+
+	_, err := tStore.GetByID(ctx, 99999)
+	if err == nil {
+		t.Error("expected error for non-existent token ID")
 	}
 }

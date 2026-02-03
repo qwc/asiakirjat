@@ -2458,5 +2458,1606 @@ func TestSearchPageWithQuery(t *testing.T) {
 	}
 }
 
+func TestSearchPageAccessControlAnonymousSeesPublicOnly(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create public and private projects
+	pubProject := seedProject(t, app, "pub-page-search", "Public Page Search", true)
+	privProject := seedProject(t, app, "priv-page-search", "Private Page Search", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up public project docs
+	storage.EnsureVersionDir("pub-page-search", "v1.0.0")
+	pubPath := storage.VersionPath("pub-page-search", "v1.0.0")
+	os.WriteFile(filepath.Join(pubPath, "index.html"),
+		[]byte("<html><body><p>Public page about bananas</p></body></html>"), 0644)
+	pubVersion := &database.Version{
+		ProjectID: pubProject.ID, Tag: "v1.0.0",
+		StoragePath: pubPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, pubVersion)
+	app.handler.searchIndex.IndexVersion(pubProject.ID, pubVersion.ID, "pub-page-search", "Public Page Search", "v1.0.0", pubPath)
+
+	// Set up private project docs
+	storage.EnsureVersionDir("priv-page-search", "v1.0.0")
+	privPath := storage.VersionPath("priv-page-search", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private page about bananas</p></body></html>"), 0644)
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-search", "Private Page Search", "v1.0.0", privPath)
+
+	// Anonymous search via page
+	resp, err := http.Get(app.server.URL + "/search?q=bananas&all_versions=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "pub-page-search") {
+		t.Error("anonymous user should see public project in search page results")
+	}
+	if strings.Contains(bodyStr, "priv-page-search") {
+		t.Error("anonymous user should NOT see private project in search page results")
+	}
+}
+
+func TestSearchPageAccessControlUserWithAccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "priv-page-access", "Private Page Access", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("priv-page-access", "v1.0.0")
+	privPath := storage.VersionPath("priv-page-access", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private page about oranges</p></body></html>"), 0644)
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-access", "Private Page Access", "v1.0.0", privPath)
+
+	// Create user with access
+	hash, _ := auth.HashPassword("user123")
+	accessUser := &database.User{
+		Username: "pageaccessuser", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, accessUser)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: privProject.ID,
+		UserID:    accessUser.ID,
+		Role:      "viewer",
+	})
+
+	cookies := loginUser(t, app, "pageaccessuser", "user123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/search?q=oranges&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "priv-page-access") {
+		t.Error("user with access should see private project in search page results")
+	}
+}
+
+func TestSearchPageAccessControlUserWithoutAccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "priv-page-noaccess", "Private Page No Access", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("priv-page-noaccess", "v1.0.0")
+	privPath := storage.VersionPath("priv-page-noaccess", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private page about apples</p></body></html>"), 0644)
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-noaccess", "Private Page No Access", "v1.0.0", privPath)
+
+	// Create user WITHOUT access
+	hash, _ := auth.HashPassword("user123")
+	noAccessUser := &database.User{
+		Username: "pagenoaccessuser", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, noAccessUser)
+
+	cookies := loginUser(t, app, "pagenoaccessuser", "user123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/search?q=apples&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if strings.Contains(bodyStr, "priv-page-noaccess") {
+		t.Error("user without access should NOT see private project in search page results")
+	}
+}
+
+func TestSearchPageAccessControlAdminSeesAll(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "priv-page-admin", "Private Page Admin", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("priv-page-admin", "v1.0.0")
+	privPath := storage.VersionPath("priv-page-admin", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private page about mangoes</p></body></html>"), 0644)
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-admin", "Private Page Admin", "v1.0.0", privPath)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/search?q=mangoes&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "priv-page-admin") {
+		t.Error("admin should see private project in search page results")
+	}
+}
+
+func TestSearchAPIAccessControlUserWithoutAccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "private-search", "Private Search", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("private-search", "v1.0.0")
+	privPath := storage.VersionPath("private-search", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Secret documentation about gadgets</p></body></html>"), 0644)
+
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-search", "Private Search", "v1.0.0", privPath)
+
+	// Create a user WITHOUT access to the private project
+	hash, _ := auth.HashPassword("user123")
+	noAccessUser := &database.User{
+		Username: "noaccess", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, noAccessUser)
+
+	cookies := loginUser(t, app, "noaccess", "user123")
+
+	// Search as logged-in user without access
+	req, _ := http.NewRequest("GET", app.server.URL+"/api/search?q=gadgets&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if strings.Contains(bodyStr, "private-search") {
+		t.Error("logged-in user without access should NOT see private project in search results")
+	}
+}
+
+func TestSearchAPIAccessControlUserWithAccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "private-access", "Private Access", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("private-access", "v1.0.0")
+	privPath := storage.VersionPath("private-access", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Private documentation about gizmos</p></body></html>"), 0644)
+
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-access", "Private Access", "v1.0.0", privPath)
+
+	// Create a user WITH access to the private project
+	hash, _ := auth.HashPassword("user123")
+	accessUser := &database.User{
+		Username: "hasaccess", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, accessUser)
+
+	// Grant access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: privProject.ID,
+		UserID:    accessUser.ID,
+		Role:      "viewer",
+	})
+
+	cookies := loginUser(t, app, "hasaccess", "user123")
+
+	// Search as logged-in user with access
+	req, _ := http.NewRequest("GET", app.server.URL+"/api/search?q=gizmos&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "private-access") {
+		t.Error("logged-in user WITH access should see private project in search results")
+	}
+}
+
+func TestSearchAPIAccessControlAdminSeesAll(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create private project
+	privProject := seedProject(t, app, "admin-search-test", "Admin Search Test", false)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+
+	// Set up private project docs
+	storage.EnsureVersionDir("admin-search-test", "v1.0.0")
+	privPath := storage.VersionPath("admin-search-test", "v1.0.0")
+	os.WriteFile(filepath.Join(privPath, "index.html"),
+		[]byte("<html><body><p>Admin-only documentation about thingamajigs</p></body></html>"), 0644)
+
+	privVersion := &database.Version{
+		ProjectID: privProject.ID, Tag: "v1.0.0",
+		StoragePath: privPath, UploadedBy: admin.ID,
+	}
+	app.handler.versions.Create(ctx, privVersion)
+	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "admin-search-test", "Admin Search Test", "v1.0.0", privPath)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	// Search as admin
+	req, _ := http.NewRequest("GET", app.server.URL+"/api/search?q=thingamajigs&all_versions=1", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "admin-search-test") {
+		t.Error("admin should see all projects in search results including private ones")
+	}
+}
+
+func TestProjectTokensPageRequiresEditorAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "token-proj", "Token Project", true)
+
+	ctx := context.Background()
+
+	// Create a viewer user
+	hash, _ := auth.HashPassword("viewer123")
+	viewer := &database.User{
+		Username: "viewer", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, viewer)
+
+	// Grant viewer access (not editor)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    viewer.ID,
+		Role:      "viewer",
+	})
+
+	cookies := loginUser(t, app, "viewer", "viewer123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/token-proj/tokens", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for viewer accessing tokens page, got %d", resp.StatusCode)
+	}
+}
+
+func TestProjectTokensPageEditorCanAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "editor-token-proj", "Editor Token Project", true)
+
+	ctx := context.Background()
+
+	// Create an editor user
+	hash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "editor", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, editor)
+
+	// Grant editor access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "editor", "editor123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/project/editor-token-proj/tokens", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for editor accessing tokens page, got %d", resp.StatusCode)
+	}
+}
+
+func TestProjectCreateTokenAlwaysScopedToProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "scoped-proj", "Scoped Project", true)
+
+	ctx := context.Background()
+
+	// Create an editor user
+	hash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "tokeneditor", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, editor)
+
+	// Grant editor access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "tokeneditor", "editor123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Create token via project page
+	form := url.Values{}
+	form.Set("name", "my-ci-token")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/scoped-proj/tokens", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 after token creation, got %d", resp.StatusCode)
+	}
+
+	// Verify token was created and is scoped to the project
+	tokens, err := app.handler.tokens.ListByProject(ctx, project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 1 {
+		t.Fatalf("expected 1 token for project, got %d", len(tokens))
+	}
+
+	token := tokens[0]
+	if token.ProjectID == nil {
+		t.Error("token created via project page should be scoped (project_id should not be nil)")
+	}
+	if token.ProjectID != nil && *token.ProjectID != project.ID {
+		t.Errorf("token should be scoped to project %d, got %d", project.ID, *token.ProjectID)
+	}
+	if token.Name != "my-ci-token" {
+		t.Errorf("expected token name 'my-ci-token', got %q", token.Name)
+	}
+}
+
+func TestProjectRevokeTokenValidatesOwnership(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+
+	// Create two projects
+	project1 := seedProject(t, app, "proj1", "Project 1", true)
+	project2 := seedProject(t, app, "proj2", "Project 2", true)
+
+	ctx := context.Background()
+
+	// Create a token scoped to project1
+	token := &database.APIToken{
+		UserID:    admin.ID,
+		ProjectID: &project1.ID,
+		TokenHash: "test-hash",
+		Name:      "test-token",
+		Scopes:    "upload",
+	}
+	app.handler.tokens.Create(ctx, token)
+
+	// Create an editor for project2
+	hash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "proj2editor", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, editor)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project2.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "proj2editor", "editor123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Try to revoke project1's token from project2's tokens page
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/project/proj2/tokens/%d/revoke", app.server.URL, token.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 when trying to revoke token from wrong project, got %d", resp.StatusCode)
+	}
+
+	// Verify token still exists
+	_, err = app.handler.tokens.GetByID(ctx, token.ID)
+	if err != nil {
+		t.Error("token should still exist after failed revoke attempt")
+	}
+}
+
+func TestProjectRevokeTokenSuccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "revoke-proj", "Revoke Project", true)
+
+	ctx := context.Background()
+
+	// Create a token scoped to project
+	token := &database.APIToken{
+		UserID:    admin.ID,
+		ProjectID: &project.ID,
+		TokenHash: "revoke-test-hash",
+		Name:      "revoke-test-token",
+		Scopes:    "upload",
+	}
+	app.handler.tokens.Create(ctx, token)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Revoke token
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/project/revoke-proj/tokens/%d/revoke", app.server.URL, token.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after revoke, got %d", resp.StatusCode)
+	}
+
+	// Verify token is deleted
+	_, err = app.handler.tokens.GetByID(ctx, token.ID)
+	if err == nil {
+		t.Error("token should be deleted after revoke")
+	}
+}
+
+func TestAPIUploadWithProjectScopedTokenCorrectProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "scoped-upload", "Scoped Upload", true)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "scoped-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Grant upload access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    robot.ID,
+		Role:      "editor",
+	})
+
+	// Generate project-scoped token
+	rawToken, _ := auth.GenerateToken(32)
+	tokenHash := auth.HashToken(rawToken)
+	app.handler.tokens.Create(ctx, &database.APIToken{
+		UserID:    robot.ID,
+		ProjectID: &project.ID,
+		TokenHash: tokenHash,
+		Name:      "scoped-token",
+		Scopes:    "upload",
+	})
+
+	// Build multipart upload
+	zipBuf := createTestZip(t, map[string]string{
+		"index.html": "<html>Scoped upload</html>",
+	})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/scoped-upload/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(respBody))
+	}
+}
+
+func TestAPIUploadWithProjectScopedTokenWrongProject(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project1 := seedProject(t, app, "scoped-proj1", "Scoped Proj 1", true)
+	project2 := seedProject(t, app, "scoped-proj2", "Scoped Proj 2", true)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "scoped-bot2",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Grant upload access to both projects
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project1.ID, UserID: robot.ID, Role: "editor",
+	})
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project2.ID, UserID: robot.ID, Role: "editor",
+	})
+
+	// Generate token scoped to project1 ONLY
+	rawToken, _ := auth.GenerateToken(32)
+	tokenHash := auth.HashToken(rawToken)
+	app.handler.tokens.Create(ctx, &database.APIToken{
+		UserID:    robot.ID,
+		ProjectID: &project1.ID,
+		TokenHash: tokenHash,
+		Name:      "proj1-only-token",
+		Scopes:    "upload",
+	})
+
+	// Try to upload to project2 with project1's token
+	zipBuf := createTestZip(t, map[string]string{
+		"index.html": "<html>Wrong project upload</html>",
+	})
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	writer.WriteField("version", "v1.0.0")
+	part, _ := writer.CreateFormFile("archive", "docs.zip")
+	part.Write(zipBuf.Bytes())
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/api/project/scoped-proj2/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 for scoped token on wrong project, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdminCanCreateGlobalToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "global-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Create token without project_id (global)
+	form := url.Values{}
+	form.Set("name", "global-token")
+	// Note: no project_id field = global token
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens", app.server.URL, robot.ID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 after token creation, got %d", resp.StatusCode)
+	}
+
+	// Verify token was created as global
+	tokens, err := app.handler.tokens.ListByUser(ctx, robot.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 1 {
+		t.Fatalf("expected 1 token, got %d", len(tokens))
+	}
+
+	if tokens[0].ProjectID != nil {
+		t.Error("admin-created token without project_id should be global (nil)")
+	}
+}
+
+func TestAdminCanCreateProjectScopedToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "admin-scoped", "Admin Scoped", true)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "admin-scoped-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// Create token with project_id
+	form := url.Values{}
+	form.Set("name", "scoped-token")
+	form.Set("project_id", fmt.Sprintf("%d", project.ID))
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens", app.server.URL, robot.ID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 after token creation, got %d", resp.StatusCode)
+	}
+
+	// Verify token was created as scoped
+	tokens, err := app.handler.tokens.ListByUser(ctx, robot.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 1 {
+		t.Fatalf("expected 1 token, got %d", len(tokens))
+	}
+
+	if tokens[0].ProjectID == nil {
+		t.Error("admin-created token with project_id should be scoped")
+	}
+	if tokens[0].ProjectID != nil && *tokens[0].ProjectID != project.ID {
+		t.Errorf("expected project_id %d, got %d", project.ID, *tokens[0].ProjectID)
+	}
+}
+
+// OAuth2 tests - when OAuth2 is not configured, these endpoints should return 501
+func TestOAuth2InitiateNotConfigured(t *testing.T) {
+	app := setupTestApp(t)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/auth/oauth2", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Without OAuth2 configured, should return 501 Not Implemented
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("expected 501 when OAuth2 not configured, got %d", resp.StatusCode)
+	}
+}
+
+func TestOAuth2CallbackNotConfigured(t *testing.T) {
+	app := setupTestApp(t)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/auth/callback?code=test&state=test", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Without OAuth2 configured, should return 501 Not Implemented
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("expected 501 when OAuth2 not configured, got %d", resp.StatusCode)
+	}
+}
+
+// Version deletion tests
+func TestDeleteVersionSuccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "delete-ver", "Delete Version", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("delete-ver", "v1.0.0")
+	versionPath := storage.VersionPath("delete-ver", "v1.0.0")
+	os.WriteFile(filepath.Join(versionPath, "index.html"), []byte("<html>Delete me</html>"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/delete-ver/version/v1.0.0/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after delete, got %d", resp.StatusCode)
+	}
+
+	// Verify version is deleted from database
+	_, err = app.handler.versions.GetByProjectAndTag(ctx, project.ID, "v1.0.0")
+	if err == nil {
+		t.Error("version should be deleted from database")
+	}
+}
+
+func TestDeleteVersionRequiresEditorAccess(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "nodelete-ver", "No Delete Version", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("nodelete-ver", "v1.0.0")
+	versionPath := storage.VersionPath("nodelete-ver", "v1.0.0")
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v1.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	// Create a viewer user
+	hash, _ := auth.HashPassword("viewer123")
+	viewer := &database.User{
+		Username: "delviewer", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, viewer)
+
+	// Grant viewer access (not editor)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    viewer.ID,
+		Role:      "viewer",
+	})
+
+	cookies := loginUser(t, app, "delviewer", "viewer123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/nodelete-ver/version/v1.0.0/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for viewer trying to delete version, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeleteVersionEditorWithAccessCanDelete(t *testing.T) {
+	app := setupTestApp(t)
+	admin := seedAdmin(t, app)
+	project := seedProject(t, app, "editor-delete", "Editor Delete", true)
+
+	ctx := context.Background()
+	storage := app.handler.storage
+	storage.EnsureVersionDir("editor-delete", "v2.0.0")
+	versionPath := storage.VersionPath("editor-delete", "v2.0.0")
+	os.WriteFile(filepath.Join(versionPath, "index.html"), []byte("<html>Editor delete</html>"), 0644)
+
+	version := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         "v2.0.0",
+		StoragePath: versionPath,
+		UploadedBy:  admin.ID,
+	}
+	app.handler.versions.Create(ctx, version)
+
+	// Create an editor user
+	hash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "deletedit", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, editor)
+
+	// Grant editor access
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "deletedit", "editor123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/editor-delete/version/v2.0.0/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect for editor with access, got %d", resp.StatusCode)
+	}
+
+	// Verify version is deleted
+	_, err = app.handler.versions.GetByProjectAndTag(ctx, project.ID, "v2.0.0")
+	if err == nil {
+		t.Error("version should be deleted by editor with access")
+	}
+}
+
+func TestDeleteVersionNotFound(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "no-ver", "No Version", true)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/project/no-ver/version/v99.0.0/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent version, got %d", resp.StatusCode)
+	}
+}
+
+// Profile page tests
+func TestProfilePageRequiresAuth(t *testing.T) {
+	app := setupTestApp(t)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/profile", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Should redirect to login
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect for unauthenticated profile access, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.Contains(loc, "/login") {
+		t.Errorf("expected redirect to /login, got %s", loc)
+	}
+}
+
+func TestProfilePageRendered(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "profileuser", Password: &hash,
+		Email: "profile@example.com",
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "profileuser", "user123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/profile", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for authenticated profile access, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "profileuser") {
+		t.Error("expected username in profile page")
+	}
+	if !strings.Contains(bodyStr, "profile@example.com") {
+		t.Error("expected email in profile page")
+	}
+}
+
+// Admin access grant/revoke tests
+func TestAdminGrantAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "grant-proj", "Grant Project", false)
+
+	ctx := context.Background()
+
+	// Create a user to grant access to
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "grantee", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("grant_user_id", fmt.Sprintf("%d", user.ID))
+	form.Set("grant_role", "editor")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/grant-proj/access/grant", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after grant, got %d", resp.StatusCode)
+	}
+
+	// Verify access was granted
+	access, err := app.handler.access.GetAccess(ctx, project.ID, user.ID)
+	if err != nil || access == nil {
+		t.Error("expected access to be granted")
+	}
+	if access != nil && access.Role != "editor" {
+		t.Errorf("expected role 'editor', got %q", access.Role)
+	}
+}
+
+func TestAdminGrantAccessRequiresAdmin(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	_ = seedProject(t, app, "noadmin-grant", "No Admin Grant", false)
+
+	ctx := context.Background()
+
+	// Create a non-admin user
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "notadmin", Password: &hash,
+		AuthSource: "builtin", Role: "editor",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "notadmin", "user123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("grant_user_id", fmt.Sprintf("%d", user.ID))
+	form.Set("grant_role", "editor")
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/noadmin-grant/access/grant", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdminRevokeAccess(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "revoke-proj", "Revoke Project", false)
+
+	ctx := context.Background()
+
+	// Create a user and grant access
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "revokee", Password: &hash,
+		AuthSource: "builtin", Role: "viewer",
+	}
+	app.handler.users.Create(ctx, user)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    user.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("user_id", fmt.Sprintf("%d", user.ID))
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/revoke-proj/access/revoke", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after revoke, got %d", resp.StatusCode)
+	}
+
+	// Verify access was revoked
+	access, _ := app.handler.access.GetAccess(ctx, project.ID, user.ID)
+	if access != nil {
+		t.Error("expected access to be revoked")
+	}
+}
+
+func TestAdminRevokeAccessRequiresAdmin(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	_ = seedProject(t, app, "noadmin-revoke", "No Admin Revoke", false)
+
+	ctx := context.Background()
+
+	// Create a non-admin user
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "notadmin2", Password: &hash,
+		AuthSource: "builtin", Role: "editor",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "notadmin2", "user123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	form := url.Values{}
+	form.Set("user_id", fmt.Sprintf("%d", user.ID))
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/noadmin-revoke/access/revoke", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin, got %d", resp.StatusCode)
+	}
+}
+
+// Admin robot token revoke tests
+func TestAdminRevokeRobotToken(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "revoke-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Create token for robot
+	token := &database.APIToken{
+		UserID:    robot.ID,
+		TokenHash: "revoke-hash",
+		Name:      "revoke-token",
+		Scopes:    "upload",
+	}
+	app.handler.tokens.Create(ctx, token)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens/%d/revoke", app.server.URL, robot.ID, token.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after token revoke, got %d", resp.StatusCode)
+	}
+
+	// Verify token was deleted
+	_, err = app.handler.tokens.GetByID(ctx, token.ID)
+	if err == nil {
+		t.Error("token should be deleted after revoke")
+	}
+}
+
+func TestAdminRevokeRobotTokenRequiresAdmin(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "norevokebot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Create token for robot
+	token := &database.APIToken{
+		UserID:    robot.ID,
+		TokenHash: "norevoke-hash",
+		Name:      "norevoke-token",
+		Scopes:    "upload",
+	}
+	app.handler.tokens.Create(ctx, token)
+
+	// Create non-admin user
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "notadmin3", Password: &hash,
+		AuthSource: "builtin", Role: "editor",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "notadmin3", "user123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens/%d/revoke", app.server.URL, robot.ID, token.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin, got %d", resp.StatusCode)
+	}
+}
+
+// Admin delete robot tests
+func TestAdminDeleteRobot(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "delete-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/delete", app.server.URL, robot.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect after robot delete, got %d", resp.StatusCode)
+	}
+
+	// Verify robot was deleted
+	_, err = app.handler.users.GetByUsername(ctx, "delete-bot")
+	if err == nil {
+		t.Error("robot should be deleted")
+	}
+}
+
+func TestAdminDeleteRobotRequiresAdmin(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+
+	ctx := context.Background()
+
+	// Create robot user
+	robot := &database.User{
+		Username:   "nodelete-bot",
+		AuthSource: "robot",
+		Role:       "editor",
+		IsRobot:    true,
+	}
+	app.handler.users.Create(ctx, robot)
+
+	// Create non-admin user
+	hash, _ := auth.HashPassword("user123")
+	user := &database.User{
+		Username: "notadmin4", Password: &hash,
+		AuthSource: "builtin", Role: "editor",
+	}
+	app.handler.users.Create(ctx, user)
+
+	cookies := loginUser(t, app, "notadmin4", "user123")
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/delete", app.server.URL, robot.ID), nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin, got %d", resp.StatusCode)
+	}
+
+	// Verify robot was NOT deleted
+	_, err = app.handler.users.GetByUsername(ctx, "nodelete-bot")
+	if err != nil {
+		t.Error("robot should NOT be deleted by non-admin")
+	}
+}
+
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)
