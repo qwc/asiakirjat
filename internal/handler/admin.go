@@ -508,7 +508,7 @@ func (h *Handler) handleAdminDeleteRobot(w http.ResponseWriter, r *http.Request)
 	h.redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
 
-// Group mappings view struct for template
+// Group mappings view struct for template - individual mapping
 type groupMappingView struct {
 	ID              int64
 	AuthSource      string
@@ -517,6 +517,21 @@ type groupMappingView struct {
 	ProjectName     string
 	Role            string
 	FromConfig      bool
+}
+
+// Grouped view for display - one group can have multiple projects
+type groupMappingGrouped struct {
+	AuthSource      string
+	GroupIdentifier string
+	Role            string
+	Projects        []groupMappingProject
+}
+
+type groupMappingProject struct {
+	MappingID   int64
+	ProjectID   int64
+	ProjectName string
+	FromConfig  bool
 }
 
 func (h *Handler) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
@@ -545,23 +560,39 @@ func (h *Handler) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
 		projectNames[p.ID] = p.Name
 	}
 
-	// Build view models
-	var views []groupMappingView
+	// Build grouped view models
+	// Key: "authSource|groupIdentifier|role"
+	groupedMap := make(map[string]*groupMappingGrouped)
+	var groupOrder []string // preserve order
+
 	for _, m := range mappings {
-		views = append(views, groupMappingView{
-			ID:              m.ID,
-			AuthSource:      m.AuthSource,
-			GroupIdentifier: m.GroupIdentifier,
-			ProjectID:       m.ProjectID,
-			ProjectName:     projectNames[m.ProjectID],
-			Role:            m.Role,
-			FromConfig:      m.FromConfig,
+		key := m.AuthSource + "|" + m.GroupIdentifier + "|" + m.Role
+		if _, exists := groupedMap[key]; !exists {
+			groupedMap[key] = &groupMappingGrouped{
+				AuthSource:      m.AuthSource,
+				GroupIdentifier: m.GroupIdentifier,
+				Role:            m.Role,
+				Projects:        []groupMappingProject{},
+			}
+			groupOrder = append(groupOrder, key)
+		}
+		groupedMap[key].Projects = append(groupedMap[key].Projects, groupMappingProject{
+			MappingID:   m.ID,
+			ProjectID:   m.ProjectID,
+			ProjectName: projectNames[m.ProjectID],
+			FromConfig:  m.FromConfig,
 		})
+	}
+
+	// Convert to slice preserving order
+	var grouped []groupMappingGrouped
+	for _, key := range groupOrder {
+		grouped = append(grouped, *groupedMap[key])
 	}
 
 	data := map[string]any{
 		"User":     user,
-		"Mappings": views,
+		"Mappings": grouped,
 		"Projects": projects,
 	}
 
@@ -592,11 +623,7 @@ func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.R
 
 	authSource := r.FormValue("auth_source")
 	groupIdentifier := r.FormValue("group_identifier")
-	projectID, err := strconv.ParseInt(r.FormValue("project_id"), 10, 64)
-	if err != nil {
-		h.redirect(w, r, "/admin/groups?msg=error&error=Invalid+project+ID", http.StatusSeeOther)
-		return
-	}
+	projectIDs := r.Form["project_ids[]"] // Multiple project IDs
 	role := r.FormValue("role")
 
 	if authSource != "ldap" && authSource != "oauth2" {
@@ -609,21 +636,41 @@ func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	if len(projectIDs) == 0 {
+		h.redirect(w, r, "/admin/groups?msg=error&error=At+least+one+project+required", http.StatusSeeOther)
+		return
+	}
+
 	if role != "viewer" && role != "editor" {
 		role = "viewer"
 	}
 
-	mapping := &database.AuthGroupMapping{
-		AuthSource:      authSource,
-		GroupIdentifier: groupIdentifier,
-		ProjectID:       projectID,
-		Role:            role,
-		FromConfig:      false,
+	// Create a mapping for each project
+	var created int
+	for _, pidStr := range projectIDs {
+		projectID, err := strconv.ParseInt(pidStr, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		mapping := &database.AuthGroupMapping{
+			AuthSource:      authSource,
+			GroupIdentifier: groupIdentifier,
+			ProjectID:       projectID,
+			Role:            role,
+			FromConfig:      false,
+		}
+
+		if err := h.groupMappings.Create(ctx, mapping); err != nil {
+			// Log but continue - might be duplicate
+			h.logger.Warn("creating group mapping", "error", err, "project_id", projectID)
+			continue
+		}
+		created++
 	}
 
-	if err := h.groupMappings.Create(ctx, mapping); err != nil {
-		h.logger.Error("creating group mapping", "error", err)
-		h.redirect(w, r, "/admin/groups?msg=error&error=Failed+to+create+mapping", http.StatusSeeOther)
+	if created == 0 {
+		h.redirect(w, r, "/admin/groups?msg=error&error=Failed+to+create+mappings", http.StatusSeeOther)
 		return
 	}
 
