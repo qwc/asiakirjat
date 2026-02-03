@@ -7,6 +7,7 @@ import (
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
+	"github.com/qwc/asiakirjat/internal/docs/builtin"
 )
 
 func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,11 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		data["Flash"] = &Flash{
 			Type:    "warning",
 			Message: "Reindex is already running",
+		}
+	case "docs_deployed":
+		data["Flash"] = &Flash{
+			Type:    "success",
+			Message: "Built-in documentation deployed successfully",
 		}
 	}
 
@@ -765,4 +771,27 @@ func (h *Handler) handleAdminDeleteGroupMapping(w http.ResponseWriter, r *http.R
 	}
 
 	h.redirect(w, r, "/admin/groups?msg=deleted", http.StatusSeeOther)
+}
+
+func (h *Handler) handleAdminDeployBuiltinDocs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+
+	deployer := &builtin.Deployer{
+		Storage:     h.storage,
+		Projects:    h.projects,
+		Versions:    h.versions,
+		SearchIndex: h.searchIndex,
+		BasePath:    h.config.Server.BasePath,
+		Logger:      h.logger,
+	}
+
+	if err := deployer.Deploy(ctx, user.ID); err != nil {
+		h.logger.Error("deploying builtin docs", "error", err)
+		http.Error(w, "Failed to deploy documentation: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.invalidateLatestTagsCache()
+	h.redirect(w, r, "/admin/projects?msg=docs_deployed", http.StatusSeeOther)
 }

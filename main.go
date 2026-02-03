@@ -16,11 +16,15 @@ import (
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/docs/builtin"
 	"github.com/qwc/asiakirjat/internal/handler"
 	"github.com/qwc/asiakirjat/internal/store"
 	sqlstore "github.com/qwc/asiakirjat/internal/store/sql"
 	"github.com/qwc/asiakirjat/internal/templates"
 )
+
+// version is set via ldflags at build time.
+var version = "dev"
 
 //go:embed static
 var staticFiles embed.FS
@@ -28,6 +32,9 @@ var staticFiles embed.FS
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	flag.Parse()
+
+	// Set the version for built-in docs
+	builtin.Version = version
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,

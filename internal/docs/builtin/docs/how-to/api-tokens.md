@@ -1,0 +1,159 @@
+# Using API Tokens
+
+This guide explains how to create and use API tokens for programmatic access.
+
+## Overview
+
+API tokens allow automated systems (CI/CD pipelines, scripts) to upload documentation without interactive login. Tokens are associated with "robot" users.
+
+## Token Types
+
+### Robot User Tokens (Admin)
+
+Created by admins for service accounts:
+
+1. Go to **Admin > Robot Users**
+2. Click **Create Robot User**
+3. Enter a username (e.g., `ci-uploader`)
+4. Click **Generate Token** on the robot user
+5. Copy the token immediately (it's shown only once)
+
+### Project-Scoped Tokens (Editor)
+
+Editors can create tokens scoped to specific projects they have access to:
+
+1. Navigate to your project
+2. Click **Manage Tokens** (or go to `/project/{slug}/tokens`)
+3. Click **Create Token**
+4. Enter a name and click **Create**
+5. Copy the token immediately
+
+Project-scoped tokens can only upload to that specific project.
+
+## Using Tokens
+
+Include the token in the `Authorization` header:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -F "file=@docs.zip" \
+  -F "tag=v1.0.0" \
+  https://docs.example.com/api/project/my-project/upload
+```
+
+## API Endpoints
+
+### Upload Documentation
+
+```
+POST /api/project/{slug}/upload
+```
+
+Parameters:
+- `file`: Archive file (multipart form)
+- `tag`: Version tag (e.g., "v1.0.0")
+
+Response:
+```json
+{
+  "message": "Documentation uploaded successfully",
+  "project": "my-project",
+  "version": "v1.0.0"
+}
+```
+
+### List Projects
+
+```
+GET /api/projects
+```
+
+Returns projects accessible to the token's user.
+
+### List Versions
+
+```
+GET /api/project/{slug}/versions
+```
+
+Returns versions for a specific project.
+
+## Token Security
+
+- Tokens are stored as SHA-256 hashes (the plain token is never stored)
+- Tokens don't expire automatically
+- Revoke tokens immediately if compromised
+- Use project-scoped tokens when possible (principle of least privilege)
+
+## Revoking Tokens
+
+### Robot User Tokens
+
+1. Go to **Admin > Robot Users**
+2. Find the token in the robot's token list
+3. Click **Revoke**
+
+### Project-Scoped Tokens
+
+1. Navigate to the project's token page
+2. Find the token
+3. Click **Revoke**
+
+## CI/CD Examples
+
+### GitHub Actions
+
+```yaml
+- name: Upload docs
+  env:
+    DOCS_TOKEN: ${{ secrets.ASIAKIRJAT_TOKEN }}
+  run: |
+    curl -X POST \
+      -H "Authorization: Bearer $DOCS_TOKEN" \
+      -F "file=@dist/docs.zip" \
+      -F "tag=${{ github.ref_name }}" \
+      https://docs.example.com/api/project/my-api/upload
+```
+
+### GitLab CI
+
+```yaml
+deploy_docs:
+  script:
+    - |
+      curl -X POST \
+        -H "Authorization: Bearer $DOCS_TOKEN" \
+        -F "file=@public.zip" \
+        -F "tag=$CI_COMMIT_TAG" \
+        https://docs.example.com/api/project/my-api/upload
+```
+
+### Jenkins
+
+```groovy
+withCredentials([string(credentialsId: 'asiakirjat-token', variable: 'TOKEN')]) {
+    sh '''
+        curl -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "file=@docs.zip" \
+            -F "tag=${BUILD_TAG}" \
+            https://docs.example.com/api/project/my-api/upload
+    '''
+}
+```
+
+## Troubleshooting
+
+**401 Unauthorized**
+- Check the token is correct
+- Verify the token hasn't been revoked
+- Ensure `Authorization: Bearer` prefix is present
+
+**403 Forbidden**
+- Robot user may not have access to the project
+- Project-scoped token used for wrong project
+
+**400 Bad Request**
+- Check archive format is supported
+- Verify `tag` parameter is provided

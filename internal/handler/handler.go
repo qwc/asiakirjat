@@ -142,6 +142,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
 	mux.HandleFunc("POST "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminCreateGroupMapping)))
 	mux.HandleFunc("POST "+bp+"/admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteGroupMapping)))
+	mux.HandleFunc("POST "+bp+"/admin/deploy-docs", h.withSession(h.requireAdmin(h.handleAdminDeployBuiltinDocs)))
 
 	// Health check (keep at root for load balancer compatibility, but also at base path)
 	mux.HandleFunc("GET "+bp+"/healthz", h.handleHealthz)

@@ -37,12 +37,16 @@
         </form>
     </div>
 
-    <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+    <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
         <form method="POST" action="{{url "/admin/reindex"}}" class="inline-form"
             onsubmit="return confirm('Rebuild the full-text search index? This runs in the background.')">
             <button type="submit" class="btn btn-secondary" {{if .ReindexRunning}}disabled{{end}}>
                 {{if .ReindexRunning}}Reindexing...{{else}}Rebuild Search Index{{end}}
             </button>
+        </form>
+        <form method="POST" action="{{url "/admin/deploy-docs"}}" class="inline-form"
+            onsubmit="return confirm('Deploy built-in documentation as asiakirjat-docs project?')">
+            <button type="submit" class="btn btn-secondary">Deploy Built-in Docs</button>
         </form>
         {{if .ReindexRunning}}
         <span style="color: var(--color-text-muted); font-size: 0.875rem;">
