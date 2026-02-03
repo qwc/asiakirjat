@@ -492,6 +492,50 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Upload hint */
+.upload-hint {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.upload-hint summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.upload-hint summary:hover {
+    color: var(--color-text);
+}
+
+.upload-hint pre {
+    background: #1f2937;
+    color: #e2e8f0;
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    margin: 0.75rem 0;
+}
+
+.upload-hint code {
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.upload-hint .hint-text {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.upload-hint .hint-text a {
+    color: var(--color-primary);
+}
+
 /* Version list */
 .version-list {
     list-style: none;
