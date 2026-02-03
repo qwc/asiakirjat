@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/qwc/asiakirjat/internal/auth"
+	"github.com/qwc/asiakirjat/internal/database"
+	"github.com/qwc/asiakirjat/internal/docs"
 )
 
 type projectCardData struct {
@@ -12,6 +14,19 @@ type projectCardData struct {
 	Description   string
 	IsPublic      bool
 	LatestVersion string
+}
+
+// latestVersionTag returns the highest semver tag from a list of versions.
+func latestVersionTag(versions []database.Version) string {
+	if len(versions) == 0 {
+		return ""
+	}
+	tags := make([]string, len(versions))
+	for i, v := range versions {
+		tags[i] = v.Tag
+	}
+	docs.SortVersionTags(tags)
+	return tags[0]
 }
 
 func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
@@ -36,9 +51,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				IsPublic:    p.IsPublic,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			if len(versions) > 0 {
-				card.LatestVersion = versions[0].Tag
-			}
+			card.LatestVersion = latestVersionTag(versions)
 			projects = append(projects, card)
 		}
 	} else if user != nil {
@@ -68,9 +81,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				IsPublic:    p.IsPublic,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			if len(versions) > 0 {
-				card.LatestVersion = versions[0].Tag
-			}
+			card.LatestVersion = latestVersionTag(versions)
 			projects = append(projects, card)
 		}
 
@@ -88,9 +99,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				IsPublic:    p.IsPublic,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			if len(versions) > 0 {
-				card.LatestVersion = versions[0].Tag
-			}
+			card.LatestVersion = latestVersionTag(versions)
 			projects = append(projects, card)
 		}
 	} else {
@@ -109,9 +118,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				IsPublic:    p.IsPublic,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			if len(versions) > 0 {
-				card.LatestVersion = versions[0].Tag
-			}
+			card.LatestVersion = latestVersionTag(versions)
 			projects = append(projects, card)
 		}
 	}
