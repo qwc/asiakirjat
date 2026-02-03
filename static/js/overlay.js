@@ -259,6 +259,16 @@
                         searchDropdown.appendChild(item);
                     });
 
+                    // Add "View all results" link if there are more results
+                    if (data.total > 8) {
+                        var viewAll = document.createElement("a");
+                        viewAll.className = "ao-search-view-all";
+                        viewAll.href = "/search?q=" + encodeURIComponent(q) +
+                            "&project=" + encodeURIComponent(searchSlug);
+                        viewAll.textContent = "View all " + data.total + " results";
+                        searchDropdown.appendChild(viewAll);
+                    }
+
                     searchDropdown.style.display = "block";
                 })
                 .catch(function() {
