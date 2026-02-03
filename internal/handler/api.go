@@ -113,17 +113,18 @@ func (h *Handler) handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := r.PathValue("slug")
 
-	// Authenticate via Bearer token
-	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
-	user := tokenAuth.AuthenticateRequest(r)
-	if user == nil {
-		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
+	// Get project first to know the project ID for token scope validation
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
 		h.jsonError(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Authenticate via Bearer token with project scope validation
+	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
+	user := tokenAuth.AuthenticateRequestForProject(r, project.ID)
+	if user == nil {
+		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 

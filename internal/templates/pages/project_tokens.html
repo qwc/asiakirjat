@@ -1,0 +1,71 @@
+{{define "title"}}API Tokens - {{.Project.Name}} - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="project-detail">
+    <div class="project-detail-header">
+        <h1>API Tokens for {{.Project.Name}}</h1>
+        <a href="{{url "/project/"}}{{.Project.Slug}}" class="btn btn-secondary">Back to Project</a>
+    </div>
+
+    {{if .NewToken}}
+    <div class="flash flash-success">
+        <strong>New API Token Generated!</strong> Copy it now — it won't be shown again:<br>
+        <code class="token-display">{{.NewToken}}</code>
+    </div>
+    {{end}}
+
+    <div class="admin-create-form">
+        <h2>Create New Token</h2>
+        <p class="hint-text">Tokens created here are scoped to this project only.</p>
+        <form method="POST" action="{{url "/project/"}}{{.Project.Slug}}/tokens">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">Token Name</label>
+                    <input type="text" id="name" name="name" required placeholder="ci-upload">
+                </div>
+                <button type="submit" class="btn btn-primary">Generate Token</button>
+            </div>
+        </form>
+    </div>
+
+    <h2>Existing Tokens</h2>
+    {{if .Tokens}}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Created By</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Tokens}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td>{{.Username}}</td>
+                <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+                <td>
+                    <form method="POST" action="{{url "/project/"}}{{$.Project.Slug}}/tokens/{{.ID}}/revoke" class="inline-form"
+                        onsubmit="return confirm('Revoke token {{.Name}}?')">
+                        <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p>No tokens for this project.</p>
+    {{end}}
+
+    <details class="upload-hint">
+        <summary>API Upload Example</summary>
+        <pre><code>curl -X POST \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -F "version=v1.0.0" \
+  -F "archive=@docs.zip" \
+  {{url "/api/project/"}}{{.Project.Slug}}/upload</code></pre>
+    </details>
+</div>
+{{end}}

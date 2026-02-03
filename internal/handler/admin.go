@@ -318,25 +318,52 @@ func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	projects, err := h.projects.List(ctx)
+	if err != nil {
+		h.logger.Error("listing projects", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build project name lookup for token display
+	projectNames := make(map[int64]string)
+	for _, p := range projects {
+		projectNames[p.ID] = p.Name
+	}
+
+	type tokenView struct {
+		database.APIToken
+		ProjectName string
+	}
+
 	type robotView struct {
 		User    database.User
-		Tokens  []database.APIToken
+		Tokens  []tokenView
 		RobotID int64
 	}
 
 	var robotViews []robotView
 	for _, robot := range robots {
 		tokens, _ := h.tokens.ListByUser(ctx, robot.ID)
+		var tokenViews []tokenView
+		for _, t := range tokens {
+			tv := tokenView{APIToken: t}
+			if t.ProjectID != nil {
+				tv.ProjectName = projectNames[*t.ProjectID]
+			}
+			tokenViews = append(tokenViews, tv)
+		}
 		robotViews = append(robotViews, robotView{
 			User:    robot,
-			Tokens:  tokens,
+			Tokens:  tokenViews,
 			RobotID: robot.ID,
 		})
 	}
 
 	h.render(w, "admin_robots", map[string]any{
-		"User":   user,
-		"Robots": robotViews,
+		"User":     user,
+		"Robots":   robotViews,
+		"Projects": projects,
 	})
 }
 
@@ -380,6 +407,17 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		name = "default"
 	}
 
+	// Parse optional project_id for scoped tokens
+	var projectID *int64
+	if pidStr := r.FormValue("project_id"); pidStr != "" {
+		pid, err := strconv.ParseInt(pidStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid project ID", http.StatusBadRequest)
+			return
+		}
+		projectID = &pid
+	}
+
 	// Generate raw token
 	rawToken, err := auth.GenerateToken(32)
 	if err != nil {
@@ -392,6 +430,7 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 
 	token := &database.APIToken{
 		UserID:    robotID,
+		ProjectID: projectID,
 		TokenHash: tokenHash,
 		Name:      name,
 		Scopes:    "upload",
@@ -405,19 +444,39 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 
 	// Re-render robots page with the new token shown
 	robots, _ := h.users.ListRobots(ctx)
+	projects, _ := h.projects.List(ctx)
+
+	// Build project name lookup for token display
+	projectNames := make(map[int64]string)
+	for _, p := range projects {
+		projectNames[p.ID] = p.Name
+	}
+
+	type tokenView struct {
+		database.APIToken
+		ProjectName string
+	}
 
 	type robotView struct {
 		User    database.User
-		Tokens  []database.APIToken
+		Tokens  []tokenView
 		RobotID int64
 	}
 
 	var robotViews []robotView
 	for _, robot := range robots {
 		tokens, _ := h.tokens.ListByUser(ctx, robot.ID)
+		var tokenViews []tokenView
+		for _, t := range tokens {
+			tv := tokenView{APIToken: t}
+			if t.ProjectID != nil {
+				tv.ProjectName = projectNames[*t.ProjectID]
+			}
+			tokenViews = append(tokenViews, tv)
+		}
 		robotViews = append(robotViews, robotView{
 			User:    robot,
-			Tokens:  tokens,
+			Tokens:  tokenViews,
 			RobotID: robot.ID,
 		})
 	}
@@ -425,6 +484,7 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 	h.render(w, "admin_robots", map[string]any{
 		"User":     user,
 		"Robots":   robotViews,
+		"Projects": projects,
 		"NewToken": rawToken,
 	})
 }

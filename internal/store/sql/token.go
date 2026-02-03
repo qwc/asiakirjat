@@ -17,9 +17,9 @@ func NewTokenStore(db *sqlx.DB) *TokenStore {
 }
 
 func (s *TokenStore) Create(ctx context.Context, token *database.APIToken) error {
-	query := `INSERT INTO api_tokens (user_id, token_hash, name, scopes, expires_at) VALUES (?, ?, ?, ?, ?)`
+	query := `INSERT INTO api_tokens (user_id, project_id, token_hash, name, scopes, expires_at) VALUES (?, ?, ?, ?, ?, ?)`
 	result, err := s.db.ExecContext(ctx, s.db.Rebind(query),
-		token.UserID, token.TokenHash, token.Name, token.Scopes, token.ExpiresAt)
+		token.UserID, token.ProjectID, token.TokenHash, token.Name, token.Scopes, token.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("creating token: %w", err)
 	}
@@ -29,6 +29,15 @@ func (s *TokenStore) Create(ctx context.Context, token *database.APIToken) error
 	}
 	token.ID = id
 	return nil
+}
+
+func (s *TokenStore) GetByID(ctx context.Context, id int64) (*database.APIToken, error) {
+	var token database.APIToken
+	query := `SELECT * FROM api_tokens WHERE id = ?`
+	if err := s.db.GetContext(ctx, &token, s.db.Rebind(query), id); err != nil {
+		return nil, fmt.Errorf("getting token by id: %w", err)
+	}
+	return &token, nil
 }
 
 func (s *TokenStore) GetByHash(ctx context.Context, hash string) (*database.APIToken, error) {
@@ -45,6 +54,15 @@ func (s *TokenStore) ListByUser(ctx context.Context, userID int64) ([]database.A
 	query := `SELECT * FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC`
 	if err := s.db.SelectContext(ctx, &tokens, s.db.Rebind(query), userID); err != nil {
 		return nil, fmt.Errorf("listing tokens: %w", err)
+	}
+	return tokens, nil
+}
+
+func (s *TokenStore) ListByProject(ctx context.Context, projectID int64) ([]database.APIToken, error) {
+	var tokens []database.APIToken
+	query := `SELECT * FROM api_tokens WHERE project_id = ? ORDER BY created_at DESC`
+	if err := s.db.SelectContext(ctx, &tokens, s.db.Rebind(query), projectID); err != nil {
+		return nil, fmt.Errorf("listing tokens by project: %w", err)
 	}
 	return tokens, nil
 }

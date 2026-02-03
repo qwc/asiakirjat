@@ -103,6 +103,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
 	mux.HandleFunc("POST "+bp+"/project/{slug}/version/{tag}/delete", h.withSession(h.requireAuth(h.handleDeleteVersion)))
 
+	// Project token management (for editors)
+	mux.HandleFunc("GET "+bp+"/project/{slug}/tokens", h.withSession(h.requireAuth(h.handleProjectTokens)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/tokens", h.withSession(h.requireAuth(h.handleProjectCreateToken)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/tokens/{id}/revoke", h.withSession(h.requireAuth(h.handleProjectRevokeToken)))
+
 	// Search
 	mux.HandleFunc("GET "+bp+"/search", h.withSession(h.handleSearchPage))
 	mux.HandleFunc("GET "+bp+"/api/search", h.withSession(h.handleAPISearch))

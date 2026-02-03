@@ -63,6 +63,7 @@ type AuthGroupMapping struct {
 type APIToken struct {
 	ID        int64      `db:"id"`
 	UserID    int64      `db:"user_id"`
+	ProjectID *int64     `db:"project_id"` // nil = global token (admin only), set = project-scoped
 	TokenHash string     `db:"token_hash"`
 	Name      string     `db:"name"`
 	Scopes    string     `db:"scopes"`

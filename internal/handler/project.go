@@ -2,8 +2,10 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/qwc/asiakirjat/internal/auth"
+	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
 )
 
@@ -157,4 +159,180 @@ func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("version deleted", "project", slug, "version", tag, "user", user.Username)
 	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+}
+
+// handleProjectTokens lists API tokens scoped to this project.
+func (h *Handler) handleProjectTokens(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Check editor access
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	tokens, err := h.tokens.ListByProject(ctx, project.ID)
+	if err != nil {
+		h.logger.Error("listing project tokens", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build user lookup for token display
+	users, _ := h.users.List(ctx)
+	userNames := make(map[int64]string)
+	for _, u := range users {
+		userNames[u.ID] = u.Username
+	}
+
+	type tokenView struct {
+		database.APIToken
+		Username string
+	}
+
+	var tokenViews []tokenView
+	for _, t := range tokens {
+		tokenViews = append(tokenViews, tokenView{
+			APIToken: t,
+			Username: userNames[t.UserID],
+		})
+	}
+
+	h.render(w, "project_tokens", map[string]any{
+		"User":    user,
+		"Project": project,
+		"Tokens":  tokenViews,
+	})
+}
+
+// handleProjectCreateToken creates a new API token scoped to this project.
+// Editors can only create project-scoped tokens, not global tokens.
+func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Check editor access
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	name := r.FormValue("name")
+	if name == "" {
+		name = "default"
+	}
+
+	// Generate raw token
+	rawToken, err := auth.GenerateToken(32)
+	if err != nil {
+		h.logger.Error("generating token", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	tokenHash := auth.HashToken(rawToken)
+
+	// Editors can only create project-scoped tokens (projectID is always set)
+	projectID := project.ID
+	token := &database.APIToken{
+		UserID:    user.ID,
+		ProjectID: &projectID,
+		TokenHash: tokenHash,
+		Name:      name,
+		Scopes:    "upload",
+	}
+
+	if err := h.tokens.Create(ctx, token); err != nil {
+		h.logger.Error("creating token", "error", err)
+		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		return
+	}
+
+	// Re-render tokens page with the new token shown
+	tokens, _ := h.tokens.ListByProject(ctx, project.ID)
+
+	users, _ := h.users.List(ctx)
+	userNames := make(map[int64]string)
+	for _, u := range users {
+		userNames[u.ID] = u.Username
+	}
+
+	type tokenView struct {
+		database.APIToken
+		Username string
+	}
+
+	var tokenViews []tokenView
+	for _, t := range tokens {
+		tokenViews = append(tokenViews, tokenView{
+			APIToken: t,
+			Username: userNames[t.UserID],
+		})
+	}
+
+	h.render(w, "project_tokens", map[string]any{
+		"User":     user,
+		"Project":  project,
+		"Tokens":   tokenViews,
+		"NewToken": rawToken,
+	})
+}
+
+// handleProjectRevokeToken revokes a token scoped to this project.
+func (h *Handler) handleProjectRevokeToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Check editor access
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	tokenID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid token ID", http.StatusBadRequest)
+		return
+	}
+
+	// Validate token belongs to this project
+	token, err := h.tokens.GetByID(ctx, tokenID)
+	if err != nil {
+		http.Error(w, "Token not found", http.StatusNotFound)
+		return
+	}
+	if token.ProjectID == nil || *token.ProjectID != project.ID {
+		http.Error(w, "Token does not belong to this project", http.StatusForbidden)
+		return
+	}
+
+	if err := h.tokens.Delete(ctx, tokenID); err != nil {
+		h.logger.Error("revoking token", "error", err)
+		http.Error(w, "Failed to revoke token", http.StatusInternalServerError)
+		return
+	}
+
+	h.redirect(w, r, "/project/"+slug+"/tokens", http.StatusSeeOther)
 }

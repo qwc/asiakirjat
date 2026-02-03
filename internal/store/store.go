@@ -68,7 +68,9 @@ type AuthGroupMappingStore interface {
 
 type TokenStore interface {
 	Create(ctx context.Context, token *database.APIToken) error
+	GetByID(ctx context.Context, id int64) (*database.APIToken, error)
 	GetByHash(ctx context.Context, hash string) (*database.APIToken, error)
 	ListByUser(ctx context.Context, userID int64) ([]database.APIToken, error)
+	ListByProject(ctx context.Context, projectID int64) ([]database.APIToken, error)
 	Delete(ctx context.Context, id int64) error
 }

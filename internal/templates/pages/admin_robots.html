@@ -49,6 +49,11 @@
                     {{range .Tokens}}
                     <div class="token-row">
                         <span>{{.Name}}</span>
+                        {{if .ProjectName}}
+                        <span class="token-scope">({{.ProjectName}})</span>
+                        {{else}}
+                        <span class="token-scope token-global">(global)</span>
+                        {{end}}
                         <span class="token-date">{{.CreatedAt.Format "2006-01-02"}}</span>
                         <form method="POST" action="{{url "/admin/robots/"}}{{$.RobotID}}/tokens/{{.ID}}/revoke" class="inline-form">
                             <button type="submit" class="btn btn-tiny btn-danger">Revoke</button>
@@ -59,8 +64,14 @@
                     {{end}}
                 </td>
                 <td>
-                    <form method="POST" action="{{url "/admin/robots/"}}{{.User.ID}}/tokens" class="inline-form">
+                    <form method="POST" action="{{url "/admin/robots/"}}{{.User.ID}}/tokens" class="inline-form token-form">
                         <input type="text" name="name" placeholder="Token name" required class="input-small">
+                        <select name="project_id" class="input-small">
+                            <option value="">Global (all projects)</option>
+                            {{range $.Projects}}
+                            <option value="{{.ID}}">{{.Name}}</option>
+                            {{end}}
+                        </select>
                         <button type="submit" class="btn btn-small btn-secondary">Generate Token</button>
                     </form>
                     <form method="POST" action="{{url "/admin/robots/"}}{{.User.ID}}/delete" class="inline-form"
