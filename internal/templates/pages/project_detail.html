@@ -16,7 +16,19 @@
     </div>
     {{end}}
 
+    {{if .CanUpload}}
+    <details class="upload-hint">
+        <summary>API Upload Example</summary>
+        <pre><code>curl -X POST \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -F "version=v1.0.0" \
+  -F "archive=@docs.zip" \
+  {{.BaseURL}}/api/project/{{.Project.Slug}}/upload</code></pre>
+        <p class="hint-text">Create API tokens in your <a href="/profile">profile</a> or via <a href="/admin/robots">robot users</a>.</p>
+    </details>
+    {{end}}
+
     <h2>Versions</h2>
-    {{template "version_list" .Versions}}
+    {{template "version_list" .}}
 </div>
 {{end}}

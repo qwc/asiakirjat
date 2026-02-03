@@ -8,9 +8,10 @@ import (
 )
 
 type versionViewData struct {
-	Tag       string
-	URL       string
-	CreatedAt interface{ Format(string) string }
+	Tag         string
+	URL         string
+	CreatedAt   interface{ Format(string) string }
+	ProjectSlug string
 }
 
 func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
@@ -59,9 +60,10 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	for _, tag := range tags {
 		v := versions[versionMap[tag]]
 		versionViews = append(versionViews, versionViewData{
-			Tag:       v.Tag,
-			URL:       "/project/" + slug + "/" + v.Tag + "/",
-			CreatedAt: v.CreatedAt,
+			Tag:         v.Tag,
+			URL:         "/project/" + slug + "/" + v.Tag + "/",
+			CreatedAt:   v.CreatedAt,
+			ProjectSlug: slug,
 		})
 	}
 
@@ -77,10 +79,78 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Build base URL for API examples
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	baseURL := scheme + "://" + r.Host
+
 	h.render(w, "project_detail", map[string]any{
 		"User":      user,
 		"Project":   project,
 		"Versions":  versionViews,
 		"CanUpload": canUpload,
+		"CanDelete": canUpload,
+		"BaseURL":   baseURL,
 	})
+}
+
+func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+	tag := r.PathValue("tag")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Check editor access (same logic as canUpload)
+	canDelete := false
+	if user.Role == "admin" || user.Role == "editor" {
+		canDelete = true
+	} else {
+		access, err := h.access.GetAccess(ctx, project.ID, user.ID)
+		if err == nil && access != nil && (access.Role == "editor" || access.Role == "admin") {
+			canDelete = true
+		}
+	}
+
+	if !canDelete {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	version, err := h.versions.GetByProjectAndTag(ctx, project.ID, tag)
+	if err != nil {
+		http.Error(w, "Version not found", http.StatusNotFound)
+		return
+	}
+
+	// Delete from database
+	if err := h.versions.Delete(ctx, version.ID); err != nil {
+		h.logger.Error("deleting version from database", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete from filesystem
+	if err := h.storage.DeleteVersion(slug, tag); err != nil {
+		h.logger.Error("deleting version from filesystem", "error", err)
+		// Continue - database record is already deleted
+	}
+
+	// Delete from search index
+	if h.searchIndex != nil {
+		if err := h.searchIndex.DeleteVersion(project.ID, version.ID); err != nil {
+			h.logger.Error("deleting version from search index", "error", err)
+			// Continue - not critical
+		}
+	}
+
+	h.logger.Info("version deleted", "project", slug, "version", tag, "user", user.Username)
+	http.Redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }

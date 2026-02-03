@@ -88,6 +88,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /project/{slug}/{version}/{path...}", h.withSession(h.handleServeDoc))
 	mux.HandleFunc("GET /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))
 	mux.HandleFunc("POST /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
+	mux.HandleFunc("POST /project/{slug}/version/{tag}/delete", h.withSession(h.requireAuth(h.handleDeleteVersion)))
 
 	// Search
 	mux.HandleFunc("GET /search", h.withSession(h.handleSearchPage))

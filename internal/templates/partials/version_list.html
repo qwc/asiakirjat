@@ -1,9 +1,15 @@
 {{define "version_list"}}
 <ul class="version-list">
-    {{range .}}
+    {{range .Versions}}
     <li class="version-item">
         <a href="{{.URL}}" class="version-link">{{.Tag}}</a>
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
+        {{if $.CanDelete}}
+        <form method="POST" action="/project/{{.ProjectSlug}}/version/{{.Tag}}/delete"
+              class="inline-form" onsubmit="return confirm('Delete version {{.Tag}}?')">
+            <button type="submit" class="btn btn-tiny btn-danger">Delete</button>
+        </form>
+        {{end}}
     </li>
     {{else}}
     <li class="version-item version-empty">No versions uploaded yet.</li>
