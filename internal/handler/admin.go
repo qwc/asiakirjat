@@ -20,10 +20,20 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "admin_projects", map[string]any{
+	data := map[string]any{
 		"User":     user,
 		"Projects": projects,
-	})
+	}
+
+	// Check for flash message from query parameter
+	if msg := r.URL.Query().Get("msg"); msg == "reindex_started" {
+		data["Flash"] = &Flash{
+			Type:    "success",
+			Message: "Search index rebuild started in background",
+		}
+	}
+
+	h.render(w, "admin_projects", data)
 }
 
 func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Request) {

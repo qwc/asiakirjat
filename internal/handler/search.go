@@ -205,7 +205,7 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
 
 // getLatestVersionTags returns a map of projectSlug -> latest version tag.

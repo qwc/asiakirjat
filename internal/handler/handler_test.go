@@ -2359,8 +2359,8 @@ func TestAdminReindexEndpoint(t *testing.T) {
 	}
 
 	loc := resp.Header.Get("Location")
-	if loc != "/admin/projects" {
-		t.Errorf("expected redirect to /admin/projects, got %s", loc)
+	if loc != "/admin/projects?msg=reindex_started" {
+		t.Errorf("expected redirect to /admin/projects?msg=reindex_started, got %s", loc)
 	}
 }
 
