@@ -138,6 +138,18 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Delete search index entries for all versions before deleting project
+	if h.searchIndex != nil {
+		versions, err := h.versions.ListByProject(ctx, project.ID)
+		if err == nil {
+			for _, v := range versions {
+				if err := h.searchIndex.DeleteVersion(project.ID, v.ID); err != nil {
+					h.logger.Error("deleting version from search index", "error", err, "project", slug, "version", v.Tag)
+				}
+			}
+		}
+	}
+
 	if err := h.projects.Delete(ctx, project.ID); err != nil {
 		h.logger.Error("deleting project", "error", err)
 		http.Error(w, "Failed to delete project", http.StatusInternalServerError)
