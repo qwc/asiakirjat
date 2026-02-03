@@ -4,7 +4,7 @@
 <div class="search-page">
     <h1>Search Documentation</h1>
 
-    <form method="GET" action="/search" class="search-form">
+    <form method="GET" action="{{url "/search"}}" class="search-form">
         <div class="search-form-row">
             <div class="search-form-input">
                 <input type="text" name="q" value="{{.Query}}" placeholder="Search documentation..." autofocus>
@@ -69,10 +69,10 @@
 
     <div class="search-pagination">
         {{if .HasPrev}}
-        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.PrevOffset}}&limit={{.Limit}}" class="btn btn-secondary">&larr; Previous</a>
+        <a href="{{url "/search"}}?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.PrevOffset}}&limit={{.Limit}}" class="btn btn-secondary">&larr; Previous</a>
         {{end}}
         {{if .HasNext}}
-        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.NextOffset}}&limit={{.Limit}}" class="btn btn-secondary">Next &rarr;</a>
+        <a href="{{url "/search"}}?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.NextOffset}}&limit={{.Limit}}" class="btn btn-secondary">Next &rarr;</a>
         {{end}}
     </div>
     {{end}}

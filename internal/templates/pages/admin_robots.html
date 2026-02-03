@@ -5,15 +5,15 @@
     <h1>Manage Robot Users</h1>
 
     <div class="admin-nav">
-        <a href="/admin/projects" class="admin-nav-link">Projects</a>
-        <a href="/admin/users" class="admin-nav-link">Users</a>
-        <a href="/admin/robots" class="admin-nav-link active">Robot Users</a>
-        <a href="/admin/groups" class="admin-nav-link">Group Mappings</a>
+        <a href="{{url "/admin/projects"}}" class="admin-nav-link">Projects</a>
+        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
+        <a href="{{url "/admin/robots"}}" class="admin-nav-link active">Robot Users</a>
+        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
     </div>
 
     <div class="admin-create-form">
         <h2>Create Robot User</h2>
-        <form method="POST" action="/admin/robots">
+        <form method="POST" action="{{url "/admin/robots"}}">
             <div class="form-row">
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -50,7 +50,7 @@
                     <div class="token-row">
                         <span>{{.Name}}</span>
                         <span class="token-date">{{.CreatedAt.Format "2006-01-02"}}</span>
-                        <form method="POST" action="/admin/robots/{{$.RobotID}}/tokens/{{.ID}}/revoke" class="inline-form">
+                        <form method="POST" action="{{url "/admin/robots/"}}{{$.RobotID}}/tokens/{{.ID}}/revoke" class="inline-form">
                             <button type="submit" class="btn btn-tiny btn-danger">Revoke</button>
                         </form>
                     </div>
@@ -59,11 +59,11 @@
                     {{end}}
                 </td>
                 <td>
-                    <form method="POST" action="/admin/robots/{{.User.ID}}/tokens" class="inline-form">
+                    <form method="POST" action="{{url "/admin/robots/"}}{{.User.ID}}/tokens" class="inline-form">
                         <input type="text" name="name" placeholder="Token name" required class="input-small">
                         <button type="submit" class="btn btn-small btn-secondary">Generate Token</button>
                     </form>
-                    <form method="POST" action="/admin/robots/{{.User.ID}}/delete" class="inline-form"
+                    <form method="POST" action="{{url "/admin/robots/"}}{{.User.ID}}/delete" class="inline-form"
                         onsubmit="return confirm('Delete robot {{.User.Username}}?')">
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>

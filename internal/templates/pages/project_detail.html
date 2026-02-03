@@ -6,7 +6,7 @@
         <h1>{{.Project.Name}}</h1>
         <span class="project-slug">{{.Project.Slug}}</span>
         {{if .CanUpload}}
-        <a href="/project/{{.Project.Slug}}/upload" class="btn btn-primary">Upload Version</a>
+        <a href="{{url "/project/"}}{{.Project.Slug}}/upload" class="btn btn-primary">Upload Version</a>
         {{end}}
     </div>
 
@@ -23,8 +23,8 @@
   -H "Authorization: Bearer &lt;token&gt;" \
   -F "version=v1.0.0" \
   -F "archive=@docs.zip" \
-  {{.BaseURL}}/api/project/{{.Project.Slug}}/upload</code></pre>
-        <p class="hint-text">Create API tokens in your <a href="/profile">profile</a> or via <a href="/admin/robots">robot users</a>.</p>
+  {{.BaseURL}}{{url "/api/project/"}}{{.Project.Slug}}/upload</code></pre>
+        <p class="hint-text">Create API tokens in your <a href="{{url "/profile"}}">profile</a> or via <a href="{{url "/admin/robots"}}">robot users</a>.</p>
     </details>
     {{end}}
 

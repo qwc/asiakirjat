@@ -5,7 +5,7 @@
         <a href="{{.URL}}" class="version-link">{{.Tag}}</a>
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
         {{if $.CanDelete}}
-        <form method="POST" action="/project/{{.ProjectSlug}}/version/{{.Tag}}/delete"
+        <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/delete"
               class="inline-form" onsubmit="return confirm('Delete version {{.Tag}}?')">
             <button type="submit" class="btn btn-tiny btn-danger">Delete</button>
         </form>

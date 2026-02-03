@@ -69,7 +69,7 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		h.logger.Error("creating project directory", "error", err)
 	}
 
-	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +133,7 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +167,7 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 	// Invalidate latest tags cache
 	h.invalidateLatestTagsCache()
 
-	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminGrantAccess(w http.ResponseWriter, r *http.Request) {
@@ -203,7 +203,7 @@ func (h *Handler) handleAdminGrantAccess(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
+	h.redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +228,7 @@ func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
+	h.redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +286,7 @@ func (h *Handler) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -304,7 +304,7 @@ func (h *Handler) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +362,7 @@ func (h *Handler) handleAdminCreateRobot(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	http.Redirect(w, r, "/admin/robots", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Request) {
@@ -444,7 +444,7 @@ func (h *Handler) handleAdminRevokeToken(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	http.Redirect(w, r, "/admin/robots", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminResetPassword(w http.ResponseWriter, r *http.Request) {
@@ -487,7 +487,7 @@ func (h *Handler) handleAdminResetPassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminDeleteRobot(w http.ResponseWriter, r *http.Request) {
@@ -505,7 +505,7 @@ func (h *Handler) handleAdminDeleteRobot(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	http.Redirect(w, r, "/admin/robots", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
 
 // Group mappings view struct for template
@@ -594,18 +594,18 @@ func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.R
 	groupIdentifier := r.FormValue("group_identifier")
 	projectID, err := strconv.ParseInt(r.FormValue("project_id"), 10, 64)
 	if err != nil {
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Invalid+project+ID", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Invalid+project+ID", http.StatusSeeOther)
 		return
 	}
 	role := r.FormValue("role")
 
 	if authSource != "ldap" && authSource != "oauth2" {
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Invalid+auth+source", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Invalid+auth+source", http.StatusSeeOther)
 		return
 	}
 
 	if groupIdentifier == "" {
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Group+identifier+required", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Group+identifier+required", http.StatusSeeOther)
 		return
 	}
 
@@ -623,11 +623,11 @@ func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.R
 
 	if err := h.groupMappings.Create(ctx, mapping); err != nil {
 		h.logger.Error("creating group mapping", "error", err)
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Failed+to+create+mapping", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Failed+to+create+mapping", http.StatusSeeOther)
 		return
 	}
 
-	http.Redirect(w, r, "/admin/groups?msg=created", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/groups?msg=created", http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminDeleteGroupMapping(w http.ResponseWriter, r *http.Request) {
@@ -647,15 +647,15 @@ func (h *Handler) handleAdminDeleteGroupMapping(w http.ResponseWriter, r *http.R
 	}
 
 	if mapping.FromConfig {
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Cannot+delete+config-sourced+mappings", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Cannot+delete+config-sourced+mappings", http.StatusSeeOther)
 		return
 	}
 
 	if err := h.groupMappings.Delete(ctx, id); err != nil {
 		h.logger.Error("deleting group mapping", "error", err)
-		http.Redirect(w, r, "/admin/groups?msg=error&error=Failed+to+delete+mapping", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/groups?msg=error&error=Failed+to+delete+mapping", http.StatusSeeOther)
 		return
 	}
 
-	http.Redirect(w, r, "/admin/groups?msg=deleted", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/groups?msg=deleted", http.StatusSeeOther)
 }

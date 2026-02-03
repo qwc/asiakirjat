@@ -9,7 +9,7 @@ import (
 func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
 	if user != nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		h.redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *Handler) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+			h.redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 	}
@@ -68,7 +68,7 @@ func (h *Handler) handleOAuth2Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	h.sessionMgr.DestroySession(w, r)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	h.redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
@@ -113,5 +113,5 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	h.redirect(w, r, "/", http.StatusSeeOther)
 }

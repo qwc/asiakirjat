@@ -21,7 +21,7 @@
     {{if eq .User.AuthSource "builtin"}}
     <div class="admin-create-form">
         <h2>Change Password</h2>
-        <form method="POST" action="/profile/password">
+        <form method="POST" action="{{url "/profile/password"}}">
             <div class="form-group">
                 <label for="current_password">Current Password</label>
                 <input type="password" id="current_password" name="current_password" required>

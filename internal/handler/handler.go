@@ -83,61 +83,66 @@ func New(deps Deps) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	bp := h.config.Server.BasePath
+
 	// Static files
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(h.staticFS)))
+	mux.Handle("GET "+bp+"/static/", http.StripPrefix(bp+"/static/", http.FileServerFS(h.staticFS)))
 
 	// Public pages
-	mux.HandleFunc("GET /{$}", h.withSession(h.handleFrontpage))
-	mux.HandleFunc("GET /login", h.withSession(h.handleLoginPage))
-	mux.HandleFunc("POST /login", withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
-	mux.HandleFunc("GET /logout", h.withSession(h.handleLogout))
-	mux.HandleFunc("GET /auth/oauth2", h.handleOAuth2Login)
-	mux.HandleFunc("GET /auth/callback", h.withSession(h.handleOAuth2Callback))
+	mux.HandleFunc("GET "+bp+"/{$}", h.withSession(h.handleFrontpage))
+	mux.HandleFunc("GET "+bp+"/login", h.withSession(h.handleLoginPage))
+	mux.HandleFunc("POST "+bp+"/login", withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
+	mux.HandleFunc("GET "+bp+"/logout", h.withSession(h.handleLogout))
+	mux.HandleFunc("GET "+bp+"/auth/oauth2", h.handleOAuth2Login)
+	mux.HandleFunc("GET "+bp+"/auth/callback", h.withSession(h.handleOAuth2Callback))
 
 	// Project pages
-	mux.HandleFunc("GET /project/{slug}", h.withSession(h.handleProjectDetail))
-	mux.HandleFunc("GET /project/{slug}/{version}/{path...}", h.withSession(h.handleServeDoc))
-	mux.HandleFunc("GET /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))
-	mux.HandleFunc("POST /project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
-	mux.HandleFunc("POST /project/{slug}/version/{tag}/delete", h.withSession(h.requireAuth(h.handleDeleteVersion)))
+	mux.HandleFunc("GET "+bp+"/project/{slug}", h.withSession(h.handleProjectDetail))
+	mux.HandleFunc("GET "+bp+"/project/{slug}/{version}/{path...}", h.withSession(h.handleServeDoc))
+	mux.HandleFunc("GET "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/version/{tag}/delete", h.withSession(h.requireAuth(h.handleDeleteVersion)))
 
 	// Search
-	mux.HandleFunc("GET /search", h.withSession(h.handleSearchPage))
-	mux.HandleFunc("GET /api/search", h.withSession(h.handleAPISearch))
+	mux.HandleFunc("GET "+bp+"/search", h.withSession(h.handleSearchPage))
+	mux.HandleFunc("GET "+bp+"/api/search", h.withSession(h.handleAPISearch))
 
 	// API endpoints
-	mux.HandleFunc("GET /api/projects", h.withSession(h.handleAPIProjects))
-	mux.HandleFunc("GET /api/project/{slug}/versions", h.withSession(h.handleAPIVersions))
-	mux.HandleFunc("POST /api/project/{slug}/upload", h.handleAPIUpload)
+	mux.HandleFunc("GET "+bp+"/api/projects", h.withSession(h.handleAPIProjects))
+	mux.HandleFunc("GET "+bp+"/api/project/{slug}/versions", h.withSession(h.handleAPIVersions))
+	mux.HandleFunc("POST "+bp+"/api/project/{slug}/upload", h.handleAPIUpload)
 
 	// Profile routes
-	mux.HandleFunc("GET /profile", h.withSession(h.requireAuth(h.handleProfilePage)))
-	mux.HandleFunc("POST /profile/password", h.withSession(h.requireAuth(h.handleChangePassword)))
+	mux.HandleFunc("GET "+bp+"/profile", h.withSession(h.requireAuth(h.handleProfilePage)))
+	mux.HandleFunc("POST "+bp+"/profile/password", h.withSession(h.requireAuth(h.handleChangePassword)))
 
 	// Admin routes
-	mux.HandleFunc("GET /admin/projects", h.withSession(h.requireAdmin(h.handleAdminProjects)))
-	mux.HandleFunc("POST /admin/projects", h.withSession(h.requireAdmin(h.handleAdminCreateProject)))
-	mux.HandleFunc("GET /admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminEditProject)))
-	mux.HandleFunc("POST /admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminUpdateProject)))
-	mux.HandleFunc("POST /admin/projects/{slug}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteProject)))
-	mux.HandleFunc("POST /admin/projects/{slug}/access/grant", h.withSession(h.requireAdmin(h.handleAdminGrantAccess)))
-	mux.HandleFunc("POST /admin/projects/{slug}/access/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeAccess)))
-	mux.HandleFunc("GET /admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
-	mux.HandleFunc("POST /admin/users", h.withSession(h.requireAdmin(h.handleAdminCreateUser)))
-	mux.HandleFunc("POST /admin/users/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteUser)))
-	mux.HandleFunc("POST /admin/users/{id}/password", h.withSession(h.requireAdmin(h.handleAdminResetPassword)))
-	mux.HandleFunc("GET /admin/robots", h.withSession(h.requireAdmin(h.handleAdminRobots)))
-	mux.HandleFunc("POST /admin/robots", h.withSession(h.requireAdmin(h.handleAdminCreateRobot)))
-	mux.HandleFunc("POST /admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.handleAdminGenerateToken)))
-	mux.HandleFunc("POST /admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeToken)))
-	mux.HandleFunc("POST /admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteRobot)))
-	mux.HandleFunc("POST /admin/reindex", h.withSession(h.requireAdmin(h.handleAdminReindex)))
-	mux.HandleFunc("GET /admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
-	mux.HandleFunc("POST /admin/groups", h.withSession(h.requireAdmin(h.handleAdminCreateGroupMapping)))
-	mux.HandleFunc("POST /admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteGroupMapping)))
+	mux.HandleFunc("GET "+bp+"/admin/projects", h.withSession(h.requireAdmin(h.handleAdminProjects)))
+	mux.HandleFunc("POST "+bp+"/admin/projects", h.withSession(h.requireAdmin(h.handleAdminCreateProject)))
+	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminEditProject)))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminUpdateProject)))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteProject)))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/grant", h.withSession(h.requireAdmin(h.handleAdminGrantAccess)))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeAccess)))
+	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
+	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminCreateUser)))
+	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteUser)))
+	mux.HandleFunc("POST "+bp+"/admin/users/{id}/password", h.withSession(h.requireAdmin(h.handleAdminResetPassword)))
+	mux.HandleFunc("GET "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminRobots)))
+	mux.HandleFunc("POST "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminCreateRobot)))
+	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.handleAdminGenerateToken)))
+	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeToken)))
+	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteRobot)))
+	mux.HandleFunc("POST "+bp+"/admin/reindex", h.withSession(h.requireAdmin(h.handleAdminReindex)))
+	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
+	mux.HandleFunc("POST "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminCreateGroupMapping)))
+	mux.HandleFunc("POST "+bp+"/admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteGroupMapping)))
 
-	// Health check
-	mux.HandleFunc("GET /healthz", h.handleHealthz)
+	// Health check (keep at root for load balancer compatibility, but also at base path)
+	mux.HandleFunc("GET "+bp+"/healthz", h.handleHealthz)
+	if bp != "" {
+		mux.HandleFunc("GET /healthz", h.handleHealthz)
+	}
 }
 
 func (h *Handler) render(w http.ResponseWriter, name string, data map[string]any) {
@@ -145,4 +150,9 @@ func (h *Handler) render(w http.ResponseWriter, name string, data map[string]any
 		h.logger.Error("template render error", "template", name, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// redirect performs an HTTP redirect with the base path prepended to the path.
+func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, path string, code int) {
+	http.Redirect(w, r, h.config.Server.BasePath+path, code)
 }

@@ -4,28 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{block "title" .}}asiakirjat{{end}}</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{url "/static/css/style.css"}}">
     {{block "head" .}}{{end}}
 </head>
 <body>
     <nav class="navbar">
         <div class="navbar-brand">
-            <a href="/">asiakirjat</a>
+            <a href="{{url "/"}}">asiakirjat</a>
         </div>
         <div class="navbar-search">
             <input type="text" id="navbar-search-input" placeholder="Search docs..." autocomplete="off">
             <div id="navbar-search-dropdown" class="navbar-search-dropdown"></div>
         </div>
         <div class="navbar-menu">
-            <a href="/search" class="navbar-link navbar-search-link">Search</a>
+            <a href="{{url "/search"}}" class="navbar-link navbar-search-link">Search</a>
             {{if .User}}
-                <a href="/profile" class="navbar-user">{{.User.Username}}</a>
+                <a href="{{url "/profile"}}" class="navbar-user">{{.User.Username}}</a>
                 {{if eq .User.Role "admin"}}
-                    <a href="/admin/projects" class="navbar-link">Admin</a>
+                    <a href="{{url "/admin/projects"}}" class="navbar-link">Admin</a>
                 {{end}}
-                <a href="/logout" class="navbar-link">Logout</a>
+                <a href="{{url "/logout"}}" class="navbar-link">Logout</a>
             {{else}}
-                <a href="/login" class="navbar-link">Login</a>
+                <a href="{{url "/login"}}" class="navbar-link">Login</a>
             {{end}}
         </div>
     </nav>
@@ -37,6 +37,7 @@
         <p>asiakirjat &mdash; versioned documentation service</p>
     </footer>
     {{block "scripts" .}}{{end}}
-    <script src="/static/js/navbar-search.js"></script>
+    <script>window.BASE_PATH = "{{basePath}}";</script>
+    <script src="{{url "/static/js/navbar-search.js"}}"></script>
 </body>
 </html>

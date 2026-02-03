@@ -170,14 +170,14 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 
 	// Check if reindex is already running
 	if h.reindexRunning {
-		http.Redirect(w, r, "/admin/projects?msg=reindex_already_running", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/projects?msg=reindex_already_running", http.StatusSeeOther)
 		return
 	}
 
 	allProjects, err := h.projects.List(ctx)
 	if err != nil {
 		h.logger.Error("listing projects for reindex", "error", err)
-		http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
+		h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 		return
 	}
 
@@ -227,7 +227,7 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	http.Redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
+	h.redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
 
 // latestTagsCacheTTL is how long the latest version tags cache is valid.
@@ -274,10 +274,12 @@ func (h *Handler) invalidateLatestTagsCache() {
 	h.latestTagsCache = nil
 }
 
-// filterSearchResults removes results for projects the user can't access.
+// filterSearchResults removes results for projects the user can't access
+// and prefixes URLs with the base path.
 func (h *Handler) filterSearchResults(ctx context.Context, user *database.User, results *docs.SearchResults) *docs.SearchResults {
 	// Cache project access checks
 	projectCache := make(map[string]bool)
+	bp := h.config.Server.BasePath
 
 	var filtered []docs.SearchResult
 	for _, r := range results.Results {
@@ -292,6 +294,8 @@ func (h *Handler) filterSearchResults(ctx context.Context, user *database.User, 
 			projectCache[r.ProjectSlug] = allowed
 		}
 		if allowed {
+			// Prefix URL with base path
+			r.URL = bp + r.URL
 			filtered = append(filtered, r)
 		}
 	}

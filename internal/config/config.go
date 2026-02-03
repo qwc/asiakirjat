@@ -18,8 +18,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Address string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
-	Port    int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
+	Address  string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
+	Port     int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
+	BasePath string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
 }
 
 type DatabaseConfig struct {
@@ -130,6 +131,15 @@ func Load(path string) (*Config, error) {
 	}
 
 	applyEnvOverrides(&cfg)
+
+	// Normalize base_path: must start with / if non-empty, must not end with /
+	if cfg.Server.BasePath != "" {
+		cfg.Server.BasePath = strings.TrimSuffix(cfg.Server.BasePath, "/")
+		if !strings.HasPrefix(cfg.Server.BasePath, "/") {
+			cfg.Server.BasePath = "/" + cfg.Server.BasePath
+		}
+	}
+
 	return &cfg, nil
 }
 

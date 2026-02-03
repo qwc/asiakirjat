@@ -7,7 +7,7 @@
         {{if .Error}}
         <div class="flash flash-error">{{.Error}}</div>
         {{end}}
-        <form method="POST" action="/login">
+        <form method="POST" action="{{url "/login"}}">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required autofocus>
@@ -20,7 +20,7 @@
         </form>
         {{if .OAuth2Enabled}}
         <div class="login-divider"><span>or</span></div>
-        <a href="/auth/oauth2" class="btn btn-secondary btn-block">Login with SSO</a>
+        <a href="{{url "/auth/oauth2"}}" class="btn btn-secondary btn-block">Login with SSO</a>
         {{end}}
     </div>
 </div>

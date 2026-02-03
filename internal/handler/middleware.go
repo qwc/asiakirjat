@@ -35,7 +35,7 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := auth.UserFromContext(r.Context())
 		if user == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			h.redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 		next(w, r)
@@ -47,7 +47,7 @@ func (h *Handler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := auth.UserFromContext(r.Context())
 		if user == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			h.redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 		if user.Role != "admin" {

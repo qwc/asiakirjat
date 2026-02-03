@@ -7,6 +7,7 @@
     var dropdown = document.getElementById("navbar-search-dropdown");
     if (!dropdown) return;
 
+    var basePath = window.BASE_PATH || "";
     var timer = null;
 
     function debounce(fn, delay) {
@@ -30,7 +31,7 @@
             return;
         }
 
-        fetch("/api/search?q=" + encodeURIComponent(q) + "&limit=8")
+        fetch(basePath + "/api/search?q=" + encodeURIComponent(q) + "&limit=8")
             .then(function(resp) { return resp.json(); })
             .then(function(data) {
                 dropdown.innerHTML = "";
@@ -72,7 +73,7 @@
                 if (data.total > 8) {
                     var viewAll = document.createElement("a");
                     viewAll.className = "navbar-search-view-all";
-                    viewAll.href = "/search?q=" + encodeURIComponent(q);
+                    viewAll.href = basePath + "/search?q=" + encodeURIComponent(q);
                     viewAll.textContent = "View all " + data.total + " results";
                     dropdown.appendChild(viewAll);
                 }

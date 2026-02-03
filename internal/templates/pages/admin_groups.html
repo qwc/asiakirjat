@@ -5,10 +5,10 @@
     <h1>Authentication Group Mappings</h1>
 
     <div class="admin-nav">
-        <a href="/admin/projects" class="admin-nav-link">Projects</a>
-        <a href="/admin/users" class="admin-nav-link">Users</a>
-        <a href="/admin/robots" class="admin-nav-link">Robot Users</a>
-        <a href="/admin/groups" class="admin-nav-link active">Group Mappings</a>
+        <a href="{{url "/admin/projects"}}" class="admin-nav-link">Projects</a>
+        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
+        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
+        <a href="{{url "/admin/groups"}}" class="admin-nav-link active">Group Mappings</a>
     </div>
 
     <div class="admin-info">
@@ -22,7 +22,7 @@
 
     <div class="admin-create-form">
         <h2>Create Mapping</h2>
-        <form method="POST" action="/admin/groups">
+        <form method="POST" action="{{url "/admin/groups"}}">
             <div class="form-row">
                 <div class="form-group">
                     <label for="auth_source">Auth Source</label>
@@ -78,7 +78,7 @@
                 <td>{{if .FromConfig}}<span class="badge badge-config">Config</span>{{else}}<span class="badge badge-manual">Manual</span>{{end}}</td>
                 <td>
                     {{if not .FromConfig}}
-                    <form method="POST" action="/admin/groups/{{.ID}}/delete" class="inline-form"
+                    <form method="POST" action="{{url "/admin/groups/"}}{{.ID}}/delete" class="inline-form"
                         onsubmit="return confirm('Delete this group mapping?')">
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>

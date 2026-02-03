@@ -25,7 +25,7 @@ func (h *Handler) handleServeDoc(w http.ResponseWriter, r *http.Request) {
 	// Access check
 	if !project.IsPublic {
 		if user == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			h.redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 		if user.Role != "admin" {

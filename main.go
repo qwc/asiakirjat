@@ -138,6 +138,7 @@ func main() {
 	ensureInitialAdmin(logger, userStore, cfg)
 
 	// Initialize templates
+	templates.SetBasePath(cfg.Server.BasePath)
 	tmpl, err := templates.New()
 	if err != nil {
 		logger.Error("loading templates", "error", err)

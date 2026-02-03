@@ -11,6 +11,20 @@ import (
 	"github.com/yuin/goldmark"
 )
 
+// basePath is the URL prefix for subdirectory deployment (e.g., "/docs")
+var basePath string
+
+// SetBasePath sets the URL prefix for all template URLs.
+// This should be called during initialization.
+func SetBasePath(bp string) {
+	basePath = bp
+}
+
+// GetBasePath returns the current base path.
+func GetBasePath() string {
+	return basePath
+}
+
 //go:embed layouts/*.html pages/*.html partials/*.html overlay/*.html
 var templateFS embed.FS
 
@@ -32,6 +46,8 @@ func New() (*Engine, error) {
 		"contains": strings.Contains,
 		"join":     strings.Join,
 		"safe":     func(s string) template.HTML { return template.HTML(s) },
+		"url":      func(path string) string { return basePath + path },
+		"basePath": func() string { return basePath },
 		"markdown": func(s string) template.HTML {
 			var buf bytes.Buffer
 			if err := md.Convert([]byte(s), &buf); err != nil {

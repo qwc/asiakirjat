@@ -247,12 +247,13 @@
     color: #6b7280;
 }
 </style>
+<script>window.BASE_PATH = "{{basePath}}";</script>
 <div id="asiakirjat-overlay">
     <div class="ao-content">
         <div class="ao-left">
-            <a href="/" class="ao-brand">asiakirjat</a>
+            <a href="{{url "/"}}" class="ao-brand">asiakirjat</a>
             <span class="ao-sep">/</span>
-            <a href="/project/{{.Slug}}" class="ao-project">{{.ProjectName}}</a>
+            <a href="{{url "/project/"}}{{.Slug}}" class="ao-project">{{.ProjectName}}</a>
         </div>
         <div class="ao-right">
             <div class="ao-search-wrap">
@@ -282,4 +283,4 @@
         </div>
     </div>
 </div>
-<script src="/static/js/overlay.js"></script>
+<script src="{{url "/static/js/overlay.js"}}"></script>

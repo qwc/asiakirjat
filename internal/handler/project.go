@@ -28,7 +28,7 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	// Access check
 	if !project.IsPublic {
 		if user == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			h.redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 		if user.Role != "admin" {
@@ -57,11 +57,12 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	docs.SortVersionTags(tags)
 
 	var versionViews []versionViewData
+	bp := h.config.Server.BasePath
 	for _, tag := range tags {
 		v := versions[versionMap[tag]]
 		versionViews = append(versionViews, versionViewData{
 			Tag:         v.Tag,
-			URL:         "/project/" + slug + "/" + v.Tag + "/",
+			URL:         bp + "/project/" + slug + "/" + v.Tag + "/",
 			CreatedAt:   v.CreatedAt,
 			ProjectSlug: slug,
 		})
@@ -155,5 +156,5 @@ func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
 	h.invalidateLatestTagsCache()
 
 	h.logger.Info("version deleted", "project", slug, "version", tag, "user", user.Username)
-	http.Redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }

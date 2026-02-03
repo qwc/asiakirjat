@@ -155,7 +155,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	http.Redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }
 
 func (h *Handler) canUpload(ctx context.Context, user *database.User, project *database.Project) bool {

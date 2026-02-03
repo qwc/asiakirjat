@@ -1,6 +1,7 @@
 server:
   address: "0.0.0.0"
   port: 8080
+  # base_path: "/docs"  # Optional: URL prefix for subdirectory deployment (e.g., https://example.com/docs/)
 
 database:
   driver: "sqlite"     # sqlite, postgres, mysql

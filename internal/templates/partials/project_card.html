@@ -6,9 +6,9 @@
     <p class="project-card-desc">{{.Description}}</p>
     {{end}}
     <div class="project-card-actions">
-        <a href="/project/{{.Slug}}" class="btn btn-secondary">Details</a>
+        <a href="{{url "/project/"}}{{.Slug}}" class="btn btn-secondary">Details</a>
         {{if .LatestVersion}}
-        <a href="/project/{{.Slug}}/{{.LatestVersion}}/" class="btn btn-primary">Latest</a>
+        <a href="{{url "/project/"}}{{.Slug}}/{{.LatestVersion}}/" class="btn btn-primary">Latest</a>
         {{end}}
     </div>
 </div>

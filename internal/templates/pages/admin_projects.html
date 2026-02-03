@@ -5,15 +5,15 @@
     <h1>Manage Projects</h1>
 
     <div class="admin-nav">
-        <a href="/admin/projects" class="admin-nav-link active">Projects</a>
-        <a href="/admin/users" class="admin-nav-link">Users</a>
-        <a href="/admin/robots" class="admin-nav-link">Robot Users</a>
-        <a href="/admin/groups" class="admin-nav-link">Group Mappings</a>
+        <a href="{{url "/admin/projects"}}" class="admin-nav-link active">Projects</a>
+        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
+        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
+        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
     </div>
 
     <div class="admin-create-form">
         <h2>Create Project</h2>
-        <form method="POST" action="/admin/projects">
+        <form method="POST" action="{{url "/admin/projects"}}">
             <div class="form-row">
                 <div class="form-group">
                     <label for="slug">Slug</label>
@@ -38,7 +38,7 @@
     </div>
 
     <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
-        <form method="POST" action="/admin/reindex" class="inline-form"
+        <form method="POST" action="{{url "/admin/reindex"}}" class="inline-form"
             onsubmit="return confirm('Rebuild the full-text search index? This runs in the background.')">
             <button type="submit" class="btn btn-secondary" {{if .ReindexRunning}}disabled{{end}}>
                 {{if .ReindexRunning}}Reindexing...{{else}}Rebuild Search Index{{end}}
@@ -64,13 +64,13 @@
         <tbody>
             {{range .Projects}}
             <tr>
-                <td><a href="/project/{{.Slug}}">{{.Slug}}</a></td>
+                <td><a href="{{url "/project/"}}{{.Slug}}">{{.Slug}}</a></td>
                 <td>{{.Name}}</td>
                 <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02"}}</td>
                 <td>
-                    <a href="/admin/projects/{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>
-                    <form method="POST" action="/admin/projects/{{.Slug}}/delete" class="inline-form"
+                    <a href="{{url "/admin/projects/"}}{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>
+                    <form method="POST" action="{{url "/admin/projects/"}}{{.Slug}}/delete" class="inline-form"
                         onsubmit="return confirm('Delete project {{.Name}}?')">
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>

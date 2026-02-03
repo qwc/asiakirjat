@@ -4,6 +4,8 @@
     var overlay = document.getElementById("asiakirjat-overlay");
     if (!overlay) return;
 
+    var basePath = window.BASE_PATH || "";
+
     // Push document content down so it's not hidden behind the fixed top bar
     var overlayHeight = overlay.offsetHeight;
     document.body.style.marginTop = overlayHeight + "px";
@@ -15,7 +17,7 @@
     var current = versionSelect.getAttribute("data-current");
 
     // Fetch versions from API
-    fetch("/api/project/" + encodeURIComponent(slug) + "/versions")
+    fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
         .then(function(resp) { return resp.json(); })
         .then(function(versions) {
             // Clear and rebuild options
@@ -41,10 +43,10 @@
 
         // Preserve the current path within the doc
         var path = window.location.pathname;
-        var prefix = "/project/" + slug + "/" + current;
+        var prefix = basePath + "/project/" + slug + "/" + current;
         var suffix = path.substring(prefix.length);
 
-        window.location.href = "/project/" + slug + "/" + newVersion + suffix;
+        window.location.href = basePath + "/project/" + slug + "/" + newVersion + suffix;
     });
 
     // Version comparison feature
@@ -56,7 +58,7 @@
 
     if (compareSelect && diffModal) {
         // Populate compare dropdown with versions (excluding current)
-        fetch("/api/project/" + encodeURIComponent(slug) + "/versions")
+        fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
             .then(function(resp) { return resp.json(); })
             .then(function(versions) {
                 compareSelect.innerHTML = '<option value="">Select version...</option>';
@@ -153,12 +155,12 @@
 
             // Get current document path
             var path = window.location.pathname;
-            var prefix = "/project/" + slug + "/" + current;
+            var prefix = basePath + "/project/" + slug + "/" + current;
             var suffix = path.substring(prefix.length);
 
             // Build URLs for both versions
-            var currentUrl = "/project/" + slug + "/" + current + suffix;
-            var targetUrl = "/project/" + slug + "/" + targetVersion + suffix;
+            var currentUrl = basePath + "/project/" + slug + "/" + current + suffix;
+            var targetUrl = basePath + "/project/" + slug + "/" + targetVersion + suffix;
 
             diffTitle.textContent = "Comparing " + current + " → " + targetVersion;
             diffBody.innerHTML = '<div id="asiakirjat-diff-loading">Loading...</div>';
@@ -221,7 +223,7 @@
                 return;
             }
 
-            var url = "/api/search?q=" + encodeURIComponent(q) +
+            var url = basePath + "/api/search?q=" + encodeURIComponent(q) +
                 "&project=" + encodeURIComponent(searchSlug) +
                 "&version=" + encodeURIComponent(searchVersion) +
                 "&limit=8";
@@ -263,7 +265,7 @@
                     if (data.total > 8) {
                         var viewAll = document.createElement("a");
                         viewAll.className = "ao-search-view-all";
-                        viewAll.href = "/search?q=" + encodeURIComponent(q) +
+                        viewAll.href = basePath + "/search?q=" + encodeURIComponent(q) +
                             "&project=" + encodeURIComponent(searchSlug);
                         viewAll.textContent = "View all " + data.total + " results";
                         searchDropdown.appendChild(viewAll);
