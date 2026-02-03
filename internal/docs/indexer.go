@@ -297,7 +297,18 @@ func (si *SearchIndex) Search(sq SearchQuery, latestVersionTags map[string]strin
 	titlePhraseQ.SetField("page_title")
 	titlePhraseQ.SetBoost(5.0)
 
-	textQuery := bleve.NewDisjunctionQuery(matchQ, contentPhraseQ, titlePhraseQ)
+	// Fuzzy query for typo tolerance (low boost as fallback)
+	fuzzyContentQ := bleve.NewFuzzyQuery(sq.Query)
+	fuzzyContentQ.SetField("text_content")
+	fuzzyContentQ.SetFuzziness(1) // Allow 1 edit distance
+	fuzzyContentQ.SetBoost(0.5)
+
+	fuzzyTitleQ := bleve.NewFuzzyQuery(sq.Query)
+	fuzzyTitleQ.SetField("page_title")
+	fuzzyTitleQ.SetFuzziness(1)
+	fuzzyTitleQ.SetBoost(0.8)
+
+	textQuery := bleve.NewDisjunctionQuery(matchQ, contentPhraseQ, titlePhraseQ, fuzzyContentQ, fuzzyTitleQ)
 
 	// Build filter queries
 	var filters []query.Query
