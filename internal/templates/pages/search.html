@@ -17,12 +17,24 @@
                     {{end}}
                 </select>
             </div>
+            {{if .Project}}
+            <div class="search-form-filter">
+                <select name="version">
+                    <option value="">Latest version</option>
+                    <option value="all" {{if eq .Version "all"}}selected{{end}}>All versions</option>
+                    {{range .ProjectVersions}}
+                    <option value="{{.}}" {{if eq $.Version .}}selected{{end}}>{{.}}</option>
+                    {{end}}
+                </select>
+            </div>
+            {{else}}
             <div class="search-form-check">
                 <label>
                     <input type="checkbox" name="all_versions" value="1" {{if .AllVersions}}checked{{end}}>
                     All versions
                 </label>
             </div>
+            {{end}}
             <button type="submit" class="btn btn-primary">Search</button>
         </div>
     </form>
@@ -57,10 +69,10 @@
 
     <div class="search-pagination">
         {{if .HasPrev}}
-        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.PrevOffset}}&limit={{.Limit}}" class="btn btn-secondary">&larr; Previous</a>
+        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.PrevOffset}}&limit={{.Limit}}" class="btn btn-secondary">&larr; Previous</a>
         {{end}}
         {{if .HasNext}}
-        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.NextOffset}}&limit={{.Limit}}" class="btn btn-secondary">Next &rarr;</a>
+        <a href="/search?q={{.Query}}{{if .Project}}&project={{.Project}}{{end}}{{if .Version}}&version={{.Version}}{{end}}{{if .AllVersions}}&all_versions=1{{end}}&offset={{.NextOffset}}&limit={{.Limit}}" class="btn btn-secondary">Next &rarr;</a>
         {{end}}
     </div>
     {{end}}

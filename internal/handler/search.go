@@ -68,6 +68,7 @@ func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query().Get("q")
 	projectSlug := r.URL.Query().Get("project")
+	versionTag := r.URL.Query().Get("version")
 	allVersions := r.URL.Query().Get("all_versions") == "1"
 
 	limit := 20
@@ -93,21 +94,51 @@ func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Get versions for selected project
+	var projectVersions []string
+	if projectSlug != "" {
+		project, err := h.projects.GetBySlug(ctx, projectSlug)
+		if err == nil {
+			versions, _ := h.versions.ListByProject(ctx, project.ID)
+			tags := make([]string, len(versions))
+			for i, v := range versions {
+				tags[i] = v.Tag
+			}
+			docs.SortVersionTags(tags)
+			projectVersions = tags
+		}
+	}
+
 	data := map[string]any{
-		"User":        user,
-		"Query":       q,
-		"Project":     projectSlug,
-		"AllVersions": allVersions,
-		"Limit":       limit,
-		"Offset":      offset,
-		"Projects":    accessibleProjects,
+		"User":            user,
+		"Query":           q,
+		"Project":         projectSlug,
+		"Version":         versionTag,
+		"AllVersions":     allVersions,
+		"Limit":           limit,
+		"Offset":          offset,
+		"Projects":        accessibleProjects,
+		"ProjectVersions": projectVersions,
 	}
 
 	if q != "" {
+		// Determine version filtering:
+		// - If no project selected: allVersions checkbox applies
+		// - If project selected: version param controls (empty=latest, "all"=all, specific=that version)
+		searchAllVersions := allVersions
+		searchVersionTag := ""
+		if projectSlug != "" {
+			searchAllVersions = versionTag == "all"
+			if versionTag != "" && versionTag != "all" {
+				searchVersionTag = versionTag
+			}
+		}
+
 		sq := docs.SearchQuery{
 			Query:       q,
 			ProjectSlug: projectSlug,
-			AllVersions: allVersions,
+			VersionTag:  searchVersionTag,
+			AllVersions: searchAllVersions,
 			Limit:       limit,
 			Offset:      offset,
 		}
