@@ -80,6 +80,11 @@ body {
     color: white;
 }
 
+/* Mobile search link - hidden by default, shown on mobile */
+.navbar-search-link {
+    display: none;
+}
+
 /* Navbar Search */
 .navbar-search {
     position: relative;
@@ -848,6 +853,9 @@ mark, .search-result-snippet b {
     }
     .navbar-search {
         display: none;
+    }
+    .navbar-search-link {
+        display: inline;
     }
     .search-form-row {
         flex-direction: column;

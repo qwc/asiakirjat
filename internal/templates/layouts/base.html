@@ -17,7 +17,7 @@
             <div id="navbar-search-dropdown" class="navbar-search-dropdown"></div>
         </div>
         <div class="navbar-menu">
-            <a href="/search" class="navbar-link">Search</a>
+            <a href="/search" class="navbar-link navbar-search-link">Search</a>
             {{if .User}}
                 <a href="/profile" class="navbar-user">{{.User.Username}}</a>
                 {{if eq .User.Role "admin"}}
