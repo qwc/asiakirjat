@@ -154,6 +154,78 @@
     border-color: #60a5fa;
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
 }
+/* Diff modal */
+#asiakirjat-diff-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10001;
+    overflow: auto;
+    padding: 2rem;
+}
+#asiakirjat-diff-modal.ao-visible {
+    display: block;
+}
+#asiakirjat-diff-content {
+    background: #fff;
+    color: #1f2937;
+    max-width: 1000px;
+    margin: 0 auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+#asiakirjat-diff-header {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#asiakirjat-diff-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+#asiakirjat-diff-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+#asiakirjat-diff-close:hover {
+    color: #fff;
+}
+#asiakirjat-diff-body {
+    padding: 1rem;
+    max-height: 70vh;
+    overflow: auto;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+#asiakirjat-diff-body .diff-add {
+    background: #dcfce7;
+    color: #166534;
+}
+#asiakirjat-diff-body .diff-del {
+    background: #fee2e2;
+    color: #991b1b;
+    text-decoration: line-through;
+}
+#asiakirjat-diff-loading {
+    padding: 2rem;
+    text-align: center;
+    color: #6b7280;
+}
 </style>
 <div id="asiakirjat-overlay">
     <div class="ao-content">
@@ -172,6 +244,21 @@
             <select id="asiakirjat-version-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
                 <option value="{{.Version}}" selected>{{.Version}}</option>
             </select>
+            <span class="ao-label">Compare</span>
+            <select id="asiakirjat-compare-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
+                <option value="">Select version...</option>
+            </select>
+        </div>
+    </div>
+</div>
+<div id="asiakirjat-diff-modal">
+    <div id="asiakirjat-diff-content">
+        <div id="asiakirjat-diff-header">
+            <h3 id="asiakirjat-diff-title">Comparing versions</h3>
+            <button id="asiakirjat-diff-close">&times;</button>
+        </div>
+        <div id="asiakirjat-diff-body">
+            <div id="asiakirjat-diff-loading">Loading...</div>
         </div>
     </div>
 </div>
