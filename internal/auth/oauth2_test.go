@@ -556,3 +556,605 @@ func TestValidateOAuth2Config(t *testing.T) {
 		})
 	}
 }
+
+func TestOAuth2HandleCallbackTokenExchangeFailure(t *testing.T) {
+	// Token server returns error
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "Authorization code is invalid or expired",
+		})
+	}))
+	defer tokenServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "invalid-code")
+	if err == nil {
+		t.Error("expected error for invalid authorization code")
+	}
+	if !strings.Contains(err.Error(), "exchanging code for token") {
+		t.Errorf("expected token exchange error, got: %v", err)
+	}
+}
+
+func TestOAuth2HandleCallbackUserInfoFailure(t *testing.T) {
+	// Token server succeeds
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-access-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// UserInfo server returns error
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "valid-code")
+	if err == nil {
+		t.Error("expected error for userinfo failure")
+	}
+	if !strings.Contains(err.Error(), "fetching user info") {
+		t.Errorf("expected user info error, got: %v", err)
+	}
+}
+
+func TestOAuth2HandleCallbackMissingUserIdentity(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-access-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// UserInfo returns neither username nor email
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"sub":  "12345",
+			"name": "Some User",
+			// no preferred_username or email
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "valid-code")
+	if err == nil {
+		t.Error("expected error for missing user identity")
+	}
+	if !strings.Contains(err.Error(), "no username or email") {
+		t.Errorf("expected 'no username or email' error, got: %v", err)
+	}
+}
+
+func TestOAuth2HandleCallbackUserInfoUnauthorized(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-access-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// UserInfo returns 401 (token expired/invalid)
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid_token",
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "valid-code")
+	if err == nil {
+		t.Error("expected error for unauthorized userinfo request")
+	}
+}
+
+func TestOAuth2HandleCallbackWithEditorGroup(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "editor-user",
+			"email":              "editor@example.com",
+			"groups":             []string{"asiakirjat-editors", "other-group"},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+		AdminGroup:  "asiakirjat-admins",
+		EditorGroup: "asiakirjat-editors",
+		ViewerGroup: "asiakirjat-viewers",
+	}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	user, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if user.Role != "editor" {
+		t.Errorf("expected role 'editor', got %q", user.Role)
+	}
+}
+
+func TestOAuth2HandleCallbackNestedGroupsClaim(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// Keycloak-style nested groups claim
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "keycloak-user",
+			"email":              "keycloak@example.com",
+			"realm_access": map[string]any{
+				"roles": []string{"admin", "user"},
+			},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "realm_access.roles",
+		AdminGroup:  "admin",
+		EditorGroup: "editor",
+	}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	user, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if user.Role != "admin" {
+		t.Errorf("expected role 'admin' from nested claim, got %q", user.Role)
+	}
+}
+
+func TestOAuth2ProjectAccessSync(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "sync-user",
+			"email":              "sync@example.com",
+			"groups":             []string{"project-a-editors", "project-b-viewers"},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	projectStore := sqlstore.NewProjectStore(db)
+	accessStore := sqlstore.NewProjectAccessStore(db)
+	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
+	logger := testutil.TestLogger()
+
+	ctx := context.Background()
+
+	// Create projects
+	projectA := &database.Project{Slug: "project-a", Name: "Project A", IsPublic: true}
+	projectB := &database.Project{Slug: "project-b", Name: "Project B", IsPublic: true}
+	projectStore.Create(ctx, projectA)
+	projectStore.Create(ctx, projectB)
+
+	// Create group mappings
+	groupMappingStore.Create(ctx, &database.AuthGroupMapping{
+		AuthSource:      "oauth2",
+		GroupIdentifier: "project-a-editors",
+		ProjectID:       projectA.ID,
+		Role:            "editor",
+	})
+	groupMappingStore.Create(ctx, &database.AuthGroupMapping{
+		AuthSource:      "oauth2",
+		GroupIdentifier: "project-b-viewers",
+		ProjectID:       projectB.ID,
+		Role:            "viewer",
+	})
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+	}, userStore, logger)
+	auth.SetStores(accessStore, groupMappingStore)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	user, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check project access was granted
+	accessA, err := accessStore.GetAccess(ctx, projectA.ID, user.ID)
+	if err != nil || accessA == nil {
+		t.Fatal("expected access to project A")
+	}
+	if accessA.Role != "editor" {
+		t.Errorf("expected editor role for project A, got %q", accessA.Role)
+	}
+	if accessA.Source != "oauth2" {
+		t.Errorf("expected source 'oauth2', got %q", accessA.Source)
+	}
+
+	accessB, err := accessStore.GetAccess(ctx, projectB.ID, user.ID)
+	if err != nil || accessB == nil {
+		t.Fatal("expected access to project B")
+	}
+	if accessB.Role != "viewer" {
+		t.Errorf("expected viewer role for project B, got %q", accessB.Role)
+	}
+}
+
+func TestOAuth2ProjectAccessSyncRevocation(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	projectStore := sqlstore.NewProjectStore(db)
+	accessStore := sqlstore.NewProjectAccessStore(db)
+	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
+	logger := testutil.TestLogger()
+
+	ctx := context.Background()
+
+	// Create user and project
+	user := &database.User{Username: "revoke-user", Email: "revoke@example.com", AuthSource: "oauth2", Role: "viewer"}
+	userStore.Create(ctx, user)
+
+	project := &database.Project{Slug: "revoke-project", Name: "Revoke Project", IsPublic: true}
+	projectStore.Create(ctx, project)
+
+	// Grant existing OAuth2-sourced access
+	existingAccess := &database.ProjectAccess{
+		ProjectID: project.ID,
+		UserID:    user.ID,
+		Role:      "editor",
+		Source:    "oauth2",
+	}
+	accessStore.Grant(ctx, existingAccess)
+
+	// Create group mapping (but user will NOT be in this group)
+	groupMappingStore.Create(ctx, &database.AuthGroupMapping{
+		AuthSource:      "oauth2",
+		GroupIdentifier: "project-editors",
+		ProjectID:       project.ID,
+		Role:            "editor",
+	})
+
+	// Mock servers - user is NOT in project-editors group
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "revoke-user",
+			"email":              "revoke@example.com",
+			"groups":             []string{"other-group"}, // Not in project-editors
+		})
+	}))
+	defer userInfoServer.Close()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+	}, userStore, logger)
+	auth.SetStores(accessStore, groupMappingStore)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	_, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check access was revoked
+	access, _ := accessStore.GetAccess(ctx, project.ID, user.ID)
+	if access != nil {
+		t.Error("expected OAuth2-sourced access to be revoked")
+	}
+}
+
+func TestOAuth2ProjectAccessSyncHighestRoleWins(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// User is in multiple groups that map to the same project
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "multi-group-user",
+			"email":              "multi@example.com",
+			"groups":             []string{"project-viewers", "project-editors"},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	projectStore := sqlstore.NewProjectStore(db)
+	accessStore := sqlstore.NewProjectAccessStore(db)
+	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
+	logger := testutil.TestLogger()
+
+	ctx := context.Background()
+
+	project := &database.Project{Slug: "multi-project", Name: "Multi Project", IsPublic: true}
+	projectStore.Create(ctx, project)
+
+	// Create two group mappings to same project with different roles
+	groupMappingStore.Create(ctx, &database.AuthGroupMapping{
+		AuthSource:      "oauth2",
+		GroupIdentifier: "project-viewers",
+		ProjectID:       project.ID,
+		Role:            "viewer",
+	})
+	groupMappingStore.Create(ctx, &database.AuthGroupMapping{
+		AuthSource:      "oauth2",
+		GroupIdentifier: "project-editors",
+		ProjectID:       project.ID,
+		Role:            "editor",
+	})
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+	}, userStore, logger)
+	auth.SetStores(accessStore, groupMappingStore)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	user, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should get the highest role (editor > viewer)
+	access, err := accessStore.GetAccess(ctx, project.ID, user.ID)
+	if err != nil || access == nil {
+		t.Fatal("expected access to project")
+	}
+	if access.Role != "editor" {
+		t.Errorf("expected highest role 'editor', got %q", access.Role)
+	}
+}
+
+func TestOAuth2HandleCallbackMalformedJSON(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// UserInfo returns malformed JSON
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not valid json {"))
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "valid-code")
+	if err == nil {
+		t.Error("expected error for malformed JSON response")
+	}
+	if !strings.Contains(err.Error(), "decoding user info") {
+		t.Errorf("expected decoding error, got: %v", err)
+	}
+}
+
+func TestOAuth2StateNotConsumedOnError(t *testing.T) {
+	// This tests that state tokens aren't consumed if callback fails
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid_grant",
+		})
+	}))
+	defer tokenServer.Close()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{}, nil, testutil.TestLogger())
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+
+	// Generate state
+	url, _ := auth.GenerateAuthURL()
+	parts := strings.Split(url, "state=")
+	state := strings.Split(parts[1], "&")[0]
+
+	// Verify state is valid before callback
+	// (but don't consume it - just check it exists in the map)
+	auth.mu.Lock()
+	exists := auth.states[state]
+	auth.mu.Unlock()
+	if !exists {
+		t.Fatal("state should exist before callback")
+	}
+
+	// Callback fails (token exchange error) - state is NOT consumed by HandleCallback
+	// Note: ValidateState is called separately in the handler, not in HandleCallback
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "bad-code")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	// State should still be valid (not consumed by HandleCallback)
+	if !auth.ValidateState(state) {
+		t.Error("state should still be valid after failed callback")
+	}
+}
