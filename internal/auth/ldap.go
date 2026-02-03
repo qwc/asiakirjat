@@ -13,6 +13,30 @@ import (
 	"github.com/qwc/asiakirjat/internal/store"
 )
 
+// LDAPConn represents an LDAP connection interface for mockable testing.
+type LDAPConn interface {
+	Bind(username, password string) error
+	Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error)
+	Close() error
+}
+
+// LDAPDialer creates LDAP connections. This interface allows mocking in tests.
+type LDAPDialer interface {
+	DialURL(addr string) (LDAPConn, error)
+}
+
+// realLDAPDialer is the production implementation using go-ldap.
+type realLDAPDialer struct{}
+
+func (d *realLDAPDialer) DialURL(addr string) (LDAPConn, error) {
+	return ldap.DialURL(addr)
+}
+
+// DefaultLDAPDialer returns the default production LDAP dialer.
+func DefaultLDAPDialer() LDAPDialer {
+	return &realLDAPDialer{}
+}
+
 // LDAPAuthenticator authenticates users against an LDAP directory.
 type LDAPAuthenticator struct {
 	config        config.LDAPConfig
@@ -20,6 +44,7 @@ type LDAPAuthenticator struct {
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
 	logger        *slog.Logger
+	dialer        LDAPDialer
 }
 
 // NewLDAPAuthenticator creates a new LDAP authenticator.
@@ -28,6 +53,17 @@ func NewLDAPAuthenticator(cfg config.LDAPConfig, users store.UserStore, logger *
 		config: cfg,
 		users:  users,
 		logger: logger,
+		dialer: DefaultLDAPDialer(),
+	}
+}
+
+// NewLDAPAuthenticatorWithDialer creates a new LDAP authenticator with a custom dialer (for testing).
+func NewLDAPAuthenticatorWithDialer(cfg config.LDAPConfig, users store.UserStore, logger *slog.Logger, dialer LDAPDialer) *LDAPAuthenticator {
+	return &LDAPAuthenticator{
+		config: cfg,
+		users:  users,
+		logger: logger,
+		dialer: dialer,
 	}
 }
 
@@ -49,7 +85,7 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 	}
 
 	// Connect to LDAP server
-	conn, err := ldap.DialURL(a.config.URL)
+	conn, err := a.dialer.DialURL(a.config.URL)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to LDAP: %w", err)
 	}
