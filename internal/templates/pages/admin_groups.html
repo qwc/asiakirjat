@@ -1,0 +1,167 @@
+{{define "title"}}Admin: Group Mappings - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Authentication Group Mappings</h1>
+
+    <div class="admin-nav">
+        <a href="/admin/projects" class="admin-nav-link">Projects</a>
+        <a href="/admin/users" class="admin-nav-link">Users</a>
+        <a href="/admin/robots" class="admin-nav-link">Robot Users</a>
+        <a href="/admin/groups" class="admin-nav-link active">Group Mappings</a>
+    </div>
+
+    <div class="admin-info">
+        <p>Map authentication groups (LDAP/OAuth2) to project access. When users log in, they automatically receive access to projects based on their group membership.</p>
+        <p><strong>Note:</strong> Mappings marked as "Config" were loaded from the config file and cannot be modified through this UI.</p>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
+    {{end}}
+
+    <div class="admin-create-form">
+        <h2>Create Mapping</h2>
+        <form method="POST" action="/admin/groups">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="auth_source">Auth Source</label>
+                    <select id="auth_source" name="auth_source" required>
+                        <option value="ldap">LDAP</option>
+                        <option value="oauth2">OAuth2</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="group_identifier">Group Identifier</label>
+                    <input type="text" id="group_identifier" name="group_identifier" required
+                        placeholder="e.g., cn=editors,ou=groups,dc=example,dc=com">
+                </div>
+                <div class="form-group">
+                    <label for="project_id">Project</label>
+                    <select id="project_id" name="project_id" required>
+                        {{range .Projects}}
+                        <option value="{{.ID}}">{{.Name}} ({{.Slug}})</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" required>
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Mapping</button>
+            </div>
+        </form>
+    </div>
+
+    {{if .Mappings}}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Auth Source</th>
+                <th>Group Identifier</th>
+                <th>Project</th>
+                <th>Role</th>
+                <th>Source</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Mappings}}
+            <tr>
+                <td><span class="badge badge-{{.AuthSource}}">{{.AuthSource}}</span></td>
+                <td class="group-id">{{.GroupIdentifier}}</td>
+                <td>{{.ProjectName}}</td>
+                <td>{{.Role}}</td>
+                <td>{{if .FromConfig}}<span class="badge badge-config">Config</span>{{else}}<span class="badge badge-manual">Manual</span>{{end}}</td>
+                <td>
+                    {{if not .FromConfig}}
+                    <form method="POST" action="/admin/groups/{{.ID}}/delete" class="inline-form"
+                        onsubmit="return confirm('Delete this group mapping?')">
+                        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                    {{else}}
+                    <span class="text-muted">Edit in config</span>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No group mappings configured. Create one above or add mappings to your config file.</p>
+    {{end}}
+</div>
+
+<style>
+.admin-info {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+.admin-info p {
+    margin: 0 0 0.5rem 0;
+}
+.admin-info p:last-child {
+    margin-bottom: 0;
+}
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.badge-ldap {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+.badge-oauth2 {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+.badge-config {
+    background: #fff3e0;
+    color: #e65100;
+}
+.badge-manual {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.group-id {
+    font-family: monospace;
+    font-size: 0.875rem;
+    word-break: break-all;
+    max-width: 400px;
+}
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+.empty-message {
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: 2rem;
+}
+.flash {
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+.flash-success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+.flash-error {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+</style>
+{{end}}

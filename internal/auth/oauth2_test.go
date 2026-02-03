@@ -102,11 +102,11 @@ func TestOAuth2HandleCallback(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(UserInfo{
-			Sub:      "12345",
-			Username: "oauth-user",
-			Email:    "oauth@example.com",
-			Name:     "OAuth User",
+		json.NewEncoder(w).Encode(map[string]any{
+			"sub":                "12345",
+			"preferred_username": "oauth-user",
+			"email":              "oauth@example.com",
+			"name":               "OAuth User",
 		})
 	}))
 	defer userInfoServer.Close()
@@ -168,9 +168,9 @@ func TestOAuth2HandleCallbackExistingUser(t *testing.T) {
 
 	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(UserInfo{
-			Username: "existing-user",
-			Email:    "new@example.com",
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "existing-user",
+			"email":              "new@example.com",
 		})
 	}))
 	defer userInfoServer.Close()
@@ -208,8 +208,9 @@ func TestOAuth2HandleCallbackExistingUser(t *testing.T) {
 	if user.ID != existing.ID {
 		t.Error("expected to return existing user")
 	}
-	if user.Role != "editor" {
-		t.Errorf("expected existing role 'editor' preserved, got %q", user.Role)
+	// Role should be updated to viewer (no groups configured means viewer)
+	if user.Role != "viewer" {
+		t.Errorf("expected role 'viewer', got %q", user.Role)
 	}
 }
 
@@ -226,8 +227,8 @@ func TestOAuth2HandleCallbackEmailOnly(t *testing.T) {
 
 	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(UserInfo{
-			Email: "alice@example.com",
+		json.NewEncoder(w).Encode(map[string]any{
+			"email": "alice@example.com",
 		})
 	}))
 	defer userInfoServer.Close()
@@ -255,6 +256,267 @@ func TestOAuth2HandleCallbackEmailOnly(t *testing.T) {
 	// Username should be derived from email
 	if user.Username != "alice" {
 		t.Errorf("expected username 'alice' derived from email, got %q", user.Username)
+	}
+}
+
+func TestOAuth2HandleCallbackWithGroups(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "group-user",
+			"email":              "group@example.com",
+			"groups":             []string{"asiakirjat-admins", "other-group"},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+		AdminGroup:  "asiakirjat-admins",
+		EditorGroup: "asiakirjat-editors",
+	}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	user, err := auth.HandleCallback(ctx, "mock-code")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// User should be admin based on group membership
+	if user.Role != "admin" {
+		t.Errorf("expected role 'admin', got %q", user.Role)
+	}
+}
+
+func TestOAuth2HandleCallbackWithViewerGroup(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "mock-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// User not in any allowed group
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"preferred_username": "denied-user",
+			"email":              "denied@example.com",
+			"groups":             []string{"other-group"},
+		})
+	}))
+	defer userInfoServer.Close()
+
+	db := testutil.NewTestDB(t)
+	userStore := sqlstore.NewUserStore(db)
+	logger := testutil.TestLogger()
+
+	auth := NewOAuth2Authenticator(config.OAuth2Config{
+		GroupsClaim: "groups",
+		AdminGroup:  "asiakirjat-admins",
+		EditorGroup: "asiakirjat-editors",
+		ViewerGroup: "asiakirjat-viewers", // When set, requires membership
+	}, userStore, logger)
+	auth.oauthConfig = &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenServer.URL,
+		},
+	}
+	auth.userInfoURL = userInfoServer.URL
+
+	ctx := context.Background()
+	_, err := auth.HandleCallback(ctx, "mock-code")
+	if err == nil {
+		t.Error("expected error for user not in any allowed group")
+	}
+	if !strings.Contains(err.Error(), "not in any allowed group") {
+		t.Errorf("expected 'not in any allowed group' error, got: %v", err)
+	}
+}
+
+func TestExtractGroups(t *testing.T) {
+	tests := []struct {
+		name      string
+		rawInfo   map[string]any
+		claimName string
+		expected  []string
+	}{
+		{
+			name: "simple groups array",
+			rawInfo: map[string]any{
+				"groups": []any{"admin", "editor"},
+			},
+			claimName: "groups",
+			expected:  []string{"admin", "editor"},
+		},
+		{
+			name: "nested claim",
+			rawInfo: map[string]any{
+				"realm_access": map[string]any{
+					"roles": []any{"admin", "user"},
+				},
+			},
+			claimName: "realm_access.roles",
+			expected:  []string{"admin", "user"},
+		},
+		{
+			name: "cognito style",
+			rawInfo: map[string]any{
+				"cognito:groups": []any{"admins", "readers"},
+			},
+			claimName: "cognito:groups",
+			expected:  []string{"admins", "readers"},
+		},
+		{
+			name: "missing claim",
+			rawInfo: map[string]any{
+				"email": "test@example.com",
+			},
+			claimName: "groups",
+			expected:  nil,
+		},
+		{
+			name: "empty claim",
+			rawInfo: map[string]any{
+				"groups": []any{},
+			},
+			claimName: "groups",
+			expected:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractGroups(tt.rawInfo, tt.claimName)
+			if len(got) != len(tt.expected) {
+				t.Errorf("expected %d groups, got %d", len(tt.expected), len(got))
+				return
+			}
+			for i, g := range got {
+				if g != tt.expected[i] {
+					t.Errorf("expected group %d to be %q, got %q", i, tt.expected[i], g)
+				}
+			}
+		})
+	}
+}
+
+func TestMapGroupsToRole(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         config.OAuth2Config
+		groups      []string
+		expectedRole string
+		expectedAllowed bool
+	}{
+		{
+			name:        "no group config - allow as viewer",
+			cfg:         config.OAuth2Config{},
+			groups:      []string{"random-group"},
+			expectedRole: "viewer",
+			expectedAllowed: true,
+		},
+		{
+			name: "admin group member",
+			cfg: config.OAuth2Config{
+				AdminGroup:  "admins",
+				EditorGroup: "editors",
+			},
+			groups:      []string{"admins", "users"},
+			expectedRole: "admin",
+			expectedAllowed: true,
+		},
+		{
+			name: "editor group member",
+			cfg: config.OAuth2Config{
+				AdminGroup:  "admins",
+				EditorGroup: "editors",
+			},
+			groups:      []string{"editors", "users"},
+			expectedRole: "editor",
+			expectedAllowed: true,
+		},
+		{
+			name: "admin takes priority over editor",
+			cfg: config.OAuth2Config{
+				AdminGroup:  "admins",
+				EditorGroup: "editors",
+			},
+			groups:      []string{"editors", "admins"},
+			expectedRole: "admin",
+			expectedAllowed: true,
+		},
+		{
+			name: "viewer group when viewerGroup set",
+			cfg: config.OAuth2Config{
+				AdminGroup:  "admins",
+				EditorGroup: "editors",
+				ViewerGroup: "viewers",
+			},
+			groups:      []string{"viewers"},
+			expectedRole: "viewer",
+			expectedAllowed: true,
+		},
+		{
+			name: "not in any group when viewerGroup set - denied",
+			cfg: config.OAuth2Config{
+				AdminGroup:  "admins",
+				EditorGroup: "editors",
+				ViewerGroup: "viewers",
+			},
+			groups:      []string{"random-group"},
+			expectedRole: "",
+			expectedAllowed: false,
+		},
+		{
+			name: "case insensitive match",
+			cfg: config.OAuth2Config{
+				AdminGroup: "Admins",
+			},
+			groups:      []string{"ADMINS"},
+			expectedRole: "admin",
+			expectedAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := NewOAuth2Authenticator(tt.cfg, nil, nil)
+			role, allowed := auth.mapGroupsToRole(tt.groups)
+			if role != tt.expectedRole {
+				t.Errorf("expected role %q, got %q", tt.expectedRole, role)
+			}
+			if allowed != tt.expectedAllowed {
+				t.Errorf("expected allowed=%v, got allowed=%v", tt.expectedAllowed, allowed)
+			}
+		})
 	}
 }
 

@@ -24,6 +24,7 @@ type Handler struct {
 	sessions       store.SessionStore
 	access         store.ProjectAccessStore
 	tokens         store.TokenStore
+	groupMappings  store.AuthGroupMappingStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
@@ -51,6 +52,7 @@ type Deps struct {
 	Sessions       store.SessionStore
 	Access         store.ProjectAccessStore
 	Tokens         store.TokenStore
+	GroupMappings  store.AuthGroupMappingStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
@@ -70,6 +72,7 @@ func New(deps Deps) *Handler {
 		sessions:       deps.Sessions,
 		access:         deps.Access,
 		tokens:         deps.Tokens,
+		groupMappings:  deps.GroupMappings,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
@@ -129,6 +132,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.handleAdminRevokeToken)))
 	mux.HandleFunc("POST /admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteRobot)))
 	mux.HandleFunc("POST /admin/reindex", h.withSession(h.requireAdmin(h.handleAdminReindex)))
+	mux.HandleFunc("GET /admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
+	mux.HandleFunc("POST /admin/groups", h.withSession(h.requireAdmin(h.handleAdminCreateGroupMapping)))
+	mux.HandleFunc("POST /admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteGroupMapping)))
 
 	// Health check
 	mux.HandleFunc("GET /healthz", h.handleHealthz)

@@ -162,12 +162,14 @@ func (h *Handler) canUpload(ctx context.Context, user *database.User, project *d
 	if user == nil {
 		return false
 	}
+	// Check user's global role first
 	if user.Role == "admin" || user.Role == "editor" {
 		return true
 	}
-	access, err := h.access.GetAccess(ctx, project.ID, user.ID)
+	// Check project-level access (from all sources: manual, ldap, oauth2)
+	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	if err != nil {
 		return false
 	}
-	return access.Role == "editor" || access.Role == "admin"
+	return effectiveRole == "editor" || effectiveRole == "admin"
 }

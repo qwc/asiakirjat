@@ -62,54 +62,109 @@ func TestRenderUserFilterInvalid(t *testing.T) {
 func TestMapGroupToRole(t *testing.T) {
 	adminGroup := "cn=admins,ou=groups,dc=example,dc=com"
 	editorGroup := "cn=editors,ou=groups,dc=example,dc=com"
+	viewerGroup := "cn=viewers,ou=groups,dc=example,dc=com"
 
 	tests := []struct {
-		name     string
-		memberOf []string
-		expected string
+		name        string
+		memberOf    []string
+		viewerGroup string
+		expected    string
+		allowed     bool
 	}{
 		{
-			name:     "admin group member",
-			memberOf: []string{adminGroup, "cn=users,ou=groups,dc=example,dc=com"},
-			expected: "admin",
+			name:        "admin group member",
+			memberOf:    []string{adminGroup, "cn=users,ou=groups,dc=example,dc=com"},
+			viewerGroup: "",
+			expected:    "admin",
+			allowed:     true,
 		},
 		{
-			name:     "editor group member",
-			memberOf: []string{editorGroup, "cn=users,ou=groups,dc=example,dc=com"},
-			expected: "editor",
+			name:        "editor group member",
+			memberOf:    []string{editorGroup, "cn=users,ou=groups,dc=example,dc=com"},
+			viewerGroup: "",
+			expected:    "editor",
+			allowed:     true,
 		},
 		{
-			name:     "both admin and editor prefers admin",
-			memberOf: []string{editorGroup, adminGroup},
-			expected: "admin",
+			name:        "both admin and editor prefers admin",
+			memberOf:    []string{editorGroup, adminGroup},
+			viewerGroup: "",
+			expected:    "admin",
+			allowed:     true,
 		},
 		{
-			name:     "no matching group defaults to viewer",
-			memberOf: []string{"cn=users,ou=groups,dc=example,dc=com"},
-			expected: "viewer",
+			name:        "no matching group defaults to viewer (backward compatible)",
+			memberOf:    []string{"cn=users,ou=groups,dc=example,dc=com"},
+			viewerGroup: "",
+			expected:    "viewer",
+			allowed:     true,
 		},
 		{
-			name:     "empty groups defaults to viewer",
-			memberOf: []string{},
-			expected: "viewer",
+			name:        "empty groups defaults to viewer (backward compatible)",
+			memberOf:    []string{},
+			viewerGroup: "",
+			expected:    "viewer",
+			allowed:     true,
 		},
 		{
-			name:     "nil groups defaults to viewer",
-			memberOf: nil,
-			expected: "viewer",
+			name:        "nil groups defaults to viewer (backward compatible)",
+			memberOf:    nil,
+			viewerGroup: "",
+			expected:    "viewer",
+			allowed:     true,
 		},
 		{
-			name:     "case insensitive match",
-			memberOf: []string{"CN=Admins,OU=Groups,DC=Example,DC=Com"},
-			expected: "admin",
+			name:        "case insensitive match",
+			memberOf:    []string{"CN=Admins,OU=Groups,DC=Example,DC=Com"},
+			viewerGroup: "",
+			expected:    "admin",
+			allowed:     true,
+		},
+		{
+			name:        "viewer group member when viewerGroup is set",
+			memberOf:    []string{viewerGroup},
+			viewerGroup: viewerGroup,
+			expected:    "viewer",
+			allowed:     true,
+		},
+		{
+			name:        "not in any group when viewerGroup is set - denied",
+			memberOf:    []string{"cn=users,ou=groups,dc=example,dc=com"},
+			viewerGroup: viewerGroup,
+			expected:    "",
+			allowed:     false,
+		},
+		{
+			name:        "empty groups when viewerGroup is set - denied",
+			memberOf:    []string{},
+			viewerGroup: viewerGroup,
+			expected:    "",
+			allowed:     false,
+		},
+		{
+			name:        "admin group takes priority over viewer group",
+			memberOf:    []string{viewerGroup, adminGroup},
+			viewerGroup: viewerGroup,
+			expected:    "admin",
+			allowed:     true,
+		},
+		{
+			name:        "editor group takes priority over viewer group",
+			memberOf:    []string{viewerGroup, editorGroup},
+			viewerGroup: viewerGroup,
+			expected:    "editor",
+			allowed:     true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := MapGroupToRole(tt.memberOf, adminGroup, editorGroup)
+			got, allowed := MapGroupToRole(tt.memberOf, adminGroup, editorGroup, tt.viewerGroup)
 			if got != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, got)
+				t.Errorf("expected role %q, got %q", tt.expected, got)
+			}
+			if allowed != tt.allowed {
+				t.Errorf("expected allowed=%v, got allowed=%v", tt.allowed, allowed)
 			}
 		})
 	}

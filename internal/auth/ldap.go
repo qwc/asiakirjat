@@ -15,9 +15,11 @@ import (
 
 // LDAPAuthenticator authenticates users against an LDAP directory.
 type LDAPAuthenticator struct {
-	config config.LDAPConfig
-	users  store.UserStore
-	logger *slog.Logger
+	config        config.LDAPConfig
+	users         store.UserStore
+	access        store.ProjectAccessStore
+	groupMappings store.AuthGroupMappingStore
+	logger        *slog.Logger
 }
 
 // NewLDAPAuthenticator creates a new LDAP authenticator.
@@ -27,6 +29,13 @@ func NewLDAPAuthenticator(cfg config.LDAPConfig, users store.UserStore, logger *
 		users:  users,
 		logger: logger,
 	}
+}
+
+// SetStores sets the access and group mapping stores for project-level access sync.
+// This is called after authenticator creation to avoid circular dependencies.
+func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore) {
+	a.access = access
+	a.groupMappings = groupMappings
 }
 
 func (a *LDAPAuthenticator) Name() string {
@@ -89,7 +98,10 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 
 	// Determine role from group membership
 	memberOf := entry.GetAttributeValues("memberOf")
-	role := MapGroupToRole(memberOf, a.config.AdminGroup, a.config.EditorGroup)
+	role, allowed := MapGroupToRole(memberOf, a.config.AdminGroup, a.config.EditorGroup, a.config.ViewerGroup)
+	if !allowed {
+		return nil, fmt.Errorf("user not in any allowed group")
+	}
 
 	email := entry.GetAttributeValue("mail")
 
@@ -97,6 +109,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 	user, err := a.provisionUser(ctx, username, email, role)
 	if err != nil {
 		return nil, fmt.Errorf("provisioning user: %w", err)
+	}
+
+	// Sync project access based on group mappings
+	if a.access != nil && a.groupMappings != nil {
+		if err := a.syncProjectAccess(ctx, user, memberOf); err != nil {
+			a.logger.Warn("syncing LDAP project access", "username", username, "error", err)
+		}
 	}
 
 	return user, nil
@@ -132,6 +151,82 @@ func (a *LDAPAuthenticator) provisionUser(ctx context.Context, username, email, 
 	return user, nil
 }
 
+// syncProjectAccess synchronizes project access for a user based on their LDAP group membership.
+// It grants access for groups the user is a member of and revokes access for groups they're no longer in.
+func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *database.User, memberOf []string) error {
+	// Get all LDAP group mappings from the database
+	mappings, err := a.groupMappings.ListBySource(ctx, "ldap")
+	if err != nil {
+		return fmt.Errorf("listing LDAP group mappings: %w", err)
+	}
+
+	if len(mappings) == 0 {
+		return nil
+	}
+
+	// Build a set of user's groups for fast lookup (case-insensitive)
+	userGroups := make(map[string]bool)
+	for _, g := range memberOf {
+		userGroups[strings.ToLower(g)] = true
+	}
+
+	// Track which projects the user should have access to via LDAP
+	grantedProjects := make(map[int64]string) // project_id -> highest role
+
+	for _, mapping := range mappings {
+		if userGroups[strings.ToLower(mapping.GroupIdentifier)] {
+			// User is in this group - grant access
+			currentRole := grantedProjects[mapping.ProjectID]
+			if roleHigher(mapping.Role, currentRole) {
+				grantedProjects[mapping.ProjectID] = mapping.Role
+			}
+		}
+	}
+
+	// Get existing LDAP-sourced access for this user
+	existingAccess, err := a.access.ListByUserAndSource(ctx, user.ID, "ldap")
+	if err != nil {
+		return fmt.Errorf("listing existing LDAP access: %w", err)
+	}
+
+	existingProjects := make(map[int64]string)
+	for _, access := range existingAccess {
+		existingProjects[access.ProjectID] = access.Role
+	}
+
+	// Grant new or update existing access
+	for projectID, role := range grantedProjects {
+		if existingRole, exists := existingProjects[projectID]; !exists || existingRole != role {
+			access := &database.ProjectAccess{
+				ProjectID: projectID,
+				UserID:    user.ID,
+				Role:      role,
+				Source:    "ldap",
+			}
+			if err := a.access.Grant(ctx, access); err != nil {
+				a.logger.Warn("granting LDAP project access", "project_id", projectID, "error", err)
+			}
+		}
+	}
+
+	// Revoke access for projects no longer granted by LDAP
+	for projectID := range existingProjects {
+		if _, shouldHave := grantedProjects[projectID]; !shouldHave {
+			if err := a.access.RevokeBySource(ctx, projectID, user.ID, "ldap"); err != nil {
+				a.logger.Warn("revoking LDAP project access", "project_id", projectID, "error", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// roleHigher returns true if role a is higher priority than role b
+func roleHigher(a, b string) bool {
+	priority := map[string]int{"admin": 3, "editor": 2, "viewer": 1, "": 0}
+	return priority[a] > priority[b]
+}
+
 // RenderUserFilter applies the username to the LDAP user filter template.
 // The template uses {{.Username}} as a placeholder.
 func RenderUserFilter(filterTemplate, username string) (string, error) {
@@ -150,20 +245,36 @@ func RenderUserFilter(filterTemplate, username string) (string, error) {
 }
 
 // MapGroupToRole determines a user's role based on LDAP group membership.
-// Returns "admin" if the user is in the admin group, "editor" if in the editor group,
-// and "viewer" as the default.
-func MapGroupToRole(memberOf []string, adminGroup, editorGroup string) string {
+// Returns the role and whether the user is allowed.
+// If viewerGroup is set, the user must be in at least one of the configured groups.
+// If viewerGroup is empty, any user is allowed and defaults to "viewer" (backward compatible).
+func MapGroupToRole(memberOf []string, adminGroup, editorGroup, viewerGroup string) (string, bool) {
+	// Check for admin group first (highest priority)
 	for _, group := range memberOf {
-		if strings.EqualFold(group, adminGroup) {
-			return "admin"
+		if adminGroup != "" && strings.EqualFold(group, adminGroup) {
+			return "admin", true
 		}
 	}
+	// Check for editor group
 	for _, group := range memberOf {
-		if strings.EqualFold(group, editorGroup) {
-			return "editor"
+		if editorGroup != "" && strings.EqualFold(group, editorGroup) {
+			return "editor", true
 		}
 	}
-	return "viewer"
+	// Check for viewer group
+	for _, group := range memberOf {
+		if viewerGroup != "" && strings.EqualFold(group, viewerGroup) {
+			return "viewer", true
+		}
+	}
+
+	// If viewerGroup is set, user must be in one of the groups to be allowed
+	if viewerGroup != "" {
+		return "", false
+	}
+
+	// Backward compatible: if no viewerGroup configured, allow everyone as viewer
+	return "viewer", true
 }
 
 // ValidateLDAPConfig checks that required LDAP config fields are set.

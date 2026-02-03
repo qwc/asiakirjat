@@ -317,6 +317,7 @@ func (h *Handler) canViewProject(ctx context.Context, user *database.User, proje
 	if user.Role == "admin" {
 		return true
 	}
-	access, err := h.access.GetAccess(ctx, project.ID, user.ID)
-	return err == nil && access != nil
+	// Check project-level access (from all sources: manual, ldap, oauth2)
+	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
+	return err == nil && effectiveRole != ""
 }

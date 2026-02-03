@@ -46,25 +46,39 @@ type SessionConfig struct {
 }
 
 type LDAPConfig struct {
-	Enabled      bool   `yaml:"enabled" env:"ASIAKIRJAT_LDAP_ENABLED"`
-	URL          string `yaml:"url" env:"ASIAKIRJAT_LDAP_URL"`
-	BindDN       string `yaml:"bind_dn" env:"ASIAKIRJAT_LDAP_BIND_DN"`
-	BindPassword string `yaml:"bind_password" env:"ASIAKIRJAT_LDAP_BIND_PASSWORD"`
-	BaseDN       string `yaml:"base_dn" env:"ASIAKIRJAT_LDAP_BASE_DN"`
-	UserFilter   string `yaml:"user_filter" env:"ASIAKIRJAT_LDAP_USER_FILTER"`
-	AdminGroup   string `yaml:"admin_group" env:"ASIAKIRJAT_LDAP_ADMIN_GROUP"`
-	EditorGroup  string `yaml:"editor_group" env:"ASIAKIRJAT_LDAP_EDITOR_GROUP"`
+	Enabled       bool               `yaml:"enabled" env:"ASIAKIRJAT_LDAP_ENABLED"`
+	URL           string             `yaml:"url" env:"ASIAKIRJAT_LDAP_URL"`
+	BindDN        string             `yaml:"bind_dn" env:"ASIAKIRJAT_LDAP_BIND_DN"`
+	BindPassword  string             `yaml:"bind_password" env:"ASIAKIRJAT_LDAP_BIND_PASSWORD"`
+	BaseDN        string             `yaml:"base_dn" env:"ASIAKIRJAT_LDAP_BASE_DN"`
+	UserFilter    string             `yaml:"user_filter" env:"ASIAKIRJAT_LDAP_USER_FILTER"`
+	AdminGroup    string             `yaml:"admin_group" env:"ASIAKIRJAT_LDAP_ADMIN_GROUP"`
+	EditorGroup   string             `yaml:"editor_group" env:"ASIAKIRJAT_LDAP_EDITOR_GROUP"`
+	ViewerGroup   string             `yaml:"viewer_group" env:"ASIAKIRJAT_LDAP_VIEWER_GROUP"`
+	ProjectGroups []AuthGroupMapping `yaml:"project_groups"`
 }
 
 type OAuth2Config struct {
-	Enabled      bool   `yaml:"enabled" env:"ASIAKIRJAT_OAUTH2_ENABLED"`
-	ClientID     string `yaml:"client_id" env:"ASIAKIRJAT_OAUTH2_CLIENT_ID"`
-	ClientSecret string `yaml:"client_secret" env:"ASIAKIRJAT_OAUTH2_CLIENT_SECRET"`
-	AuthURL      string `yaml:"auth_url" env:"ASIAKIRJAT_OAUTH2_AUTH_URL"`
-	TokenURL     string `yaml:"token_url" env:"ASIAKIRJAT_OAUTH2_TOKEN_URL"`
-	UserInfoURL  string `yaml:"userinfo_url" env:"ASIAKIRJAT_OAUTH2_USERINFO_URL"`
-	RedirectURL  string `yaml:"redirect_url" env:"ASIAKIRJAT_OAUTH2_REDIRECT_URL"`
-	Scopes       string `yaml:"scopes" env:"ASIAKIRJAT_OAUTH2_SCOPES"`
+	Enabled       bool               `yaml:"enabled" env:"ASIAKIRJAT_OAUTH2_ENABLED"`
+	ClientID      string             `yaml:"client_id" env:"ASIAKIRJAT_OAUTH2_CLIENT_ID"`
+	ClientSecret  string             `yaml:"client_secret" env:"ASIAKIRJAT_OAUTH2_CLIENT_SECRET"`
+	AuthURL       string             `yaml:"auth_url" env:"ASIAKIRJAT_OAUTH2_AUTH_URL"`
+	TokenURL      string             `yaml:"token_url" env:"ASIAKIRJAT_OAUTH2_TOKEN_URL"`
+	UserInfoURL   string             `yaml:"userinfo_url" env:"ASIAKIRJAT_OAUTH2_USERINFO_URL"`
+	RedirectURL   string             `yaml:"redirect_url" env:"ASIAKIRJAT_OAUTH2_REDIRECT_URL"`
+	Scopes        string             `yaml:"scopes" env:"ASIAKIRJAT_OAUTH2_SCOPES"`
+	GroupsClaim   string             `yaml:"groups_claim" env:"ASIAKIRJAT_OAUTH2_GROUPS_CLAIM"`
+	AdminGroup    string             `yaml:"admin_group" env:"ASIAKIRJAT_OAUTH2_ADMIN_GROUP"`
+	EditorGroup   string             `yaml:"editor_group" env:"ASIAKIRJAT_OAUTH2_EDITOR_GROUP"`
+	ViewerGroup   string             `yaml:"viewer_group" env:"ASIAKIRJAT_OAUTH2_VIEWER_GROUP"`
+	ProjectGroups []AuthGroupMapping `yaml:"project_groups"`
+}
+
+// AuthGroupMapping represents a mapping from an auth group to project access
+type AuthGroupMapping struct {
+	Group   string `yaml:"group"`   // LDAP DN or OAuth group name
+	Project string `yaml:"project"` // Project slug
+	Role    string `yaml:"role"`    // "viewer" or "editor"
 }
 
 type StorageConfig struct {

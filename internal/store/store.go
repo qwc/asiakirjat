@@ -46,10 +46,24 @@ type SessionStore interface {
 type ProjectAccessStore interface {
 	Grant(ctx context.Context, access *database.ProjectAccess) error
 	Revoke(ctx context.Context, projectID, userID int64) error
+	RevokeBySource(ctx context.Context, projectID, userID int64, source string) error
 	GetAccess(ctx context.Context, projectID, userID int64) (*database.ProjectAccess, error)
+	GetAccessBySource(ctx context.Context, projectID, userID int64, source string) (*database.ProjectAccess, error)
 	ListByProject(ctx context.Context, projectID int64) ([]database.ProjectAccess, error)
 	ListByUser(ctx context.Context, userID int64) ([]database.ProjectAccess, error)
+	ListByUserAndSource(ctx context.Context, userID int64, source string) ([]database.ProjectAccess, error)
 	ListAccessibleProjectIDs(ctx context.Context, userID int64) ([]int64, error)
+	GetEffectiveRole(ctx context.Context, projectID, userID int64) (string, error)
+}
+
+type AuthGroupMappingStore interface {
+	List(ctx context.Context) ([]database.AuthGroupMapping, error)
+	ListBySource(ctx context.Context, source string) ([]database.AuthGroupMapping, error)
+	GetByID(ctx context.Context, id int64) (*database.AuthGroupMapping, error)
+	Create(ctx context.Context, mapping *database.AuthGroupMapping) error
+	Update(ctx context.Context, mapping *database.AuthGroupMapping) error
+	Delete(ctx context.Context, id int64) error
+	SyncFromConfig(ctx context.Context, source string, mappings []database.AuthGroupMapping) error
 }
 
 type TokenStore interface {

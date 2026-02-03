@@ -507,3 +507,155 @@ func (h *Handler) handleAdminDeleteRobot(w http.ResponseWriter, r *http.Request)
 
 	http.Redirect(w, r, "/admin/robots", http.StatusSeeOther)
 }
+
+// Group mappings view struct for template
+type groupMappingView struct {
+	ID              int64
+	AuthSource      string
+	GroupIdentifier string
+	ProjectID       int64
+	ProjectName     string
+	Role            string
+	FromConfig      bool
+}
+
+func (h *Handler) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+
+	// Get all group mappings
+	mappings, err := h.groupMappings.List(ctx)
+	if err != nil {
+		h.logger.Error("listing group mappings", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Get all projects for the dropdown and for mapping display
+	projects, err := h.projects.List(ctx)
+	if err != nil {
+		h.logger.Error("listing projects", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build project name lookup
+	projectNames := make(map[int64]string)
+	for _, p := range projects {
+		projectNames[p.ID] = p.Name
+	}
+
+	// Build view models
+	var views []groupMappingView
+	for _, m := range mappings {
+		views = append(views, groupMappingView{
+			ID:              m.ID,
+			AuthSource:      m.AuthSource,
+			GroupIdentifier: m.GroupIdentifier,
+			ProjectID:       m.ProjectID,
+			ProjectName:     projectNames[m.ProjectID],
+			Role:            m.Role,
+			FromConfig:      m.FromConfig,
+		})
+	}
+
+	data := map[string]any{
+		"User":     user,
+		"Mappings": views,
+		"Projects": projects,
+	}
+
+	// Check for flash message from query parameter
+	switch r.URL.Query().Get("msg") {
+	case "created":
+		data["Flash"] = &Flash{
+			Type:    "success",
+			Message: "Group mapping created successfully",
+		}
+	case "deleted":
+		data["Flash"] = &Flash{
+			Type:    "success",
+			Message: "Group mapping deleted successfully",
+		}
+	case "error":
+		data["Flash"] = &Flash{
+			Type:    "error",
+			Message: r.URL.Query().Get("error"),
+		}
+	}
+
+	h.render(w, "admin_groups", data)
+}
+
+func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	authSource := r.FormValue("auth_source")
+	groupIdentifier := r.FormValue("group_identifier")
+	projectID, err := strconv.ParseInt(r.FormValue("project_id"), 10, 64)
+	if err != nil {
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Invalid+project+ID", http.StatusSeeOther)
+		return
+	}
+	role := r.FormValue("role")
+
+	if authSource != "ldap" && authSource != "oauth2" {
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Invalid+auth+source", http.StatusSeeOther)
+		return
+	}
+
+	if groupIdentifier == "" {
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Group+identifier+required", http.StatusSeeOther)
+		return
+	}
+
+	if role != "viewer" && role != "editor" {
+		role = "viewer"
+	}
+
+	mapping := &database.AuthGroupMapping{
+		AuthSource:      authSource,
+		GroupIdentifier: groupIdentifier,
+		ProjectID:       projectID,
+		Role:            role,
+		FromConfig:      false,
+	}
+
+	if err := h.groupMappings.Create(ctx, mapping); err != nil {
+		h.logger.Error("creating group mapping", "error", err)
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Failed+to+create+mapping", http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/groups?msg=created", http.StatusSeeOther)
+}
+
+func (h *Handler) handleAdminDeleteGroupMapping(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid mapping ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if mapping exists and is not from config
+	mapping, err := h.groupMappings.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "Mapping not found", http.StatusNotFound)
+		return
+	}
+
+	if mapping.FromConfig {
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Cannot+delete+config-sourced+mappings", http.StatusSeeOther)
+		return
+	}
+
+	if err := h.groupMappings.Delete(ctx, id); err != nil {
+		h.logger.Error("deleting group mapping", "error", err)
+		http.Redirect(w, r, "/admin/groups?msg=error&error=Failed+to+delete+mapping", http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/groups?msg=deleted", http.StatusSeeOther)
+}

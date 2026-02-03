@@ -43,10 +43,21 @@ type Version struct {
 }
 
 type ProjectAccess struct {
-	ID        int64 `db:"id"`
-	ProjectID int64 `db:"project_id"`
-	UserID    int64 `db:"user_id"`
+	ID        int64  `db:"id"`
+	ProjectID int64  `db:"project_id"`
+	UserID    int64  `db:"user_id"`
 	Role      string `db:"role"`
+	Source    string `db:"source"` // 'manual', 'ldap', or 'oauth2'
+}
+
+type AuthGroupMapping struct {
+	ID              int64     `db:"id"`
+	AuthSource      string    `db:"auth_source"`      // 'ldap' or 'oauth2'
+	GroupIdentifier string    `db:"group_identifier"` // LDAP DN or OAuth group name
+	ProjectID       int64     `db:"project_id"`
+	Role            string    `db:"role"`
+	FromConfig      bool      `db:"from_config"`
+	CreatedAt       time.Time `db:"created_at"`
 }
 
 type APIToken struct {

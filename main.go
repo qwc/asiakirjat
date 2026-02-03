@@ -67,6 +67,7 @@ func main() {
 	sessionStore := sqlstore.NewSessionStore(db)
 	accessStore := sqlstore.NewProjectAccessStore(db)
 	tokenStore := sqlstore.NewTokenStore(db)
+	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
 
 	// Initialize storage
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
@@ -94,14 +95,23 @@ func main() {
 	authenticators := []auth.Authenticator{builtinAuth}
 
 	// Add LDAP authenticator if enabled
+	var ldapAuth *auth.LDAPAuthenticator
 	if cfg.Auth.LDAP.Enabled {
 		if err := auth.ValidateLDAPConfig(cfg.Auth.LDAP); err != nil {
 			logger.Error("invalid LDAP config", "error", err)
 			os.Exit(1)
 		}
-		ldapAuth := auth.NewLDAPAuthenticator(cfg.Auth.LDAP, userStore, logger)
+		ldapAuth = auth.NewLDAPAuthenticator(cfg.Auth.LDAP, userStore, logger)
+		ldapAuth.SetStores(accessStore, groupMappingStore)
 		authenticators = append(authenticators, ldapAuth)
 		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
+
+		// Sync LDAP project_groups from config to database
+		if len(cfg.Auth.LDAP.ProjectGroups) > 0 {
+			if err := syncConfigGroupMappings(context.Background(), logger, projectStore, groupMappingStore, "ldap", cfg.Auth.LDAP.ProjectGroups); err != nil {
+				logger.Error("syncing LDAP project groups from config", "error", err)
+			}
+		}
 	}
 
 	// Add OAuth2 authenticator if enabled
@@ -112,8 +122,16 @@ func main() {
 			os.Exit(1)
 		}
 		oauth2Auth = auth.NewOAuth2Authenticator(cfg.Auth.OAuth2, userStore, logger)
+		oauth2Auth.SetStores(accessStore, groupMappingStore)
 		authenticators = append(authenticators, oauth2Auth)
 		logger.Info("OAuth2 authentication enabled")
+
+		// Sync OAuth2 project_groups from config to database
+		if len(cfg.Auth.OAuth2.ProjectGroups) > 0 {
+			if err := syncConfigGroupMappings(context.Background(), logger, projectStore, groupMappingStore, "oauth2", cfg.Auth.OAuth2.ProjectGroups); err != nil {
+				logger.Error("syncing OAuth2 project groups from config", "error", err)
+			}
+		}
 	}
 
 	// Create initial admin user if no users exist
@@ -145,6 +163,7 @@ func main() {
 		Sessions:       sessionStore,
 		Access:         accessStore,
 		Tokens:         tokenStore,
+		GroupMappings:  groupMappingStore,
 		Authenticators: authenticators,
 		OAuth2Auth:     oauth2Auth,
 		SessionMgr:     sessionMgr,
@@ -181,6 +200,44 @@ func main() {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+// syncConfigGroupMappings converts config file group mappings to database records.
+func syncConfigGroupMappings(ctx context.Context, logger *slog.Logger, projects store.ProjectStore, groupMappings store.AuthGroupMappingStore, source string, configMappings []config.AuthGroupMapping) error {
+	var dbMappings []database.AuthGroupMapping
+
+	for _, cm := range configMappings {
+		// Look up project by slug
+		project, err := projects.GetBySlug(ctx, cm.Project)
+		if err != nil {
+			logger.Warn("project not found for group mapping", "source", source, "group", cm.Group, "project", cm.Project, "error", err)
+			continue
+		}
+
+		role := cm.Role
+		if role == "" {
+			role = "viewer"
+		}
+		if role != "viewer" && role != "editor" {
+			logger.Warn("invalid role in group mapping, defaulting to viewer", "source", source, "group", cm.Group, "role", cm.Role)
+			role = "viewer"
+		}
+
+		dbMappings = append(dbMappings, database.AuthGroupMapping{
+			GroupIdentifier: cm.Group,
+			ProjectID:       project.ID,
+			Role:            role,
+		})
+	}
+
+	if len(dbMappings) > 0 {
+		if err := groupMappings.SyncFromConfig(ctx, source, dbMappings); err != nil {
+			return err
+		}
+		logger.Info("synced group mappings from config", "source", source, "count", len(dbMappings))
+	}
+
+	return nil
 }
 
 func ensureInitialAdmin(logger *slog.Logger, users store.UserStore, cfg *config.Config) {

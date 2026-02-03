@@ -23,6 +23,17 @@ auth:
     user_filter: "(uid={{.Username}})"
     admin_group: "cn=admins,ou=groups,dc=example,dc=com"
     editor_group: "cn=editors,ou=groups,dc=example,dc=com"
+    # viewer_group: If set, users must be in admin_group, editor_group, OR viewer_group
+    # to be allowed. If empty (default), all LDAP users are allowed as viewers.
+    viewer_group: ""
+    # project_groups: Map LDAP groups to project access (synced to DB on startup)
+    # project_groups:
+    #   - group: "cn=project-a-editors,ou=groups,dc=example,dc=com"
+    #     project: "project-a"
+    #     role: "editor"
+    #   - group: "cn=docs-viewers,ou=groups,dc=example,dc=com"
+    #     project: "docs"
+    #     role: "viewer"
   oauth2:
     enabled: false
     client_id: ""
@@ -32,6 +43,23 @@ auth:
     userinfo_url: ""
     redirect_url: "http://localhost:8080/auth/callback"
     scopes: "openid profile email"
+    # groups_claim: The claim in userinfo/token containing group memberships
+    # Common values: "groups", "roles", "cognito:groups"
+    groups_claim: "groups"
+    # Role mapping: assign global roles based on OAuth2 group membership
+    # admin_group: "asiakirjat-admins"
+    # editor_group: "asiakirjat-editors"
+    # viewer_group: If set, users must be in admin_group, editor_group, OR viewer_group
+    # to be allowed. If empty (default), all OAuth2 users are allowed as viewers.
+    viewer_group: ""
+    # project_groups: Map OAuth2 groups to project access (synced to DB on startup)
+    # project_groups:
+    #   - group: "project-a-editors"
+    #     project: "project-a"
+    #     role: "editor"
+    #   - group: "docs-viewers"
+    #     project: "docs"
+    #     role: "viewer"
 
 storage:
   base_path: "data/projects"
