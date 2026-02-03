@@ -156,6 +156,9 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Invalidate latest tags cache
+	h.invalidateLatestTagsCache()
+
 	http.Redirect(w, r, "/admin/projects", http.StatusSeeOther)
 }
 

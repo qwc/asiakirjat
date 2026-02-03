@@ -30,6 +30,10 @@ type Handler struct {
 	loginLimiter   *RateLimiter
 	searchIndex    *docs.SearchIndex
 	logger         *slog.Logger
+
+	// Cache for latest version tags (invalidated on upload/delete)
+	latestTagsCache     map[string]string
+	latestTagsCacheTime time.Time
 }
 
 type Deps struct {

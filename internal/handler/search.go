@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -208,8 +209,17 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
 
+// latestTagsCacheTTL is how long the latest version tags cache is valid.
+const latestTagsCacheTTL = 30 * time.Second
+
 // getLatestVersionTags returns a map of projectSlug -> latest version tag.
+// Results are cached to avoid per-query DB lookups.
 func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
+	// Check if cache is still valid
+	if h.latestTagsCache != nil && time.Since(h.latestTagsCacheTime) < latestTagsCacheTTL {
+		return h.latestTagsCache
+	}
+
 	result := make(map[string]string)
 
 	projects, err := h.projects.List(ctx)
@@ -230,7 +240,17 @@ func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
 		result[p.Slug] = tags[0]
 	}
 
+	// Update cache
+	h.latestTagsCache = result
+	h.latestTagsCacheTime = time.Now()
+
 	return result
+}
+
+// invalidateLatestTagsCache clears the cached latest version tags.
+// Call this after uploading or deleting versions.
+func (h *Handler) invalidateLatestTagsCache() {
+	h.latestTagsCache = nil
 }
 
 // filterSearchResults removes results for projects the user can't access.

@@ -151,6 +151,9 @@ func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Invalidate latest tags cache
+	h.invalidateLatestTagsCache()
+
 	h.logger.Info("version deleted", "project", slug, "version", tag, "user", user.Username)
 	http.Redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }

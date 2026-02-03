@@ -143,6 +143,9 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Invalidate latest tags cache
+	h.invalidateLatestTagsCache()
+
 	// Async index for full-text search
 	if h.searchIndex != nil {
 		go func() {
