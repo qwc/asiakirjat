@@ -137,8 +137,14 @@ body {
     border-bottom: none;
 }
 
-.navbar-search-item:hover {
+.navbar-search-item:hover,
+.navbar-search-item-selected {
     background: var(--color-bg);
+}
+
+.navbar-search-item-selected {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
 }
 
 .navbar-search-item-title {

@@ -86,11 +86,62 @@
 
     input.addEventListener("input", debounce(doSearch, 300));
 
+    // Keyboard navigation
+    var selectedIndex = -1;
+
+    function getSelectableItems() {
+        return dropdown.querySelectorAll("a.navbar-search-item, a.navbar-search-view-all");
+    }
+
+    function updateSelection() {
+        var items = getSelectableItems();
+        items.forEach(function(item, i) {
+            if (i === selectedIndex) {
+                item.classList.add("navbar-search-item-selected");
+            } else {
+                item.classList.remove("navbar-search-item-selected");
+            }
+        });
+        // Scroll selected item into view
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+            items[selectedIndex].scrollIntoView({ block: "nearest" });
+        }
+    }
+
     input.addEventListener("keydown", function(e) {
+        var items = getSelectableItems();
+        var visible = dropdown.style.display === "block";
+
         if (e.key === "Escape") {
             dropdown.style.display = "none";
+            selectedIndex = -1;
+            return;
+        }
+
+        if (!visible || items.length === 0) return;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            selectedIndex = (selectedIndex + 1) % items.length;
+            updateSelection();
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            selectedIndex = selectedIndex <= 0 ? items.length - 1 : selectedIndex - 1;
+            updateSelection();
+        } else if (e.key === "Enter") {
+            if (selectedIndex >= 0 && items[selectedIndex]) {
+                e.preventDefault();
+                items[selectedIndex].click();
+            }
         }
     });
+
+    // Reset selection when search results change
+    var originalDoSearch = doSearch;
+    doSearch = function() {
+        selectedIndex = -1;
+        originalDoSearch();
+    };
 
     // Close dropdown when clicking outside
     document.addEventListener("click", function(e) {

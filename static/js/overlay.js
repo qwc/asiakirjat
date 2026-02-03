@@ -276,20 +276,65 @@
                 });
         }
 
+        // Keyboard navigation
+        var overlaySelectedIndex = -1;
+
+        function getOverlaySelectableItems() {
+            return searchDropdown.querySelectorAll("a");
+        }
+
+        function updateOverlaySelection() {
+            var items = getOverlaySelectableItems();
+            items.forEach(function(item, i) {
+                if (i === overlaySelectedIndex) {
+                    item.classList.add("ao-search-item-selected");
+                } else {
+                    item.classList.remove("ao-search-item-selected");
+                }
+            });
+            if (overlaySelectedIndex >= 0 && items[overlaySelectedIndex]) {
+                items[overlaySelectedIndex].scrollIntoView({ block: "nearest" });
+            }
+        }
+
         searchInput.addEventListener("input", function() {
             clearTimeout(searchTimer);
+            overlaySelectedIndex = -1;
             searchTimer = setTimeout(overlaySearch, 300);
         });
 
         searchInput.addEventListener("keydown", function(e) {
+            var items = getOverlaySelectableItems();
+            var visible = searchDropdown.style.display === "block";
+
             if (e.key === "Escape") {
                 searchDropdown.style.display = "none";
+                overlaySelectedIndex = -1;
+                return;
+            }
+
+            if (!visible || items.length === 0) return;
+
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                overlaySelectedIndex = (overlaySelectedIndex + 1) % items.length;
+                updateOverlaySelection();
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                overlaySelectedIndex = overlaySelectedIndex <= 0 ? items.length - 1 : overlaySelectedIndex - 1;
+                updateOverlaySelection();
+            } else if (e.key === "Enter") {
+                if (overlaySelectedIndex >= 0 && items[overlaySelectedIndex]) {
+                    e.preventDefault();
+                    items[overlaySelectedIndex].click();
+                }
             }
         });
 
         document.addEventListener("click", function(e) {
             if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
                 searchDropdown.style.display = "none";
+                overlaySelectedIndex = -1;
             }
         });
     }

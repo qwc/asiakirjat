@@ -103,8 +103,13 @@
     border-bottom: 1px solid #334155;
     font-size: 0.8rem;
 }
-#asiakirjat-overlay .ao-search-dropdown a:hover {
+#asiakirjat-overlay .ao-search-dropdown a:hover,
+#asiakirjat-overlay .ao-search-dropdown a.ao-search-item-selected {
     background: #334155;
+}
+#asiakirjat-overlay .ao-search-dropdown a.ao-search-item-selected {
+    outline: 2px solid #60a5fa;
+    outline-offset: -2px;
 }
 #asiakirjat-overlay .ao-search-dropdown a:last-child {
     border-bottom: none;
