@@ -11,6 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bodgit/sevenzip"
+	"github.com/ulikunitz/xz"
 )
 
 const maxFileSize = 100 << 20 // 100 MB per file
@@ -26,6 +29,10 @@ func ExtractArchive(r io.Reader, filename, destDir string) error {
 		return extractTarGz(r, destDir)
 	case strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tbz2"):
 		return extractTarBz2(r, destDir)
+	case strings.HasSuffix(lower, ".tar.xz") || strings.HasSuffix(lower, ".txz"):
+		return extractTarXz(r, destDir)
+	case strings.HasSuffix(lower, ".7z"):
+		return extract7z(r, destDir)
 	default:
 		return fmt.Errorf("unsupported archive format: %s", filename)
 	}
@@ -142,6 +149,111 @@ func extractTarGz(r io.Reader, destDir string) error {
 func extractTarBz2(r io.Reader, destDir string) error {
 	br := bzip2.NewReader(r)
 	return extractTar(br, destDir)
+}
+
+func extractTarXz(r io.Reader, destDir string) error {
+	xr, err := xz.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("opening xz: %w", err)
+	}
+	return extractTar(xr, destDir)
+}
+
+func extract7z(r io.Reader, destDir string) error {
+	// sevenzip.Reader needs io.ReaderAt, so we buffer to memory
+	data, err := io.ReadAll(io.LimitReader(r, maxFileSize*10))
+	if err != nil {
+		return fmt.Errorf("reading 7z data: %w", err)
+	}
+
+	szr, err := sevenzip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("opening 7z: %w", err)
+	}
+
+	// Detect single root directory for flattening
+	prefix := detectSingleRoot7z(szr)
+
+	for _, f := range szr.File {
+		name := f.Name
+		if prefix != "" {
+			name = strings.TrimPrefix(name, prefix)
+			if name == "" {
+				continue
+			}
+		}
+
+		target := filepath.Join(destDir, name)
+
+		// Path traversal protection
+		if !isPathSafe(destDir, target) {
+			return fmt.Errorf("path traversal detected: %s", f.Name)
+		}
+
+		// Skip symlinks
+		if f.FileInfo().Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(target, 0755)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return fmt.Errorf("creating directory: %w", err)
+		}
+
+		if err := extract7zFile(f, target); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func extract7zFile(f *sevenzip.File, target string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("opening 7z entry: %w", err)
+	}
+	defer rc.Close()
+
+	out, err := os.Create(target)
+	if err != nil {
+		return fmt.Errorf("creating file: %w", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, io.LimitReader(rc, maxFileSize)); err != nil {
+		return fmt.Errorf("writing file: %w", err)
+	}
+
+	return nil
+}
+
+func detectSingleRoot7z(szr *sevenzip.Reader) string {
+	if len(szr.File) == 0 {
+		return ""
+	}
+
+	var root string
+	for _, f := range szr.File {
+		parts := strings.SplitN(f.Name, "/", 2)
+		if len(parts) < 2 {
+			return "" // file at root level
+		}
+		if root == "" {
+			root = parts[0]
+		} else if parts[0] != root {
+			return "" // multiple roots
+		}
+	}
+
+	if root != "" {
+		return root + "/"
+	}
+	return ""
 }
 
 func extractTar(r io.Reader, destDir string) error {
