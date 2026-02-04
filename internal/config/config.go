@@ -29,6 +29,7 @@ type ServerConfig struct {
 	Address  string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
 	Port     int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
 	BasePath string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
+	LogLevel string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
 }
 
 type DatabaseConfig struct {
