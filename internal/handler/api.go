@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -199,6 +200,11 @@ func (h *Handler) handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 				h.logger.Error("indexing version", "error", err, "project", slug, "version", versionTag)
 			}
 		}()
+	}
+
+	// Enforce retention after new non-semver upload
+	if !isReupload && !docs.IsSemver(versionTag) {
+		go h.enforceRetentionPolicy(context.Background(), project)
 	}
 
 	h.jsonResponse(w, map[string]string{

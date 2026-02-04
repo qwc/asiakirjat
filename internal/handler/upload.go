@@ -155,6 +155,11 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
+	// Enforce retention after new non-semver upload
+	if !isReupload && !docs.IsSemver(versionTag) {
+		go h.enforceRetentionPolicy(context.Background(), project)
+	}
+
 	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }
 
