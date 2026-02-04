@@ -1,0 +1,37 @@
+{{define "title"}}Licenses - {{appName}}{{end}}
+
+{{define "content"}}
+<div class="licenses-page">
+    <h1>{{appName}} {{version}}</h1>
+    <p>Licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html" target="_blank" rel="noopener">GNU General Public License v3.0</a>.</p>
+
+    <h2>Third-Party Dependencies</h2>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Module</th>
+                <th>Version</th>
+                <th>License</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Deps}}
+            <tr>
+                <td>{{.Module}}</td>
+                <td>{{.Version}}</td>
+                <td>
+                    {{if .LicenseText}}
+                    <details>
+                        <summary>View license</summary>
+                        <pre style="white-space: pre-wrap; max-height: 300px; overflow-y: auto; font-size: 0.8em; background: var(--color-bg-muted, #f6f8fa); padding: 0.5rem; border-radius: 4px;">{{.LicenseText}}</pre>
+                    </details>
+                    {{else}}
+                    <em>Not found</em>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
