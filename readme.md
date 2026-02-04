@@ -18,6 +18,23 @@ Documentation blobs can be uploaded as archives (whatever format), versioned wit
 
 A stretch-goal is that you can search through all documentations stored, not only by title, but in the content.
 
+## Features
+
+- **Multi-project hosting** with slug-based URLs and per-project versioning
+- **Three-tier visibility**: public (anonymous), private (global access list), custom (per-project grants)
+- **Authentication**: built-in (bcrypt), LDAP, OAuth2/OIDC — used simultaneously
+- **Role-based access**: admin, editor, viewer at global and per-project level
+- **Group mapping**: LDAP/OAuth2 groups to project access and global access roles
+- **Full-text search** (Bleve) across all documentation with project/version filtering
+- **Archive upload**: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
+- **REST API** with Bearer token auth: project listing, version listing, upload, search
+- **Robot users**: API-only accounts with project-scoped tokens for CI/CD
+- **Multi-database**: SQLite (default), PostgreSQL, MySQL with auto-migrations
+- **Admin panel**: manage projects, users, robots, group mappings, search reindex
+- **Branding**: custom app name, logo, CSS
+- **Self-documenting**: deployable built-in documentation
+- **Single binary**, Docker-ready
+
 # AI Policy
 
 ## Author Statement
