@@ -320,6 +320,37 @@ func (h *Handler) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) 
 	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
+func (h *Handler) handleAdminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	role := r.FormValue("role")
+	if role != "admin" && role != "editor" && role != "viewer" {
+		http.Error(w, "Invalid role", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.users.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	user.Role = role
+	if err := h.users.Update(ctx, user); err != nil {
+		h.logger.Error("updating user role", "error", err)
+		http.Error(w, "Failed to update role", http.StatusInternalServerError)
+		return
+	}
+
+	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
 func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)

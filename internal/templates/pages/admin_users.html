@@ -56,7 +56,15 @@
             <tr>
                 <td>{{.Username}}</td>
                 <td>{{.Email}}</td>
-                <td>{{.Role}}</td>
+                <td>
+                    <form method="POST" action="{{url "/admin/users/"}}{{.ID}}/role" class="inline-form">
+                        <select name="role" onchange="this.form.submit()">
+                            <option value="viewer" {{if eq .Role "viewer"}}selected{{end}}>viewer</option>
+                            <option value="editor" {{if eq .Role "editor"}}selected{{end}}>editor</option>
+                            <option value="admin" {{if eq .Role "admin"}}selected{{end}}>admin</option>
+                        </select>
+                    </form>
+                </td>
                 <td>{{.AuthSource}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02"}}</td>
                 <td>
