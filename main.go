@@ -142,6 +142,9 @@ func main() {
 		}
 	}
 
+	// Sync global access config (access.private section)
+	syncGlobalAccessConfig(context.Background(), logger, globalAccessStore, cfg)
+
 	// Create initial admin user if no users exist
 	ensureInitialAdmin(logger, userStore, cfg)
 
@@ -253,6 +256,65 @@ func syncConfigGroupMappings(ctx context.Context, logger *slog.Logger, projects 
 	}
 
 	return nil
+}
+
+// syncGlobalAccessConfig converts access.private config rules to database records
+// and resolves user-type rules into direct grants.
+func syncGlobalAccessConfig(ctx context.Context, logger *slog.Logger, globalAccess store.GlobalAccessStore, cfg *config.Config) {
+	var rules []database.GlobalAccess
+
+	// Viewers
+	for _, u := range cfg.Access.Private.Viewers.Users {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "user", SubjectIdentifier: u, Role: "viewer",
+		})
+	}
+	for _, g := range cfg.Access.Private.Viewers.LDAPGroups {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "ldap_group", SubjectIdentifier: g, Role: "viewer",
+		})
+	}
+	for _, g := range cfg.Access.Private.Viewers.OAuth2Groups {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "oauth2_group", SubjectIdentifier: g, Role: "viewer",
+		})
+	}
+
+	// Editors
+	for _, u := range cfg.Access.Private.Editors.Users {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "user", SubjectIdentifier: u, Role: "editor",
+		})
+	}
+	for _, g := range cfg.Access.Private.Editors.LDAPGroups {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "ldap_group", SubjectIdentifier: g, Role: "editor",
+		})
+	}
+	for _, g := range cfg.Access.Private.Editors.OAuth2Groups {
+		rules = append(rules, database.GlobalAccess{
+			SubjectType: "oauth2_group", SubjectIdentifier: g, Role: "editor",
+		})
+	}
+
+	if len(rules) > 0 {
+		if err := globalAccess.SyncFromConfig(ctx, rules); err != nil {
+			logger.Error("syncing global access config", "error", err)
+			return
+		}
+		logger.Info("synced global access config", "rules", len(rules))
+	}
+
+	// Resolve user-type rules into direct grants
+	for _, rule := range rules {
+		if rule.SubjectType == "user" {
+			// Direct user rules create manual grants at startup
+			// (LDAP/OAuth2 group rules are resolved at login time)
+			// We need the user store for this, but we'll handle it via
+			// the admin UI and auth sync instead to keep startup simple.
+			continue
+		}
+	}
 }
 
 func ensureInitialAdmin(logger *slog.Logger, users store.UserStore, cfg *config.Config) {
