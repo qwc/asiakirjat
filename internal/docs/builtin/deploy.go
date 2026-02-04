@@ -144,7 +144,7 @@ func (d *Deployer) ensureProject(ctx context.Context) (*database.Project, error)
 		Slug:        ProjectSlug,
 		Name:        ProjectName,
 		Description: ProjectDescription,
-		IsPublic:    true, // Built-in docs are public
+		Visibility:  database.VisibilityPublic, // Built-in docs are public
 	}
 
 	if err := d.Projects.Create(ctx, project); err != nil {

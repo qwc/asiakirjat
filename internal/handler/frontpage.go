@@ -12,7 +12,7 @@ type projectCardData struct {
 	Name          string
 	Slug          string
 	Description   string
-	IsPublic      bool
+	Visibility    string
 	LatestVersion string
 }
 
@@ -48,7 +48,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				Name:        p.Name,
 				Slug:        p.Slug,
 				Description: p.Description,
-				IsPublic:    p.IsPublic,
+				Visibility:  p.Visibility,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
 			card.LatestVersion = latestVersionTag(versions)
@@ -56,7 +56,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if user != nil {
 		// Authenticated user sees public + accessible projects
-		public, err := h.projects.ListPublic(ctx)
+		public, err := h.projects.ListByVisibility(ctx, database.VisibilityPublic)
 		if err != nil {
 			h.logger.Error("listing public projects", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -69,6 +69,15 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 			accessMap[id] = true
 		}
 
+		// Check global access for private projects
+		var hasGlobalAccess bool
+		if h.globalAccess != nil {
+			grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
+			if err == nil && grant != nil {
+				hasGlobalAccess = true
+			}
+		}
+
 		all, _ := h.projects.List(ctx)
 		seen := make(map[int64]bool)
 
@@ -78,7 +87,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				Name:        p.Name,
 				Slug:        p.Slug,
 				Description: p.Description,
-				IsPublic:    p.IsPublic,
+				Visibility:  p.Visibility,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
 			card.LatestVersion = latestVersionTag(versions)
@@ -89,6 +98,21 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 			if seen[p.ID] {
 				continue
 			}
+			// Private projects: user needs global access
+			if p.Visibility == database.VisibilityPrivate && hasGlobalAccess {
+				seen[p.ID] = true
+				card := projectCardData{
+					Name:        p.Name,
+					Slug:        p.Slug,
+					Description: p.Description,
+					Visibility:  p.Visibility,
+				}
+				versions, _ := h.versions.ListByProject(ctx, p.ID)
+				card.LatestVersion = latestVersionTag(versions)
+				projects = append(projects, card)
+				continue
+			}
+			// Custom projects: user needs explicit access
 			if !accessMap[p.ID] {
 				continue
 			}
@@ -96,7 +120,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				Name:        p.Name,
 				Slug:        p.Slug,
 				Description: p.Description,
-				IsPublic:    p.IsPublic,
+				Visibility:  p.Visibility,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
 			card.LatestVersion = latestVersionTag(versions)
@@ -104,7 +128,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Anonymous user sees only public projects
-		public, err := h.projects.ListPublic(ctx)
+		public, err := h.projects.ListByVisibility(ctx, database.VisibilityPublic)
 		if err != nil {
 			h.logger.Error("listing public projects", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -115,7 +139,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 				Name:        p.Name,
 				Slug:        p.Slug,
 				Description: p.Description,
-				IsPublic:    p.IsPublic,
+				Visibility:  p.Visibility,
 			}
 			versions, _ := h.versions.ListByProject(ctx, p.ID)
 			card.LatestVersion = latestVersionTag(versions)

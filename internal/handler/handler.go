@@ -25,6 +25,7 @@ type Handler struct {
 	access         store.ProjectAccessStore
 	tokens         store.TokenStore
 	groupMappings  store.AuthGroupMappingStore
+	globalAccess   store.GlobalAccessStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
@@ -53,6 +54,7 @@ type Deps struct {
 	Access         store.ProjectAccessStore
 	Tokens         store.TokenStore
 	GroupMappings  store.AuthGroupMappingStore
+	GlobalAccess   store.GlobalAccessStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
@@ -73,6 +75,7 @@ func New(deps Deps) *Handler {
 		access:         deps.Access,
 		tokens:         deps.Tokens,
 		groupMappings:  deps.GroupMappings,
+		globalAccess:   deps.GlobalAccess,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,

@@ -28,18 +28,13 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Access check
-	if !project.IsPublic {
+	if !h.canViewProject(ctx, user, project) {
 		if user == nil {
 			h.redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
-		if user.Role != "admin" {
-			access, err := h.access.GetAccess(ctx, project.ID, user.ID)
-			if err != nil || access == nil {
-				http.Error(w, "Forbidden", http.StatusForbidden)
-				return
-			}
-		}
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
 	}
 
 	versions, err := h.versions.ListByProject(ctx, project.ID)
