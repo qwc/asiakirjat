@@ -38,23 +38,31 @@ jobs:
 
       - name: Upload binary to release
         run: |
+          set -eo pipefail
           TAG="${GITHUB_REF#refs/tags/}"
-          UPLOAD_URL="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
-          RELEASE_ID=$(curl -sf \
+          API_BASE="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+          echo "Looking up release for tag ${TAG}"
+          RELEASE_JSON=$(curl -sS -f \
             -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
-            "${UPLOAD_URL}" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
-          if [ -z "${RELEASE_ID}" ]; then
+            "${API_BASE}/releases/tags/${TAG}" 2>&1) || {
             echo "No release found for tag ${TAG}, creating one"
-            RELEASE_ID=$(curl -sf -X POST \
+            RELEASE_JSON=$(curl -sS -f -X POST \
               -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
               -H "Content-Type: application/json" \
               -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\"}" \
-              "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+              "${API_BASE}/releases")
+          }
+          RELEASE_ID=$(echo "${RELEASE_JSON}" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "ERROR: Failed to get release ID. API response:"
+            echo "${RELEASE_JSON}"
+            exit 1
           fi
-          curl -sf -X POST \
+          echo "Uploading binary to release ${RELEASE_ID}"
+          curl -sS -f -X POST \
             -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
             -F "attachment=@asiakirjat" \
-            "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=asiakirjat-linux-amd64"
+            "${API_BASE}/releases/${RELEASE_ID}/assets?name=asiakirjat-linux-amd64"
           echo "Binary uploaded to release ${TAG}"
 
   docker:
