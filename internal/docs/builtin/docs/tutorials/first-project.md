@@ -9,7 +9,7 @@ This tutorial shows you how to create a documentation project in Asiakirjat.
 
 ## What is a Project?
 
-A project in Asiakirjat represents a single documentation set. Each project can have multiple versions (e.g., v1.0, v2.0, latest) and can be public or private.
+A project in Asiakirjat represents a single documentation set. Each project can have multiple versions (e.g., v1.0, v2.0, latest) and has a visibility level: **public**, **private**, or **custom**.
 
 ## Creating a Project
 
@@ -19,7 +19,10 @@ A project in Asiakirjat represents a single documentation set. Each project can 
    - **Slug**: A URL-friendly identifier (e.g., `my-api-docs`)
    - **Name**: Human-readable name (e.g., "My API Documentation")
    - **Description**: Optional description
-   - **Public**: Check if anyone can view without logging in
+   - **Visibility**: Choose access level:
+     - **Public** — anyone can view without logging in
+     - **Private** — authenticated users in the global access list can view
+     - **Custom** — only users with explicit per-project access can view
 4. Click **Create**
 
 ## Project URL Structure
@@ -42,7 +45,7 @@ For example: `/project/my-api-docs/v1.0/index.html`
 
 ## Assigning Access
 
-For private projects, you need to grant access to users:
+For custom-visibility projects, you need to grant access to users individually:
 
 1. Go to **Admin > Projects**
 2. Click **Edit** on your project

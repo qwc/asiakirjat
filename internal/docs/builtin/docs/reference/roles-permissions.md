@@ -32,23 +32,29 @@ Read-only access:
 - View public projects
 - View private projects they have access to
 
-## Project Access
+## Project Visibility
 
-Projects can be public or private:
+Projects have three visibility levels:
 
-### Public Projects
+### Public
 
 - Visible to everyone (including anonymous users)
 - No login required to view
 
-### Private Projects
+### Private
 
-- Require explicit access grant
-- Users must be granted viewer or editor role
+- Visible to authenticated users who appear in the global access list
+- The global access list is configured in `config.yaml` under `access.private` or managed via the admin panel
+- LDAP/OAuth2 group membership is resolved into access grants at login
+
+### Custom
+
+- Visible only to users with explicit per-project access grants
+- Access is managed per-project in **Admin > Projects > Edit**
 
 ## Project Roles
 
-When granting access to a private project:
+When granting access to a custom-visibility project:
 
 ### Project Editor
 
@@ -66,10 +72,10 @@ When granting access to a private project:
 
 A user's effective access is determined by:
 
-1. **Global admin role** - Full access to everything
-2. **Project-specific grant** - Access to specific projects
-3. **Group membership** - Access via LDAP/OAuth2 groups
-4. **Public flag** - Anyone can view public projects
+1. **Public visibility** — Anyone can view public projects
+2. **Global admin role** — Full access to everything
+3. **Private visibility + global access grant** — Access via global access list (config or LDAP/OAuth2 groups)
+4. **Custom visibility + project grant** — Access via per-project grant (manual, LDAP, or OAuth2 group mapping)
 
 ## Group-Based Access
 
@@ -94,7 +100,8 @@ Group mappings can also be managed in **Admin > Group Mappings**.
 | Action | Admin | Editor | Viewer |
 |--------|-------|--------|--------|
 | View public projects | Yes | Yes | Yes |
-| View private projects (with grant) | Yes | Yes | Yes |
+| View private projects (with global access) | Yes | Yes | Yes |
+| View custom projects (with project grant) | Yes | Yes | Yes |
 | Upload to project (with grant) | Yes | Yes | No |
 | Delete version (with grant) | Yes | Yes | No |
 | Create project API tokens | Yes | Yes | No |
@@ -120,4 +127,4 @@ Robot users are special accounts for API access:
 2. **Use groups**: For organizations, use LDAP/OAuth2 groups over individual grants
 3. **Project-scoped tokens**: Prefer project-scoped tokens over global robot tokens
 4. **Regular audits**: Periodically review access grants and tokens
-5. **Public vs private**: Make projects private unless external access is needed
+5. **Visibility choice**: Use `public` for open docs, `private` for organization-wide docs, `custom` for restricted docs
