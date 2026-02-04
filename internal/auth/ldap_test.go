@@ -781,8 +781,8 @@ func TestLDAPProjectAccessSync(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test projects
-	project1 := &database.Project{Slug: "proj1", Name: "Project 1", IsPublic: false}
-	project2 := &database.Project{Slug: "proj2", Name: "Project 2", IsPublic: false}
+	project1 := &database.Project{Slug: "proj1", Name: "Project 1", Visibility: database.VisibilityCustom}
+	project2 := &database.Project{Slug: "proj2", Name: "Project 2", Visibility: database.VisibilityCustom}
 	projectStore.Create(ctx, project1)
 	projectStore.Create(ctx, project2)
 
@@ -864,7 +864,7 @@ func TestLDAPProjectAccessSyncRevokesRemovedGroups(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test project
-	project := &database.Project{Slug: "revoke-test", Name: "Revoke Test", IsPublic: false}
+	project := &database.Project{Slug: "revoke-test", Name: "Revoke Test", Visibility: database.VisibilityCustom}
 	projectStore.Create(ctx, project)
 
 	// Create group mapping

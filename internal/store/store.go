@@ -11,7 +11,7 @@ type ProjectStore interface {
 	GetBySlug(ctx context.Context, slug string) (*database.Project, error)
 	GetByID(ctx context.Context, id int64) (*database.Project, error)
 	List(ctx context.Context) ([]database.Project, error)
-	ListPublic(ctx context.Context) ([]database.Project, error)
+	ListByVisibility(ctx context.Context, visibility string) ([]database.Project, error)
 	Search(ctx context.Context, query string) ([]database.Project, error)
 	Update(ctx context.Context, project *database.Project) error
 	Delete(ctx context.Context, id int64) error
@@ -73,4 +73,18 @@ type TokenStore interface {
 	ListByUser(ctx context.Context, userID int64) ([]database.APIToken, error)
 	ListByProject(ctx context.Context, projectID int64) ([]database.APIToken, error)
 	Delete(ctx context.Context, id int64) error
+}
+
+type GlobalAccessStore interface {
+	// Rules (global_access table)
+	ListRules(ctx context.Context) ([]database.GlobalAccess, error)
+	CreateRule(ctx context.Context, rule *database.GlobalAccess) error
+	DeleteRule(ctx context.Context, id int64) error
+	SyncFromConfig(ctx context.Context, rules []database.GlobalAccess) error
+
+	// Grants (global_access_grants table — resolved per-user)
+	GetGrantByUser(ctx context.Context, userID int64) (*database.GlobalAccessGrant, error)
+	UpsertGrant(ctx context.Context, grant *database.GlobalAccessGrant) error
+	DeleteGrantsBySource(ctx context.Context, userID int64, source string) error
+	ListGrants(ctx context.Context) ([]database.GlobalAccessGrant, error)
 }

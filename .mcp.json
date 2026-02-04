@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "forgejo": {
+      "command": "/home/qwc/bin/forgejo-mcp",
+      "args": [
+        "--transport",
+        "stdio",
+        "--url",
+        "https://git.mmo.to"
+      ],
+      "env": {
+        "FORGEJO_ACCESS_TOKEN": "6f79d4b566078707c47f133c1cfaaed948c3c6be"
+      }
+    }
+  }
+}

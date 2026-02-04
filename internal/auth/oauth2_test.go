@@ -856,8 +856,8 @@ func TestOAuth2ProjectAccessSync(t *testing.T) {
 	ctx := context.Background()
 
 	// Create projects
-	projectA := &database.Project{Slug: "project-a", Name: "Project A", IsPublic: true}
-	projectB := &database.Project{Slug: "project-b", Name: "Project B", IsPublic: true}
+	projectA := &database.Project{Slug: "project-a", Name: "Project A", Visibility: database.VisibilityPublic}
+	projectB := &database.Project{Slug: "project-b", Name: "Project B", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, projectA)
 	projectStore.Create(ctx, projectB)
 
@@ -928,7 +928,7 @@ func TestOAuth2ProjectAccessSyncRevocation(t *testing.T) {
 	user := &database.User{Username: "revoke-user", Email: "revoke@example.com", AuthSource: "oauth2", Role: "viewer"}
 	userStore.Create(ctx, user)
 
-	project := &database.Project{Slug: "revoke-project", Name: "Revoke Project", IsPublic: true}
+	project := &database.Project{Slug: "revoke-project", Name: "Revoke Project", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, project)
 
 	// Grant existing OAuth2-sourced access
@@ -1025,7 +1025,7 @@ func TestOAuth2ProjectAccessSyncHighestRoleWins(t *testing.T) {
 
 	ctx := context.Background()
 
-	project := &database.Project{Slug: "multi-project", Name: "Multi Project", IsPublic: true}
+	project := &database.Project{Slug: "multi-project", Name: "Multi Project", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, project)
 
 	// Create two group mappings to same project with different roles

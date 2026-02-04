@@ -56,13 +56,16 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 	slug := r.FormValue("slug")
 	name := r.FormValue("name")
 	description := r.FormValue("description")
-	isPublic := r.FormValue("is_public") == "1"
+	visibility := r.FormValue("visibility")
+	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
+		visibility = database.VisibilityCustom
+	}
 
 	project := &database.Project{
 		Slug:        slug,
 		Name:        name,
 		Description: description,
-		IsPublic:    isPublic,
+		Visibility:  visibility,
 	}
 
 	if err := h.projects.Create(ctx, project); err != nil {
@@ -131,7 +134,11 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	project.Slug = r.FormValue("slug")
 	project.Name = r.FormValue("name")
 	project.Description = r.FormValue("description")
-	project.IsPublic = r.FormValue("is_public") == "1"
+	visibility := r.FormValue("visibility")
+	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
+		visibility = database.VisibilityCustom
+	}
+	project.Visibility = visibility
 
 	if err := h.projects.Update(ctx, project); err != nil {
 		h.logger.Error("updating project", "error", err)
