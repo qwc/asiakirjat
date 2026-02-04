@@ -53,5 +53,6 @@ jobs:
           /kaniko/executor \
             --context git://git.mmo.to/qwc-open/asiakirjat.git#refs/heads/${{ github.ref_name }} \
             --dockerfile Dockerfile \
+            --build-arg VERSION=${{ github.sha }} \
             --destination git.mmo.to/qwc-open/asiakirjat:latest \
             --destination git.mmo.to/qwc-open/asiakirjat:${{ github.sha }}

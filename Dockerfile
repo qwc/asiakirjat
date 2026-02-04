@@ -8,7 +8,8 @@ COPY go.mod go.sum ./
 COPY vendor/ vendor/
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-s -w" -o /asiakirjat .
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-s -w -X main.version=${VERSION}" -o /asiakirjat .
 
 # Runtime stage
 FROM alpine:3.21

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: golang:1.25-alpine
+    steps:
+      - name: Install deps
+        run: apk add --no-cache git nodejs
+
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: go test -mod=vendor -count=1 ./...
+
+  docker:
+    runs-on: docker
+    container:
+      image: gcr.io/kaniko-project/executor:debug
+    needs: test
+    steps:
+      - name: Configure registry and build image
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          mkdir -p /kaniko/.docker
+          echo "{\"auths\":{\"git.mmo.to\":{\"auth\":\"$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_TOKEN }}" | base64)\"}}}" > /kaniko/.docker/config.json
+          /kaniko/executor \
+            --context git://git.mmo.to/qwc-open/asiakirjat.git#${GITHUB_REF} \
+            --dockerfile Dockerfile \
+            --build-arg VERSION=${TAG} \
+            --destination git.mmo.to/qwc-open/asiakirjat:${TAG} \
+            --destination git.mmo.to/qwc-open/asiakirjat:latest
+
+  notify:
+    runs-on: docker
+    container:
+      image: alpine:3.21
+    needs: docker
+    steps:
+      - name: Notify deploy repo
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ -z "${{ secrets.DEPLOY_TRIGGER_URL }}" ] || [ -z "${{ secrets.DEPLOY_TRIGGER_TOKEN }}" ]; then
+            echo "Deploy trigger not configured, skipping notification"
+            exit 0
+          fi
+          apk add --no-cache curl
+          curl -sf -X POST \
+            -H "Authorization: token ${{ secrets.DEPLOY_TRIGGER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"event_type\":\"release\",\"client_payload\":{\"tag\":\"${TAG}\",\"image\":\"git.mmo.to/qwc-open/asiakirjat:${TAG}\"}}" \
+            "${{ secrets.DEPLOY_TRIGGER_URL }}"
+          echo "Deploy notification sent for ${TAG}"
