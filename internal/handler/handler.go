@@ -135,6 +135,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminCreateUser)))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteUser)))
+	mux.HandleFunc("POST "+bp+"/admin/users/{id}/role", h.withSession(h.requireAdmin(h.handleAdminUpdateUserRole)))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/password", h.withSession(h.requireAdmin(h.handleAdminResetPassword)))
 	mux.HandleFunc("GET "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminRobots)))
 	mux.HandleFunc("POST "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminCreateRobot)))
