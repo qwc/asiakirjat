@@ -5,6 +5,32 @@ import (
 	"testing"
 )
 
+func TestIsSemver(t *testing.T) {
+	tests := []struct {
+		tag  string
+		want bool
+	}{
+		{"v1.0.0", true},
+		{"1.0.0", true},
+		{"v1.0", true},
+		{"v2", true},
+		{"v1.0.0-beta", true},
+		{"v1.0.0-rc.1", true},
+		{"latest", false},
+		{"nightly", false},
+		{"ci-build-abc", false},
+		{"main", false},
+		{"dev", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tag, func(t *testing.T) {
+			if got := IsSemver(tt.tag); got != tt.want {
+				t.Errorf("IsSemver(%q) = %v, want %v", tt.tag, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSortVersionTags(t *testing.T) {
 	tests := []struct {
 		name     string
