@@ -4,7 +4,7 @@ package licenses
 
 // Deps contains license information for all vendored dependencies.
 var Deps = []Dependency{
-	{Module: "filippo.io/edwards25519", Version: "v1.1.0", LicenseText: `Copyright (c) 2009 The Go Authors. All rights reserved.
+	{Module: "filippo.io/edwards25519", Version: "v1.1.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2009 The Go Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -32,7 +32,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/Azure/go-ntlmssp", Version: "v0.0.0-20221128193559-754e69321358", LicenseText: `The MIT License (MIT)
+	{Module: "github.com/Azure/go-ntlmssp", Version: "v0.0.0-20221128193559-754e69321358", LicenseType: "MIT", LicenseText: `The MIT License (MIT)
 
 Copyright (c) 2016 Microsoft
 
@@ -54,7 +54,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/RoaringBitmap/roaring/v2", Version: "v2.4.5", LicenseText: `
+	{Module: "github.com/RoaringBitmap/roaring/v2", Version: "v2.4.5", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -290,7 +290,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/andybalholm/brotli", Version: "v1.1.1", LicenseText: `Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
+	{Module: "github.com/andybalholm/brotli", Version: "v1.1.1", LicenseType: "MIT", LicenseText: `Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -310,7 +310,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 `},
-	{Module: "github.com/bits-and-blooms/bitset", Version: "v1.22.0", LicenseText: `Copyright (c) 2014 Will Fitzgerald. All rights reserved.
+	{Module: "github.com/bits-and-blooms/bitset", Version: "v1.22.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2014 Will Fitzgerald. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -338,7 +338,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/blevesearch/bleve/v2", Version: "v2.5.7", LicenseText: `
+	{Module: "github.com/blevesearch/bleve/v2", Version: "v2.5.7", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -540,7 +540,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/bleve_index_api", Version: "v1.2.11", LicenseText: `
+	{Module: "github.com/blevesearch/bleve_index_api", Version: "v1.2.11", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -742,7 +742,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/geo", Version: "v0.2.4", LicenseText: `
+	{Module: "github.com/blevesearch/geo", Version: "v0.2.4", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -945,7 +945,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    See the License for the specific language governing permissions and
    limitations under the License.
 `},
-	{Module: "github.com/blevesearch/go-faiss", Version: "v1.0.26", LicenseText: `MIT License
+	{Module: "github.com/blevesearch/go-faiss", Version: "v1.0.26", LicenseType: "MIT", LicenseText: `MIT License
 
 Copyright (c) 2020 Paul Ouellette
 
@@ -967,7 +967,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/blevesearch/go-porterstemmer", Version: "v1.0.3", LicenseText: `Copyright (c) 2013 Charles Iliya Krempeaux <charles@reptile.ca> :: http://changelog.ca/
+	{Module: "github.com/blevesearch/go-porterstemmer", Version: "v1.0.3", LicenseType: "MIT", LicenseText: `Copyright (c) 2013 Charles Iliya Krempeaux <charles@reptile.ca> :: http://changelog.ca/
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -987,7 +987,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 `},
-	{Module: "github.com/blevesearch/gtreap", Version: "v0.1.1", LicenseText: `Copyright (C) 2012 Steve Yen
+	{Module: "github.com/blevesearch/gtreap", Version: "v0.1.1", LicenseType: "MIT", LicenseText: `Copyright (C) 2012 Steve Yen
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -1007,7 +1007,7 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`},
-	{Module: "github.com/blevesearch/mmap-go", Version: "v1.0.4", LicenseText: `Copyright (c) 2011, Evan Shaw <edsrzf@gmail.com>
+	{Module: "github.com/blevesearch/mmap-go", Version: "v1.0.4", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2011, Evan Shaw <edsrzf@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -1033,7 +1033,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 `},
-	{Module: "github.com/blevesearch/scorch_segment_api/v2", Version: "v2.3.13", LicenseText: `
+	{Module: "github.com/blevesearch/scorch_segment_api/v2", Version: "v2.3.13", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1235,7 +1235,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/segment", Version: "v0.9.1", LicenseText: `
+	{Module: "github.com/blevesearch/segment", Version: "v0.9.1", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1437,7 +1437,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/snowballstem", Version: "v0.9.0", LicenseText: `Copyright (c) 2001, Dr Martin Porter
+	{Module: "github.com/blevesearch/snowballstem", Version: "v0.9.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2001, Dr Martin Porter
 Copyright (c) 2004,2005, Richard Boulton
 Copyright (c) 2013, Yoshiki Shibukawa
 Copyright (c) 2006,2007,2009,2010,2011,2014-2019, Olly Betts
@@ -1467,7 +1467,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/blevesearch/upsidedown_store_api", Version: "v1.0.2", LicenseText: `
+	{Module: "github.com/blevesearch/upsidedown_store_api", Version: "v1.0.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1669,7 +1669,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/vellum", Version: "v1.1.0", LicenseText: `
+	{Module: "github.com/blevesearch/vellum", Version: "v1.1.0", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1871,7 +1871,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v11", Version: "v11.4.2", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v11", Version: "v11.4.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2073,7 +2073,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v12", Version: "v12.4.2", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v12", Version: "v12.4.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2275,7 +2275,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v13", Version: "v13.4.2", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v13", Version: "v13.4.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2477,7 +2477,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v14", Version: "v14.4.2", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v14", Version: "v14.4.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2679,7 +2679,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v15", Version: "v15.4.2", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v15", Version: "v15.4.2", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2881,7 +2881,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/blevesearch/zapx/v16", Version: "v16.2.8", LicenseText: `
+	{Module: "github.com/blevesearch/zapx/v16", Version: "v16.2.8", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3083,7 +3083,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/bodgit/plumbing", Version: "v1.3.0", LicenseText: `BSD 3-Clause License
+	{Module: "github.com/bodgit/plumbing", Version: "v1.3.0", LicenseType: "BSD-3-Clause", LicenseText: `BSD 3-Clause License
 
 Copyright (c) 2019, Matt Dainty
 All rights reserved.
@@ -3114,7 +3114,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 `},
-	{Module: "github.com/bodgit/sevenzip", Version: "v1.6.1", LicenseText: `BSD 3-Clause License
+	{Module: "github.com/bodgit/sevenzip", Version: "v1.6.1", LicenseType: "BSD-3-Clause", LicenseText: `BSD 3-Clause License
 
 Copyright (c) 2020, Matt Dainty
 All rights reserved.
@@ -3144,7 +3144,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/bodgit/windows", Version: "v1.0.1", LicenseText: `BSD 3-Clause License
+	{Module: "github.com/bodgit/windows", Version: "v1.0.1", LicenseType: "BSD-3-Clause", LicenseText: `BSD 3-Clause License
 
 Copyright (c) 2020, Matt Dainty
 All rights reserved.
@@ -3175,7 +3175,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 `},
-	{Module: "github.com/dustin/go-humanize", Version: "v1.0.1", LicenseText: `Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
+	{Module: "github.com/dustin/go-humanize", Version: "v1.0.1", LicenseType: "MIT", LicenseText: `Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3197,7 +3197,7 @@ SOFTWARE.
 
 <http://www.opensource.org/licenses/mit-license.php>
 `},
-	{Module: "github.com/go-asn1-ber/asn1-ber", Version: "v1.5.8-0.20250403174932-29230038a667", LicenseText: `The MIT License (MIT)
+	{Module: "github.com/go-asn1-ber/asn1-ber", Version: "v1.5.8-0.20250403174932-29230038a667", LicenseType: "MIT", LicenseText: `The MIT License (MIT)
 
 Copyright (c) 2011-2015 Michael Mitton (mmitton@gmail.com)
 Portions copyright (c) 2015-2016 go-asn1-ber Authors
@@ -3220,7 +3220,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/go-ldap/ldap/v3", Version: "v3.4.12", LicenseText: `The MIT License (MIT)
+	{Module: "github.com/go-ldap/ldap/v3", Version: "v3.4.12", LicenseType: "MIT", LicenseText: `The MIT License (MIT)
 
 Copyright (c) 2011-2015 Michael Mitton (mmitton@gmail.com)
 Portions copyright (c) 2015-2024 go-ldap Authors
@@ -3243,7 +3243,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/go-sql-driver/mysql", Version: "v1.9.3", LicenseText: `Mozilla Public License Version 2.0
+	{Module: "github.com/go-sql-driver/mysql", Version: "v1.9.3", LicenseType: "MPL-2.0", LicenseText: `Mozilla Public License Version 2.0
 ==================================
 
 1. Definitions
@@ -3617,7 +3617,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   This Source Code Form is "Incompatible With Secondary Licenses", as
   defined by the Mozilla Public License, v. 2.0.
 `},
-	{Module: "github.com/golang-migrate/migrate/v4", Version: "v4.19.1", LicenseText: `The MIT License (MIT)
+	{Module: "github.com/golang-migrate/migrate/v4", Version: "v4.19.1", LicenseType: "MIT", LicenseText: `The MIT License (MIT)
 
 Original Work
 Copyright (c) 2016 Matthias Kadenbach
@@ -3646,7 +3646,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 `},
-	{Module: "github.com/golang/snappy", Version: "v0.0.4", LicenseText: `Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
+	{Module: "github.com/golang/snappy", Version: "v0.0.4", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -3674,7 +3674,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/google/uuid", Version: "v1.6.0", LicenseText: `Copyright (c) 2009,2014 Google Inc. All rights reserved.
+	{Module: "github.com/google/uuid", Version: "v1.6.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2009,2014 Google Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -3702,7 +3702,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/hashicorp/golang-lru/v2", Version: "v2.0.7", LicenseText: `Copyright (c) 2014 HashiCorp, Inc.
+	{Module: "github.com/hashicorp/golang-lru/v2", Version: "v2.0.7", LicenseType: "MPL-2.0", LicenseText: `Copyright (c) 2014 HashiCorp, Inc.
 
 Mozilla Public License, version 2.0
 
@@ -4067,7 +4067,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
       With Secondary Licenses", as defined by
       the Mozilla Public License, v. 2.0.
 `},
-	{Module: "github.com/jackc/pgpassfile", Version: "v1.0.0", LicenseText: `Copyright (c) 2019 Jack Christensen
+	{Module: "github.com/jackc/pgpassfile", Version: "v1.0.0", LicenseType: "MIT", LicenseText: `Copyright (c) 2019 Jack Christensen
 
 MIT License
 
@@ -4090,7 +4090,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/jackc/pgservicefile", Version: "v0.0.0-20240606120523-5a60cdf6a761", LicenseText: `Copyright (c) 2020 Jack Christensen
+	{Module: "github.com/jackc/pgservicefile", Version: "v0.0.0-20240606120523-5a60cdf6a761", LicenseType: "MIT", LicenseText: `Copyright (c) 2020 Jack Christensen
 
 MIT License
 
@@ -4113,7 +4113,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/jackc/pgx/v5", Version: "v5.8.0", LicenseText: `Copyright (c) 2013-2021 Jack Christensen
+	{Module: "github.com/jackc/pgx/v5", Version: "v5.8.0", LicenseType: "MIT", LicenseText: `Copyright (c) 2013-2021 Jack Christensen
 
 MIT License
 
@@ -4136,7 +4136,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/jackc/puddle/v2", Version: "v2.2.2", LicenseText: `Copyright (c) 2018 Jack Christensen
+	{Module: "github.com/jackc/puddle/v2", Version: "v2.2.2", LicenseType: "MIT", LicenseText: `Copyright (c) 2018 Jack Christensen
 
 MIT License
 
@@ -4159,7 +4159,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/jmoiron/sqlx", Version: "v1.4.0", LicenseText: ` Copyright (c) 2013, Jason Moiron
+	{Module: "github.com/jmoiron/sqlx", Version: "v1.4.0", LicenseType: "MIT", LicenseText: ` Copyright (c) 2013, Jason Moiron
 
  Permission is hereby granted, free of charge, to any person
  obtaining a copy of this software and associated documentation
@@ -4183,7 +4183,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  OTHER DEALINGS IN THE SOFTWARE.
 
 `},
-	{Module: "github.com/json-iterator/go", Version: "v0.0.0-20171115153421-f7279a603ede", LicenseText: `MIT License
+	{Module: "github.com/json-iterator/go", Version: "v0.0.0-20171115153421-f7279a603ede", LicenseType: "MIT", LicenseText: `MIT License
 
 Copyright (c) 2016 json-iterator
 
@@ -4205,7 +4205,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/klauspost/compress", Version: "v1.17.11", LicenseText: `Copyright (c) 2012 The Go Authors. All rights reserved.
+	{Module: "github.com/klauspost/compress", Version: "v1.17.11", LicenseType: "Apache-2.0", LicenseText: `Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2019 Klaus Post. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -4510,8 +4510,8 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/kr/text", Version: "v0.2.0", LicenseText: ""},
-	{Module: "github.com/lib/pq", Version: "v1.10.9", LicenseText: `Copyright (c) 2011-2013, 'pq' Contributors
+	{Module: "github.com/kr/text", Version: "v0.2.0", LicenseType: "Unknown", LicenseText: ""},
+	{Module: "github.com/lib/pq", Version: "v1.10.9", LicenseType: "MIT", LicenseText: `Copyright (c) 2011-2013, 'pq' Contributors
 Portions Copyright (C) 2011 Blake Mizerany
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -4520,7 +4520,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/mattn/go-isatty", Version: "v0.0.20", LicenseText: `Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
+	{Module: "github.com/mattn/go-isatty", Version: "v0.0.20", LicenseType: "MIT", LicenseText: `Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 
 MIT License (Expat)
 
@@ -4530,7 +4530,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "github.com/mschoch/smat", Version: "v0.2.0", LicenseText: `
+	{Module: "github.com/mschoch/smat", Version: "v0.2.0", LicenseType: "Apache-2.0", LicenseText: `
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4732,7 +4732,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.`},
-	{Module: "github.com/ncruces/go-strftime", Version: "v1.0.0", LicenseText: `MIT License
+	{Module: "github.com/ncruces/go-strftime", Version: "v1.0.0", LicenseType: "MIT", LicenseText: `MIT License
 
 Copyright (c) 2022 Nuno Cruces
 
@@ -4754,7 +4754,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "github.com/pierrec/lz4/v4", Version: "v4.1.22", LicenseText: `Copyright (c) 2015, Pierre Curto
+	{Module: "github.com/pierrec/lz4/v4", Version: "v4.1.22", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2015, Pierre Curto
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -4783,7 +4783,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 `},
-	{Module: "github.com/remyoudompheng/bigfft", Version: "v0.0.0-20230129092748-24d4a6f8daec", LicenseText: `Copyright (c) 2012 The Go Authors. All rights reserved.
+	{Module: "github.com/remyoudompheng/bigfft", Version: "v0.0.0-20230129092748-24d4a6f8daec", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2012 The Go Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -4811,8 +4811,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/rogpeppe/go-internal", Version: "v1.14.1", LicenseText: ""},
-	{Module: "github.com/spf13/afero", Version: "v1.11.0", LicenseText: `                                Apache License
+	{Module: "github.com/rogpeppe/go-internal", Version: "v1.14.1", LicenseType: "Unknown", LicenseText: ""},
+	{Module: "github.com/spf13/afero", Version: "v1.11.0", LicenseType: "Apache-2.0", LicenseText: `                                Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -4987,7 +4987,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       incurred by, or claims asserted against, such Contributor by reason
       of your accepting any such warranty or additional liability.
 `},
-	{Module: "github.com/ulikunitz/xz", Version: "v0.5.15", LicenseText: `Copyright (c) 2014-2022  Ulrich Kunitz
+	{Module: "github.com/ulikunitz/xz", Version: "v0.5.15", LicenseType: "BSD-2-Clause", LicenseText: `Copyright (c) 2014-2022  Ulrich Kunitz
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -5014,7 +5014,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "github.com/yuin/goldmark", Version: "v1.7.16", LicenseText: `MIT License
+	{Module: "github.com/yuin/goldmark", Version: "v1.7.16", LicenseType: "MIT", LicenseText: `MIT License
 
 Copyright (c) 2019 Yusuke Inuzuka
 
@@ -5036,7 +5036,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `},
-	{Module: "go.etcd.io/bbolt", Version: "v1.4.0", LicenseText: `The MIT License (MIT)
+	{Module: "go.etcd.io/bbolt", Version: "v1.4.0", LicenseType: "MIT", LicenseText: `The MIT License (MIT)
 
 Copyright (c) 2013 Ben Johnson
 
@@ -5057,7 +5057,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `},
-	{Module: "go4.org", Version: "v0.0.0-20200411211856-f5505b9728dd", LicenseText: `                                 Apache License
+	{Module: "go4.org", Version: "v0.0.0-20200411211856-f5505b9728dd", LicenseType: "Apache-2.0", LicenseText: `                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -5260,7 +5260,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    limitations under the License.
 
 `},
-	{Module: "golang.org/x/crypto", Version: "v0.47.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/crypto", Version: "v0.47.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5288,7 +5288,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/exp", Version: "v0.0.0-20251023183803-a4bb9ffd2546", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/exp", Version: "v0.0.0-20251023183803-a4bb9ffd2546", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5316,7 +5316,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/net", Version: "v0.49.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/net", Version: "v0.49.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5344,7 +5344,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/oauth2", Version: "v0.34.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/oauth2", Version: "v0.34.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5372,7 +5372,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/sync", Version: "v0.19.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/sync", Version: "v0.19.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5400,7 +5400,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/sys", Version: "v0.40.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/sys", Version: "v0.40.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5428,7 +5428,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "golang.org/x/text", Version: "v0.33.0", LicenseText: `Copyright 2009 The Go Authors.
+	{Module: "golang.org/x/text", Version: "v0.33.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright 2009 The Go Authors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5456,7 +5456,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "google.golang.org/protobuf", Version: "v1.36.7", LicenseText: `Copyright (c) 2018 The Go Authors. All rights reserved.
+	{Module: "google.golang.org/protobuf", Version: "v1.36.7", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2018 The Go Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5484,7 +5484,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "gopkg.in/yaml.v3", Version: "v3.0.1", LicenseText: `
+	{Module: "gopkg.in/yaml.v3", Version: "v3.0.1", LicenseType: "Apache-2.0", LicenseText: `
 This project is covered by two different licenses: MIT and Apache.
 
 #### MIT License ####
@@ -5535,7 +5535,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 `},
-	{Module: "modernc.org/libc", Version: "v1.67.6", LicenseText: `Copyright (c) 2017 The Libc Authors. All rights reserved.
+	{Module: "modernc.org/libc", Version: "v1.67.6", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2017 The Libc Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5563,7 +5563,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "modernc.org/mathutil", Version: "v1.7.1", LicenseText: `Copyright (c) 2014 The mathutil Authors. All rights reserved.
+	{Module: "modernc.org/mathutil", Version: "v1.7.1", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2014 The mathutil Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5591,7 +5591,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "modernc.org/memory", Version: "v1.11.0", LicenseText: `Copyright (c) 2017 The Memory Authors. All rights reserved.
+	{Module: "modernc.org/memory", Version: "v1.11.0", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2017 The Memory Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -5619,7 +5619,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `},
-	{Module: "modernc.org/sqlite", Version: "v1.44.3", LicenseText: `Copyright (c) 2017 The Sqlite Authors. All rights reserved.
+	{Module: "modernc.org/sqlite", Version: "v1.44.3", LicenseType: "BSD-3-Clause", LicenseText: `Copyright (c) 2017 The Sqlite Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
