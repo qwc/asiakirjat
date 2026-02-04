@@ -18,6 +18,8 @@ auth:
   ldap:
     enabled: false
     url: "ldap://localhost:389"
+    # skip_verify: Skip TLS certificate verification for LDAPS connections
+    skip_verify: false
     bind_dn: "cn=admin,dc=example,dc=com"
     bind_password: ""
     base_dn: "dc=example,dc=com"

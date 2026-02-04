@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -26,15 +27,19 @@ type LDAPDialer interface {
 }
 
 // realLDAPDialer is the production implementation using go-ldap.
-type realLDAPDialer struct{}
+type realLDAPDialer struct {
+	tlsConfig *tls.Config
+}
 
 func (d *realLDAPDialer) DialURL(addr string) (LDAPConn, error) {
-	return ldap.DialURL(addr)
+	return ldap.DialURL(addr, ldap.DialWithTLSConfig(d.tlsConfig))
 }
 
 // DefaultLDAPDialer returns the default production LDAP dialer.
-func DefaultLDAPDialer() LDAPDialer {
-	return &realLDAPDialer{}
+func DefaultLDAPDialer(skipVerify bool) LDAPDialer {
+	return &realLDAPDialer{
+		tlsConfig: &tls.Config{InsecureSkipVerify: skipVerify},
+	}
 }
 
 // LDAPAuthenticator authenticates users against an LDAP directory.
@@ -53,7 +58,7 @@ func NewLDAPAuthenticator(cfg config.LDAPConfig, users store.UserStore, logger *
 		config: cfg,
 		users:  users,
 		logger: logger,
-		dialer: DefaultLDAPDialer(),
+		dialer: DefaultLDAPDialer(cfg.SkipVerify),
 	}
 }
 
