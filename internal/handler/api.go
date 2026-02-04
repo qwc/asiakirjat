@@ -31,19 +31,8 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 	// Filter based on access
 	var filtered []database.Project
 	for _, p := range projects {
-		if p.IsPublic {
+		if h.canViewProject(ctx, user, &p) {
 			filtered = append(filtered, p)
-			continue
-		}
-		if user != nil && user.Role == "admin" {
-			filtered = append(filtered, p)
-			continue
-		}
-		if user != nil {
-			access, err := h.access.GetAccess(ctx, p.ID, user.ID)
-			if err == nil && access != nil {
-				filtered = append(filtered, p)
-			}
 		}
 	}
 
@@ -51,7 +40,7 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		IsPublic    bool   `json:"is_public"`
+		Visibility  string `json:"visibility"`
 	}
 
 	result := make([]projectJSON, 0, len(filtered))
@@ -60,7 +49,7 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 			Slug:        p.Slug,
 			Name:        p.Name,
 			Description: p.Description,
-			IsPublic:    p.IsPublic,
+			Visibility:  p.Visibility,
 		})
 	}
 

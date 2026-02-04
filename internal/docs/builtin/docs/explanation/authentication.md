@@ -76,7 +76,7 @@ LDAP users are automatically provisioned on first login:
 If group attributes are configured:
 1. Groups are extracted from user's LDAP entry
 2. Group mappings in database are checked
-3. Matching projects are granted access
+3. Matching projects are granted per-project access
 
 ```yaml
 project_groups:
@@ -84,6 +84,10 @@ project_groups:
     project: "api-docs"
     role: "editor"
 ```
+
+### Global Access Sync
+
+At login, LDAP group membership is also resolved against global access rules (the `access.private` config section). This determines whether the user can access projects with **private** visibility. Grants are stored per-user and updated on each login.
 
 ## OAuth2 Authentication
 
@@ -124,7 +128,11 @@ OAuth2 users are provisioned from claims:
 If the `groups` claim is configured:
 1. Groups are extracted from the ID token or userinfo
 2. Group mappings in database are checked
-3. Matching projects are granted access
+3. Matching projects are granted per-project access
+
+### Global Access Sync
+
+At login, OAuth2 group membership is also resolved against global access rules (the `access.private` config section). This determines whether the user can access projects with **private** visibility.
 
 ## Session Management
 

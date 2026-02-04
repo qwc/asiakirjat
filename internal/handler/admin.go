@@ -56,13 +56,16 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 	slug := r.FormValue("slug")
 	name := r.FormValue("name")
 	description := r.FormValue("description")
-	isPublic := r.FormValue("is_public") == "1"
+	visibility := r.FormValue("visibility")
+	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
+		visibility = database.VisibilityCustom
+	}
 
 	project := &database.Project{
 		Slug:        slug,
 		Name:        name,
 		Description: description,
-		IsPublic:    isPublic,
+		Visibility:  visibility,
 	}
 
 	if err := h.projects.Create(ctx, project); err != nil {
@@ -131,7 +134,11 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	project.Slug = r.FormValue("slug")
 	project.Name = r.FormValue("name")
 	project.Description = r.FormValue("description")
-	project.IsPublic = r.FormValue("is_public") == "1"
+	visibility := r.FormValue("visibility")
+	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
+		visibility = database.VisibilityCustom
+	}
+	project.Visibility = visibility
 
 	if err := h.projects.Update(ctx, project); err != nil {
 		h.logger.Error("updating project", "error", err)
@@ -307,6 +314,37 @@ func (h *Handler) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) 
 	if err := h.users.Delete(ctx, id); err != nil {
 		h.logger.Error("deleting user", "error", err)
 		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		return
+	}
+
+	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+func (h *Handler) handleAdminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	role := r.FormValue("role")
+	if role != "admin" && role != "editor" && role != "viewer" {
+		http.Error(w, "Invalid role", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.users.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	user.Role = role
+	if err := h.users.Update(ctx, user); err != nil {
+		h.logger.Error("updating user role", "error", err)
+		http.Error(w, "Failed to update role", http.StatusInternalServerError)
 		return
 	}
 

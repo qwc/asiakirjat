@@ -312,7 +312,7 @@ func (h *Handler) filterSearchResults(ctx context.Context, user *database.User, 
 
 // canViewProject checks if a user can view a project.
 func (h *Handler) canViewProject(ctx context.Context, user *database.User, project *database.Project) bool {
-	if project.IsPublic {
+	if project.Visibility == database.VisibilityPublic {
 		return true
 	}
 	if user == nil {
@@ -321,7 +321,17 @@ func (h *Handler) canViewProject(ctx context.Context, user *database.User, proje
 	if user.Role == "admin" {
 		return true
 	}
-	// Check project-level access (from all sources: manual, ldap, oauth2)
+	if project.Visibility == database.VisibilityPrivate {
+		// Private projects: check global access grants
+		if h.globalAccess != nil {
+			grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
+			if err == nil && grant != nil {
+				return true
+			}
+		}
+		return false
+	}
+	// Custom visibility: check project-level access (from all sources: manual, ldap, oauth2)
 	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	return err == nil && effectiveRole != ""
 }

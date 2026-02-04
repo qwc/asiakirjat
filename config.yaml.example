@@ -64,6 +64,22 @@ auth:
     #     project: "docs"
     #     role: "viewer"
 
+# access: Controls who can view projects with "private" visibility.
+# Projects have three visibility levels:
+#   public  — anyone can view (including anonymous users)
+#   private — only users/groups listed here can view
+#   custom  — only users with explicit per-project access can view
+# access:
+#   private:
+#     viewers:
+#       users: ["user1", "user2"]
+#       ldap_groups: ["cn=readers,ou=groups,dc=example,dc=com"]
+#       oauth2_groups: ["readers"]
+#     editors:
+#       users: ["editor1"]
+#       ldap_groups: ["cn=writers,ou=groups,dc=example,dc=com"]
+#       oauth2_groups: ["writers"]
+
 storage:
   base_path: "data/projects"
 

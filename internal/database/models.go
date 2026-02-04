@@ -23,12 +23,19 @@ type Session struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
+// Project visibility constants
+const (
+	VisibilityPublic  = "public"  // Anyone, including anonymous users
+	VisibilityPrivate = "private" // Any authenticated user with global access
+	VisibilityCustom  = "custom"  // Only explicitly assigned users/groups
+)
+
 type Project struct {
 	ID          int64     `db:"id"`
 	Slug        string    `db:"slug"`
 	Name        string    `db:"name"`
 	Description string    `db:"description"`
-	IsPublic    bool      `db:"is_public"`
+	Visibility  string    `db:"visibility"`
 	CreatedAt   time.Time `db:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"`
 }
@@ -69,4 +76,23 @@ type APIToken struct {
 	Scopes    string     `db:"scopes"`
 	ExpiresAt *time.Time `db:"expires_at"`
 	CreatedAt time.Time  `db:"created_at"`
+}
+
+// GlobalAccess defines rules for who can access "private" visibility projects.
+// Rules can come from config file (from_config=true) or admin UI.
+type GlobalAccess struct {
+	ID                int64  `db:"id"`
+	SubjectType       string `db:"subject_type"`       // 'user', 'ldap_group', 'oauth2_group'
+	SubjectIdentifier string `db:"subject_identifier"` // username, LDAP DN, OAuth2 group name
+	Role              string `db:"role"`                // 'viewer' or 'editor'
+	FromConfig        bool   `db:"from_config"`
+}
+
+// GlobalAccessGrant is a resolved per-user grant for private project access.
+// Created from GlobalAccess rules at login time (for LDAP/OAuth2) or manually.
+type GlobalAccessGrant struct {
+	ID     int64  `db:"id"`
+	UserID int64  `db:"user_id"`
+	Role   string `db:"role"`   // 'viewer' or 'editor'
+	Source string `db:"source"` // 'manual', 'ldap', 'oauth2'
 }
