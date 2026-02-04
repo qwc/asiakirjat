@@ -204,7 +204,7 @@ const docTemplate = `<!DOCTYPE html>
     <div class="doc-layout">
         <nav class="doc-sidebar">
             <div class="doc-section">
-                <a href="index.html"{{if eq .CurrentPath "index"}} class="active"{{end}}>Home</a>
+                <a href="{{.NavPrefix}}index.html"{{if eq .CurrentPath "index"}} class="active"{{end}}>Home</a>
             </div>
             {{.Navigation}}
         </nav>
@@ -222,6 +222,7 @@ type PageData struct {
 	Navigation  template.HTML
 	CurrentPath string
 	BasePath    string
+	NavPrefix   string // relative prefix to reach doc root from current page (e.g., "../")
 }
 
 var md goldmark.Markdown
@@ -266,6 +267,7 @@ func ConvertToHTML(mdContent []byte, nav []DocEntry, currentPath, basePath strin
 		Navigation:  navHTML,
 		CurrentPath: currentPath,
 		BasePath:    basePath,
+		NavPrefix:   relativePrefix(currentPath),
 	}
 
 	var outBuf bytes.Buffer
@@ -276,9 +278,20 @@ func ConvertToHTML(mdContent []byte, nav []DocEntry, currentPath, basePath strin
 	return outBuf.Bytes(), nil
 }
 
+// relativePrefix returns the "../" prefix needed to navigate from the
+// current page's directory back to the documentation root.
+func relativePrefix(currentPath string) string {
+	depth := strings.Count(currentPath, "/")
+	if depth == 0 {
+		return ""
+	}
+	return strings.Repeat("../", depth)
+}
+
 // renderNavigation generates HTML for the navigation sidebar.
 func renderNavigation(entries []DocEntry, currentPath string) template.HTML {
 	var buf bytes.Buffer
+	prefix := relativePrefix(currentPath)
 
 	for _, entry := range entries {
 		if entry.IsDir && len(entry.Children) > 0 {
@@ -292,7 +305,8 @@ func renderNavigation(entries []DocEntry, currentPath string) template.HTML {
 				if child.Path == currentPath {
 					activeClass = ` class="active"`
 				}
-				fmt.Fprintf(&buf, `<a href="%s"%s>%s</a>`,
+				fmt.Fprintf(&buf, `<a href="%s%s"%s>%s</a>`,
+					prefix,
 					template.HTMLEscapeString(child.HTMLPath),
 					activeClass,
 					template.HTMLEscapeString(child.Title),
@@ -306,7 +320,8 @@ func renderNavigation(entries []DocEntry, currentPath string) template.HTML {
 				activeClass = ` class="active"`
 			}
 			buf.WriteString(`<div class="doc-section">`)
-			fmt.Fprintf(&buf, `<a href="%s"%s>%s</a>`,
+			fmt.Fprintf(&buf, `<a href="%s%s"%s>%s</a>`,
+				prefix,
 				template.HTMLEscapeString(entry.HTMLPath),
 				activeClass,
 				template.HTMLEscapeString(entry.Title),
