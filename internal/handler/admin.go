@@ -61,11 +61,20 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		visibility = database.VisibilityCustom
 	}
 
+	// Parse retention_days
+	var retentionDays *int
+	if rd := r.FormValue("retention_days"); rd != "" {
+		if days, err := strconv.Atoi(rd); err == nil && days >= 0 {
+			retentionDays = &days
+		}
+	}
+
 	project := &database.Project{
-		Slug:        slug,
-		Name:        name,
-		Description: description,
-		Visibility:  visibility,
+		Slug:          slug,
+		Name:          name,
+		Description:   description,
+		Visibility:    visibility,
+		RetentionDays: retentionDays,
 	}
 
 	if err := h.projects.Create(ctx, project); err != nil {
@@ -113,11 +122,24 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		})
 	}
 
+	// Build retention display info
+	globalDefault := h.config.Retention.NonSemverDays
+	retentionDisplay := ""
+	if project.RetentionDays != nil {
+		retentionDisplay = strconv.Itoa(*project.RetentionDays)
+	}
+	globalRetentionLabel := "unlimited"
+	if globalDefault > 0 {
+		globalRetentionLabel = strconv.Itoa(globalDefault) + " days"
+	}
+
 	h.render(w, "admin_project_edit", map[string]any{
-		"User":       user,
-		"Project":    project,
-		"AccessList": accessViews,
-		"Users":      users,
+		"User":                  user,
+		"Project":               project,
+		"AccessList":            accessViews,
+		"Users":                 users,
+		"RetentionDisplay":      retentionDisplay,
+		"GlobalRetentionDefault": globalRetentionLabel,
 	})
 }
 
@@ -139,6 +161,15 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		visibility = database.VisibilityCustom
 	}
 	project.Visibility = visibility
+
+	// Parse retention_days: empty = NULL (use global default), "0" = unlimited, positive = override
+	if rd := r.FormValue("retention_days"); rd == "" {
+		project.RetentionDays = nil
+	} else if days, err := strconv.Atoi(rd); err == nil && days >= 0 {
+		project.RetentionDays = &days
+	} else {
+		project.RetentionDays = nil
+	}
 
 	if err := h.projects.Update(ctx, project); err != nil {
 		h.logger.Error("updating project", "error", err)

@@ -206,6 +206,11 @@ func main() {
 		Logger:         logger,
 	})
 
+	// Start retention worker
+	retentionCtx, retentionCancel := context.WithCancel(context.Background())
+	defer retentionCancel()
+	go h.StartRetentionWorker(retentionCtx)
+
 	// Register routes
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)

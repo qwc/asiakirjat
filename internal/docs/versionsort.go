@@ -35,6 +35,11 @@ func parseSemver(tag string) semverParts {
 	}
 }
 
+// IsSemver returns true if the given tag matches the semver pattern.
+func IsSemver(tag string) bool {
+	return semverRe.MatchString(tag)
+}
+
 // SortVersionTags sorts version tags in descending semver order.
 // Tags that match semver come first; non-semver tags are sorted lexicographically at the end.
 func SortVersionTags(tags []string) {

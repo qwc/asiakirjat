@@ -11,12 +11,17 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Access   AccessConfig   `yaml:"access"`
-	Storage  StorageConfig  `yaml:"storage"`
-	Branding BrandingConfig `yaml:"branding"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Access    AccessConfig    `yaml:"access"`
+	Storage   StorageConfig   `yaml:"storage"`
+	Retention RetentionConfig `yaml:"retention"`
+	Branding  BrandingConfig  `yaml:"branding"`
+}
+
+type RetentionConfig struct {
+	NonSemverDays int `yaml:"nonsemver_days" env:"ASIAKIRJAT_RETENTION_NONSEMVER_DAYS"`
 }
 
 type BrandingConfig struct {
