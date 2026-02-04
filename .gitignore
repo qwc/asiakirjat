@@ -5,3 +5,4 @@ config.yaml
 *.db-journal
 *.db-wal
 *.db-shm
+CLAUDE.local.md
