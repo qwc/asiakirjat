@@ -84,6 +84,11 @@ auth:
 storage:
   base_path: "data/projects"
 
+retention:
+  # nonsemver_days: Auto-delete non-semver versions older than N days (0 = unlimited)
+  # Can be overridden per-project in the admin UI.
+  # nonsemver_days: 14
+
 branding:
   # app_name: Custom application name displayed in navbar (default: "asiakirjat")
   # app_name: "My Docs"
