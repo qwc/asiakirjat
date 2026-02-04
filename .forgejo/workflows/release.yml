@@ -18,6 +18,45 @@ jobs:
       - name: Run tests
         run: go test -mod=vendor -count=1 ./...
 
+  release:
+    runs-on: docker
+    container:
+      image: golang:1.25-alpine
+    needs: test
+    steps:
+      - name: Install deps
+        run: apk add --no-cache git curl
+
+      - uses: actions/checkout@v4
+
+      - name: Build binary
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor \
+            -ldflags="-s -w -X main.version=${TAG}" \
+            -o asiakirjat .
+
+      - name: Upload binary to release
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          UPLOAD_URL="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
+          RELEASE_ID=$(curl -sf \
+            -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
+            "${UPLOAD_URL}" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "No release found for tag ${TAG}, creating one"
+            RELEASE_ID=$(curl -sf -X POST \
+              -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\"}" \
+              "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+          fi
+          curl -sf -X POST \
+            -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
+            -F "attachment=@asiakirjat" \
+            "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=asiakirjat-linux-amd64"
+          echo "Binary uploaded to release ${TAG}"
+
   docker:
     runs-on: docker
     container:
