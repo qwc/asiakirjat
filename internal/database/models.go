@@ -31,13 +31,14 @@ const (
 )
 
 type Project struct {
-	ID          int64     `db:"id"`
-	Slug        string    `db:"slug"`
-	Name        string    `db:"name"`
-	Description string    `db:"description"`
-	Visibility  string    `db:"visibility"`
-	CreatedAt   time.Time `db:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at"`
+	ID            int64     `db:"id"`
+	Slug          string    `db:"slug"`
+	Name          string    `db:"name"`
+	Description   string    `db:"description"`
+	Visibility    string    `db:"visibility"`
+	RetentionDays *int      `db:"retention_days"`
+	CreatedAt     time.Time `db:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at"`
 }
 
 type Version struct {
