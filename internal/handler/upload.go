@@ -164,19 +164,28 @@ func (h *Handler) canUpload(ctx context.Context, user *database.User, project *d
 	}
 	// Check user's global role first
 	if user.Role == "admin" || user.Role == "editor" {
+		h.logger.Debug("upload granted: global role", "username", user.Username, "project", project.Slug, "role", user.Role)
 		return true
 	}
 	// For private projects, check global access grants for editor role
 	if project.Visibility == database.VisibilityPrivate && h.globalAccess != nil {
 		grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
 		if err == nil && grant != nil && (grant.Role == "editor" || grant.Role == "admin") {
+			h.logger.Debug("upload granted: global access grant", "username", user.Username, "project", project.Slug, "grant_role", grant.Role)
 			return true
 		}
 	}
 	// Check project-level access (from all sources: manual, ldap, oauth2)
 	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	if err != nil {
+		h.logger.Debug("upload denied: error checking project access", "username", user.Username, "project", project.Slug, "error", err)
 		return false
 	}
-	return effectiveRole == "editor" || effectiveRole == "admin"
+	allowed := effectiveRole == "editor" || effectiveRole == "admin"
+	if allowed {
+		h.logger.Debug("upload granted: project-level access", "username", user.Username, "project", project.Slug, "effective_role", effectiveRole)
+	} else {
+		h.logger.Debug("upload denied: insufficient project role", "username", user.Username, "project", project.Slug, "effective_role", effectiveRole)
+	}
+	return allowed
 }

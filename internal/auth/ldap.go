@@ -141,10 +141,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 
 	// Determine role from group membership
 	memberOf := entry.GetAttributeValues("memberOf")
+	a.logger.Debug("LDAP user groups", "username", username, "memberOf", memberOf)
 	role, allowed := MapGroupToRole(memberOf, a.config.AdminGroup, a.config.EditorGroup, a.config.ViewerGroup)
 	if !allowed {
+		a.logger.Debug("LDAP user not in any allowed group", "username", username, "admin_group", a.config.AdminGroup, "editor_group", a.config.EditorGroup, "viewer_group", a.config.ViewerGroup)
 		return nil, fmt.Errorf("user not in any allowed group")
 	}
+	a.logger.Debug("LDAP role resolved", "username", username, "role", role)
 
 	email := entry.GetAttributeValue("mail")
 
@@ -211,8 +214,11 @@ func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *databas
 	}
 
 	if len(mappings) == 0 {
+		a.logger.Debug("no LDAP group mappings configured, skipping project access sync", "username", user.Username)
 		return nil
 	}
+
+	a.logger.Debug("syncing LDAP project access", "username", user.Username, "mappings_count", len(mappings), "user_groups", memberOf)
 
 	// Build a set of user's groups for fast lookup (case-insensitive)
 	userGroups := make(map[string]bool)
@@ -224,8 +230,9 @@ func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *databas
 	grantedProjects := make(map[int64]string) // project_id -> highest role
 
 	for _, mapping := range mappings {
-		if userGroups[strings.ToLower(mapping.GroupIdentifier)] {
-			// User is in this group - grant access
+		matched := userGroups[strings.ToLower(mapping.GroupIdentifier)]
+		a.logger.Debug("LDAP group mapping check", "username", user.Username, "group", mapping.GroupIdentifier, "project_id", mapping.ProjectID, "role", mapping.Role, "matched", matched)
+		if matched {
 			currentRole := grantedProjects[mapping.ProjectID]
 			if roleHigher(mapping.Role, currentRole) {
 				grantedProjects[mapping.ProjectID] = mapping.Role
@@ -247,6 +254,7 @@ func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *databas
 	// Grant new or update existing access
 	for projectID, role := range grantedProjects {
 		if existingRole, exists := existingProjects[projectID]; !exists || existingRole != role {
+			a.logger.Debug("granting LDAP project access", "username", user.Username, "project_id", projectID, "role", role)
 			access := &database.ProjectAccess{
 				ProjectID: projectID,
 				UserID:    user.ID,
@@ -262,12 +270,14 @@ func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *databas
 	// Revoke access for projects no longer granted by LDAP
 	for projectID := range existingProjects {
 		if _, shouldHave := grantedProjects[projectID]; !shouldHave {
+			a.logger.Debug("revoking LDAP project access", "username", user.Username, "project_id", projectID)
 			if err := a.access.RevokeBySource(ctx, projectID, user.ID, "ldap"); err != nil {
 				a.logger.Warn("revoking LDAP project access", "project_id", projectID, "error", err)
 			}
 		}
 	}
 
+	a.logger.Debug("LDAP project access sync complete", "username", user.Username, "granted_projects", len(grantedProjects))
 	return nil
 }
 
@@ -278,6 +288,8 @@ func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database
 	if err != nil {
 		return fmt.Errorf("listing global access rules: %w", err)
 	}
+
+	a.logger.Debug("syncing LDAP global access", "username", user.Username, "rules_count", len(rules), "user_groups", memberOf)
 
 	// Build a set of user's groups for fast lookup (case-insensitive)
 	userGroups := make(map[string]bool)
@@ -291,7 +303,9 @@ func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database
 		if rule.SubjectType != "ldap_group" {
 			continue
 		}
-		if userGroups[strings.ToLower(rule.SubjectIdentifier)] {
+		matched := userGroups[strings.ToLower(rule.SubjectIdentifier)]
+		a.logger.Debug("global access rule check", "username", user.Username, "rule_subject", rule.SubjectIdentifier, "rule_role", rule.Role, "matched", matched)
+		if matched {
 			if roleHigher(rule.Role, bestRole) {
 				bestRole = rule.Role
 			}
@@ -299,7 +313,7 @@ func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database
 	}
 
 	if bestRole != "" {
-		// Upsert the grant
+		a.logger.Debug("granting global access", "username", user.Username, "role", bestRole, "source", "ldap")
 		grant := &database.GlobalAccessGrant{
 			UserID: user.ID,
 			Role:   bestRole,
@@ -309,7 +323,7 @@ func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database
 			return fmt.Errorf("upserting global access grant: %w", err)
 		}
 	} else {
-		// No matching rules — remove any existing LDAP-sourced grant
+		a.logger.Debug("no matching global access rules, removing LDAP grants", "username", user.Username)
 		if err := a.globalAccess.DeleteGrantsBySource(ctx, user.ID, "ldap"); err != nil {
 			return fmt.Errorf("deleting global access grants: %w", err)
 		}
