@@ -25,6 +25,7 @@ type OAuth2Authenticator struct {
 	users         store.UserStore
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
+	globalAccess  store.GlobalAccessStore
 	logger        *slog.Logger
 
 	// CSRF state storage (in-memory, keyed by state token)
@@ -55,11 +56,12 @@ func NewOAuth2Authenticator(cfg config.OAuth2Config, users store.UserStore, logg
 	}
 }
 
-// SetStores sets the access and group mapping stores for project-level access sync.
+// SetStores sets the access, group mapping, and global access stores.
 // This is called after authenticator creation to avoid circular dependencies.
-func (a *OAuth2Authenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore) {
+func (a *OAuth2Authenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore) {
 	a.access = access
 	a.groupMappings = groupMappings
+	a.globalAccess = globalAccess
 }
 
 func (a *OAuth2Authenticator) Name() string {
@@ -140,6 +142,13 @@ func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code string) (
 	if a.access != nil && a.groupMappings != nil {
 		if err := a.syncProjectAccess(ctx, user, groups); err != nil {
 			a.logger.Warn("syncing OAuth2 project access", "username", username, "error", err)
+		}
+	}
+
+	// Sync global access based on group membership
+	if a.globalAccess != nil {
+		if err := a.syncGlobalAccess(ctx, user, groups); err != nil {
+			a.logger.Warn("syncing OAuth2 global access", "username", username, "error", err)
 		}
 	}
 
@@ -361,6 +370,52 @@ func (a *OAuth2Authenticator) syncProjectAccess(ctx context.Context, user *datab
 			if err := a.access.RevokeBySource(ctx, projectID, user.ID, "oauth2"); err != nil {
 				a.logger.Warn("revoking OAuth2 project access", "project_id", projectID, "error", err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// syncGlobalAccess resolves the user's OAuth2 group membership against global access rules
+// and upserts or deletes the user's global access grant accordingly.
+func (a *OAuth2Authenticator) syncGlobalAccess(ctx context.Context, user *database.User, groups []string) error {
+	rules, err := a.globalAccess.ListRules(ctx)
+	if err != nil {
+		return fmt.Errorf("listing global access rules: %w", err)
+	}
+
+	// Build a set of user's groups for fast lookup (case-insensitive)
+	userGroups := make(map[string]bool)
+	for _, g := range groups {
+		userGroups[strings.ToLower(g)] = true
+	}
+
+	// Find the highest role from matching OAuth2 group rules
+	var bestRole string
+	for _, rule := range rules {
+		if rule.SubjectType != "oauth2_group" {
+			continue
+		}
+		if userGroups[strings.ToLower(rule.SubjectIdentifier)] {
+			if roleHigher(rule.Role, bestRole) {
+				bestRole = rule.Role
+			}
+		}
+	}
+
+	if bestRole != "" {
+		grant := &database.GlobalAccessGrant{
+			UserID: user.ID,
+			Role:   bestRole,
+			Source: "oauth2",
+		}
+		if err := a.globalAccess.UpsertGrant(ctx, grant); err != nil {
+			return fmt.Errorf("upserting global access grant: %w", err)
+		}
+	} else {
+		// No matching rules — remove any existing OAuth2-sourced grant
+		if err := a.globalAccess.DeleteGrantsBySource(ctx, user.ID, "oauth2"); err != nil {
+			return fmt.Errorf("deleting global access grants: %w", err)
 		}
 	}
 
