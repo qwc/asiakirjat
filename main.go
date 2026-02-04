@@ -75,6 +75,7 @@ func main() {
 	accessStore := sqlstore.NewProjectAccessStore(db)
 	tokenStore := sqlstore.NewTokenStore(db)
 	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
+	globalAccessStore := sqlstore.NewGlobalAccessStore(db)
 
 	// Initialize storage
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
@@ -177,6 +178,7 @@ func main() {
 		Access:         accessStore,
 		Tokens:         tokenStore,
 		GroupMappings:  groupMappingStore,
+		GlobalAccess:   globalAccessStore,
 		Authenticators: authenticators,
 		OAuth2Auth:     oauth2Auth,
 		SessionMgr:     sessionMgr,
