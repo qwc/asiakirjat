@@ -14,6 +14,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Auth     AuthConfig     `yaml:"auth"`
+	Access   AccessConfig   `yaml:"access"`
 	Storage  StorageConfig  `yaml:"storage"`
 	Branding BrandingConfig `yaml:"branding"`
 }
@@ -92,6 +93,24 @@ type AuthGroupMapping struct {
 
 type StorageConfig struct {
 	BasePath string `yaml:"base_path" env:"ASIAKIRJAT_STORAGE_PATH"`
+}
+
+// AccessConfig controls global access rules for "private" visibility projects.
+type AccessConfig struct {
+	Private PrivateAccessConfig `yaml:"private"`
+}
+
+// PrivateAccessConfig defines who can access private-visibility projects.
+type PrivateAccessConfig struct {
+	Viewers AccessRuleConfig `yaml:"viewers"`
+	Editors AccessRuleConfig `yaml:"editors"`
+}
+
+// AccessRuleConfig lists users and groups that receive a particular access level.
+type AccessRuleConfig struct {
+	Users        []string `yaml:"users"`
+	LDAPGroups   []string `yaml:"ldap_groups"`
+	OAuth2Groups []string `yaml:"oauth2_groups"`
 }
 
 func Defaults() Config {
