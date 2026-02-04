@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/qwc/asiakirjat/internal/auth"
@@ -36,17 +37,33 @@ func main() {
 	// Set the version for built-in docs
 	builtin.Version = version
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
-
-	// Load config
+	// Load config first so we can use log_level
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		logger.Error("loading config", "error", err)
+		slog.Error("loading config", "error", err)
 		os.Exit(1)
 	}
+
+	logLevel := slog.LevelInfo
+	if cfg.Server.LogLevel != "" {
+		switch strings.ToLower(cfg.Server.LogLevel) {
+		case "debug":
+			logLevel = slog.LevelDebug
+		case "info":
+			logLevel = slog.LevelInfo
+		case "warn", "warning":
+			logLevel = slog.LevelWarn
+		case "error":
+			logLevel = slog.LevelError
+		default:
+			slog.Warn("unknown log_level, defaulting to info", "log_level", cfg.Server.LogLevel)
+		}
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
+	slog.SetDefault(logger)
 
 	// Ensure database directory exists (SQLite needs it before opening)
 	if dbDir := filepath.Dir(cfg.Database.DSN); dbDir != "" && dbDir != "." {

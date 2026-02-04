@@ -127,10 +127,13 @@ func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code string) (
 	}
 
 	// Determine role from group membership (if configured)
+	a.logger.Debug("OAuth2 user groups", "username", username, "groups", groups)
 	role, allowed := a.mapGroupsToRole(groups)
 	if !allowed {
+		a.logger.Debug("OAuth2 user not in any allowed group", "username", username, "admin_group", a.cfg.AdminGroup, "editor_group", a.cfg.EditorGroup, "viewer_group", a.cfg.ViewerGroup)
 		return nil, fmt.Errorf("user not in any allowed group")
 	}
+	a.logger.Debug("OAuth2 role resolved", "username", username, "role", role)
 
 	// Auto-provision or update user
 	user, err := a.provisionUser(ctx, username, userInfo.Email, role)
@@ -316,8 +319,11 @@ func (a *OAuth2Authenticator) syncProjectAccess(ctx context.Context, user *datab
 	}
 
 	if len(mappings) == 0 {
+		a.logger.Debug("no OAuth2 group mappings configured, skipping project access sync", "username", user.Username)
 		return nil
 	}
+
+	a.logger.Debug("syncing OAuth2 project access", "username", user.Username, "mappings_count", len(mappings), "user_groups", groups)
 
 	// Build a set of user's groups for fast lookup (case-insensitive)
 	userGroups := make(map[string]bool)
@@ -329,8 +335,9 @@ func (a *OAuth2Authenticator) syncProjectAccess(ctx context.Context, user *datab
 	grantedProjects := make(map[int64]string) // project_id -> highest role
 
 	for _, mapping := range mappings {
-		if userGroups[strings.ToLower(mapping.GroupIdentifier)] {
-			// User is in this group - grant access
+		matched := userGroups[strings.ToLower(mapping.GroupIdentifier)]
+		a.logger.Debug("OAuth2 group mapping check", "username", user.Username, "group", mapping.GroupIdentifier, "project_id", mapping.ProjectID, "role", mapping.Role, "matched", matched)
+		if matched {
 			currentRole := grantedProjects[mapping.ProjectID]
 			if roleHigher(mapping.Role, currentRole) {
 				grantedProjects[mapping.ProjectID] = mapping.Role
@@ -352,6 +359,7 @@ func (a *OAuth2Authenticator) syncProjectAccess(ctx context.Context, user *datab
 	// Grant new or update existing access
 	for projectID, role := range grantedProjects {
 		if existingRole, exists := existingProjects[projectID]; !exists || existingRole != role {
+			a.logger.Debug("granting OAuth2 project access", "username", user.Username, "project_id", projectID, "role", role)
 			access := &database.ProjectAccess{
 				ProjectID: projectID,
 				UserID:    user.ID,
@@ -367,12 +375,14 @@ func (a *OAuth2Authenticator) syncProjectAccess(ctx context.Context, user *datab
 	// Revoke access for projects no longer granted by OAuth2
 	for projectID := range existingProjects {
 		if _, shouldHave := grantedProjects[projectID]; !shouldHave {
+			a.logger.Debug("revoking OAuth2 project access", "username", user.Username, "project_id", projectID)
 			if err := a.access.RevokeBySource(ctx, projectID, user.ID, "oauth2"); err != nil {
 				a.logger.Warn("revoking OAuth2 project access", "project_id", projectID, "error", err)
 			}
 		}
 	}
 
+	a.logger.Debug("OAuth2 project access sync complete", "username", user.Username, "granted_projects", len(grantedProjects))
 	return nil
 }
 
@@ -383,6 +393,8 @@ func (a *OAuth2Authenticator) syncGlobalAccess(ctx context.Context, user *databa
 	if err != nil {
 		return fmt.Errorf("listing global access rules: %w", err)
 	}
+
+	a.logger.Debug("syncing OAuth2 global access", "username", user.Username, "rules_count", len(rules), "user_groups", groups)
 
 	// Build a set of user's groups for fast lookup (case-insensitive)
 	userGroups := make(map[string]bool)
@@ -396,7 +408,9 @@ func (a *OAuth2Authenticator) syncGlobalAccess(ctx context.Context, user *databa
 		if rule.SubjectType != "oauth2_group" {
 			continue
 		}
-		if userGroups[strings.ToLower(rule.SubjectIdentifier)] {
+		matched := userGroups[strings.ToLower(rule.SubjectIdentifier)]
+		a.logger.Debug("global access rule check", "username", user.Username, "rule_subject", rule.SubjectIdentifier, "rule_role", rule.Role, "matched", matched)
+		if matched {
 			if roleHigher(rule.Role, bestRole) {
 				bestRole = rule.Role
 			}
@@ -404,6 +418,7 @@ func (a *OAuth2Authenticator) syncGlobalAccess(ctx context.Context, user *databa
 	}
 
 	if bestRole != "" {
+		a.logger.Debug("granting global access", "username", user.Username, "role", bestRole, "source", "oauth2")
 		grant := &database.GlobalAccessGrant{
 			UserID: user.ID,
 			Role:   bestRole,
@@ -413,7 +428,7 @@ func (a *OAuth2Authenticator) syncGlobalAccess(ctx context.Context, user *databa
 			return fmt.Errorf("upserting global access grant: %w", err)
 		}
 	} else {
-		// No matching rules — remove any existing OAuth2-sourced grant
+		a.logger.Debug("no matching global access rules, removing OAuth2 grants", "username", user.Username)
 		if err := a.globalAccess.DeleteGrantsBySource(ctx, user.ID, "oauth2"); err != nil {
 			return fmt.Errorf("deleting global access grants: %w", err)
 		}
