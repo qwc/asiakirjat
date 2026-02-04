@@ -17,6 +17,9 @@ var basePath string
 // branding holds customizable branding options
 var branding Branding
 
+// appVersion holds the application version for display in templates
+var appVersion string
+
 // Branding contains customizable branding options.
 type Branding struct {
 	AppName   string // Custom app name (default: "asiakirjat")
@@ -48,6 +51,11 @@ func GetBranding() Branding {
 	return branding
 }
 
+// SetVersion sets the application version for template display.
+func SetVersion(v string) {
+	appVersion = v
+}
+
 //go:embed layouts/*.html pages/*.html partials/*.html overlay/*.html
 var templateFS embed.FS
 
@@ -72,6 +80,7 @@ func New() (*Engine, error) {
 		"url":      func(path string) string { return basePath + path },
 		"basePath": func() string { return basePath },
 		"appName":  func() string { return branding.AppName },
+		"version":  func() string { return appVersion },
 		"logoURL":  func() string { return branding.LogoURL },
 		"customCSS": func() string {
 			if branding.CustomCSS != "" {

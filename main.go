@@ -166,6 +166,7 @@ func main() {
 	ensureInitialAdmin(logger, userStore, cfg)
 
 	// Initialize templates
+	templates.SetVersion(version)
 	templates.SetBasePath(cfg.Server.BasePath)
 	templates.SetBranding(templates.Branding{
 		AppName:   cfg.Branding.AppName,

@@ -96,6 +96,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/login", h.withSession(h.handleLoginPage))
 	mux.HandleFunc("POST "+bp+"/login", withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
 	mux.HandleFunc("GET "+bp+"/logout", h.withSession(h.handleLogout))
+	mux.HandleFunc("GET "+bp+"/licenses", h.withSession(h.handleLicenses))
 	mux.HandleFunc("GET "+bp+"/auth/oauth2", h.handleOAuth2Login)
 	mux.HandleFunc("GET "+bp+"/auth/callback", h.withSession(h.handleOAuth2Callback))
 
