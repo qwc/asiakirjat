@@ -19,16 +19,7 @@
             <tr>
                 <td>{{.Module}}</td>
                 <td>{{.Version}}</td>
-                <td>
-                    {{if .LicenseText}}
-                    <details>
-                        <summary>View license</summary>
-                        <pre style="white-space: pre-wrap; max-height: 300px; overflow-y: auto; font-size: 0.8em; background: var(--color-bg-muted, #f6f8fa); padding: 0.5rem; border-radius: 4px;">{{.LicenseText}}</pre>
-                    </details>
-                    {{else}}
-                    <em>Not found</em>
-                    {{end}}
-                </td>
+                <td>{{.LicenseType}}</td>
             </tr>
             {{end}}
         </tbody>

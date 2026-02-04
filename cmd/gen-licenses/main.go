@@ -23,9 +23,10 @@ var licenseFileNames = []string{
 }
 
 type dep struct {
-	module  string
-	version string
-	license string
+	module      string
+	version     string
+	licenseType string
+	licenseText string
 }
 
 func main() {
@@ -52,7 +53,8 @@ func main() {
 		ver := parts[1]
 
 		licText := findLicense(mod)
-		deps = append(deps, dep{module: mod, version: ver, license: licText})
+		licType := detectLicenseType(licText)
+		deps = append(deps, dep{module: mod, version: ver, licenseType: licType, licenseText: licText})
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "reading modules.txt: %v\n", err)
@@ -73,8 +75,8 @@ func main() {
 	fmt.Fprintln(out, "// Deps contains license information for all vendored dependencies.")
 	fmt.Fprintln(out, "var Deps = []Dependency{")
 	for _, d := range deps {
-		fmt.Fprintf(out, "\t{Module: %q, Version: %q, LicenseText: %s},\n",
-			d.module, d.version, goRawString(d.license))
+		fmt.Fprintf(out, "\t{Module: %q, Version: %q, LicenseType: %q, LicenseText: %s},\n",
+			d.module, d.version, d.licenseType, goRawString(d.licenseText))
 	}
 	fmt.Fprintln(out, "}")
 
@@ -84,7 +86,6 @@ func main() {
 // findLicense searches for a license file in the vendor directory for the
 // given module path, walking up parent directories for nested modules.
 func findLicense(mod string) string {
-	// Try the module path directly, then walk up parent directories
 	path := mod
 	for path != "" {
 		for _, name := range licenseFileNames {
@@ -94,7 +95,6 @@ func findLicense(mod string) string {
 				return string(data)
 			}
 		}
-		// Walk up: "github.com/foo/bar" -> "github.com/foo"
 		idx := strings.LastIndex(path, "/")
 		if idx < 0 {
 			break
@@ -102,6 +102,54 @@ func findLicense(mod string) string {
 		path = path[:idx]
 	}
 	return ""
+}
+
+// detectLicenseType returns a short SPDX-like identifier based on
+// keywords found in the license text.
+func detectLicenseType(text string) string {
+	if text == "" {
+		return "Unknown"
+	}
+	t := strings.ToLower(text)
+
+	// Check specific licenses before broad matches
+	if strings.Contains(t, "mozilla public license") {
+		if strings.Contains(t, "version 2") {
+			return "MPL-2.0"
+		}
+		return "MPL"
+	}
+	if strings.Contains(t, "apache license") {
+		if strings.Contains(t, "version 2") {
+			return "Apache-2.0"
+		}
+		return "Apache"
+	}
+	if strings.Contains(t, "gnu lesser general public license") {
+		return "LGPL"
+	}
+	if strings.Contains(t, "gnu general public license") {
+		return "GPL"
+	}
+	if strings.Contains(t, "mit license") || strings.Contains(t, "permission is hereby granted, free of charge") {
+		return "MIT"
+	}
+	if strings.Contains(t, "isc license") || (strings.Contains(t, "permission to use, copy, modify") && strings.Contains(t, "isc")) {
+		return "ISC"
+	}
+	if strings.Contains(t, "redistribution and use in source and binary forms") {
+		if strings.Contains(t, "neither the name") || strings.Contains(t, "the names of its contributors") {
+			return "BSD-3-Clause"
+		}
+		return "BSD-2-Clause"
+	}
+	if strings.Contains(t, "unlicense") || strings.Contains(t, "this is free and unencumbered software") {
+		return "Unlicense"
+	}
+	if strings.Contains(t, "public domain") || strings.Contains(t, "cc0") {
+		return "Public Domain"
+	}
+	return "Unknown"
 }
 
 // goRawString returns a Go raw string literal for s, falling back to a
@@ -113,6 +161,5 @@ func goRawString(s string) string {
 	if !strings.Contains(s, "`") {
 		return "`" + s + "`"
 	}
-	// Use double-quote string with escaping
 	return fmt.Sprintf("%q", s)
 }
