@@ -97,8 +97,10 @@ func (d *Deployer) Deploy(ctx context.Context, userID int64) error {
 
 	// Create version record
 	version := &database.Version{
-		ProjectID: project.ID,
-		Tag:       versionTag,
+		ProjectID:   project.ID,
+		Tag:         versionTag,
+		StoragePath: storagePath,
+		UploadedBy:  userID,
 	}
 	if err := d.Versions.Create(ctx, version); err != nil {
 		// Clean up on failure
