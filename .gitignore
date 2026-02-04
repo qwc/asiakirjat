@@ -1,8 +1,10 @@
 data/
 asiakirjat
+main
 config.yaml
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 CLAUDE.local.md
+.mcp.json
