@@ -18,11 +18,22 @@
             <textarea id="description" name="description" rows="5">{{.Project.Description}}</textarea>
         </div>
         <div class="form-group">
-            <label>
-                <input type="checkbox" name="is_public" value="1" {{if .Project.IsPublic}}checked{{end}}> Public
-            </label>
+            <label for="visibility">Visibility</label>
+            <select id="visibility" name="visibility">
+                <option value="public" {{if eq .Project.Visibility "public"}}selected{{end}}>Public — anyone can view</option>
+                <option value="private" {{if eq .Project.Visibility "private"}}selected{{end}}>Private — global access list</option>
+                <option value="custom" {{if eq .Project.Visibility "custom"}}selected{{end}}>Custom — per-project access only</option>
+            </select>
         </div>
 
+        {{if eq .Project.Visibility "private"}}
+        <div class="info-box" style="background: var(--color-bg-muted, #f6f8fa); border: 1px solid var(--color-border, #d0d7de); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+            <strong>Private visibility</strong>: Access is controlled by the global private access list
+            (configured in <code>config.yaml</code> under <code>access.private</code> or via the admin panel).
+        </div>
+        {{end}}
+
+        {{if eq .Project.Visibility "custom"}}
         <h2>Project Access</h2>
         <table class="admin-table">
             <thead>
@@ -70,6 +81,7 @@
         <form id="grant-form" method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
             <button type="submit" class="btn btn-secondary">Grant Access</button>
         </form>
+        {{end}}
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save Changes</button>

@@ -28,9 +28,12 @@
                     <input type="text" id="description" name="description" placeholder="Optional description">
                 </div>
                 <div class="form-group">
-                    <label>
-                        <input type="checkbox" name="is_public" value="1"> Public
-                    </label>
+                    <label for="visibility">Visibility</label>
+                    <select id="visibility" name="visibility">
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                        <option value="custom" selected>Custom</option>
+                    </select>
                 </div>
                 <button type="submit" class="btn btn-primary">Create</button>
             </div>
@@ -60,7 +63,7 @@
             <tr>
                 <th>Slug</th>
                 <th>Name</th>
-                <th>Public</th>
+                <th>Visibility</th>
                 <th>Created</th>
                 <th>Actions</th>
             </tr>
@@ -70,7 +73,7 @@
             <tr>
                 <td><a href="{{url "/project/"}}{{.Slug}}">{{.Slug}}</a></td>
                 <td>{{.Name}}</td>
-                <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
+                <td>{{.Visibility}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02"}}</td>
                 <td>
                     <a href="{{url "/admin/projects/"}}{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>

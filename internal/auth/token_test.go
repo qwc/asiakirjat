@@ -193,7 +193,7 @@ func TestTokenAuthenticateRequestForProjectGlobalToken(t *testing.T) {
 	project := &database.Project{
 		Slug:     "test-proj",
 		Name:     "Test Project",
-		IsPublic: true,
+		Visibility: database.VisibilityPublic,
 	}
 	projectStore.Create(ctx, project)
 
@@ -238,7 +238,7 @@ func TestTokenAuthenticateRequestForProjectScopedTokenCorrectProject(t *testing.
 	project := &database.Project{
 		Slug:     "test-proj",
 		Name:     "Test Project",
-		IsPublic: true,
+		Visibility: database.VisibilityPublic,
 	}
 	projectStore.Create(ctx, project)
 
@@ -280,9 +280,9 @@ func TestTokenAuthenticateRequestForProjectScopedTokenWrongProject(t *testing.T)
 	userStore.Create(ctx, user)
 
 	// Create two projects
-	project1 := &database.Project{Slug: "proj1", Name: "Project 1", IsPublic: true}
+	project1 := &database.Project{Slug: "proj1", Name: "Project 1", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, project1)
-	project2 := &database.Project{Slug: "proj2", Name: "Project 2", IsPublic: true}
+	project2 := &database.Project{Slug: "proj2", Name: "Project 2", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, project2)
 
 	// Create token scoped to project1
@@ -320,7 +320,7 @@ func TestTokenAuthenticateRequestForProjectExpiredToken(t *testing.T) {
 	userStore.Create(ctx, user)
 
 	// Create project
-	project := &database.Project{Slug: "proj", Name: "Project", IsPublic: true}
+	project := &database.Project{Slug: "proj", Name: "Project", Visibility: database.VisibilityPublic}
 	projectStore.Create(ctx, project)
 
 	// Create expired global token

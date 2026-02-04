@@ -166,6 +166,13 @@ func (h *Handler) canUpload(ctx context.Context, user *database.User, project *d
 	if user.Role == "admin" || user.Role == "editor" {
 		return true
 	}
+	// For private projects, check global access grants for editor role
+	if project.Visibility == database.VisibilityPrivate && h.globalAccess != nil {
+		grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
+		if err == nil && grant != nil && (grant.Role == "editor" || grant.Role == "admin") {
+			return true
+		}
+	}
 	// Check project-level access (from all sources: manual, ldap, oauth2)
 	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	if err != nil {

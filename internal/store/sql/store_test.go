@@ -19,7 +19,7 @@ func TestProjectStoreCRUD(t *testing.T) {
 		Slug:        "test-project",
 		Name:        "Test Project",
 		Description: "A test project",
-		IsPublic:    true,
+		Visibility:  database.VisibilityPublic,
 	}
 	if err := store.Create(ctx, project); err != nil {
 		t.Fatal(err)
@@ -55,8 +55,8 @@ func TestProjectStoreCRUD(t *testing.T) {
 		t.Errorf("expected 1 project, got %d", len(list))
 	}
 
-	// ListPublic
-	public, err := store.ListPublic(ctx)
+	// ListByVisibility
+	public, err := store.ListByVisibility(ctx, database.VisibilityPublic)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestProjectStoreCRUD(t *testing.T) {
 
 	// Update
 	project.Name = "Updated Project"
-	project.IsPublic = false
+	project.Visibility = database.VisibilityCustom
 	if err := store.Update(ctx, project); err != nil {
 		t.Fatal(err)
 	}
@@ -91,12 +91,12 @@ func TestProjectStoreCRUD(t *testing.T) {
 	if got3.Name != "Updated Project" {
 		t.Errorf("expected updated name, got %q", got3.Name)
 	}
-	if got3.IsPublic {
-		t.Error("expected is_public to be false")
+	if got3.Visibility != database.VisibilityCustom {
+		t.Errorf("expected visibility 'custom', got %q", got3.Visibility)
 	}
 
-	// ListPublic should now return 0
-	public, _ = store.ListPublic(ctx)
+	// ListByVisibility should now return 0 public projects
+	public, _ = store.ListByVisibility(ctx, database.VisibilityPublic)
 	if len(public) != 0 {
 		t.Errorf("expected 0 public projects, got %d", len(public))
 	}
@@ -493,9 +493,9 @@ func TestTokenStoreProjectScoped(t *testing.T) {
 	uStore.Create(ctx, user)
 
 	// Create projects
-	project1 := &database.Project{Slug: "proj1", Name: "Project 1", IsPublic: true}
+	project1 := &database.Project{Slug: "proj1", Name: "Project 1", Visibility: database.VisibilityPublic}
 	pStore.Create(ctx, project1)
-	project2 := &database.Project{Slug: "proj2", Name: "Project 2", IsPublic: true}
+	project2 := &database.Project{Slug: "proj2", Name: "Project 2", Visibility: database.VisibilityPublic}
 	pStore.Create(ctx, project2)
 
 	// Create global token (no project_id)

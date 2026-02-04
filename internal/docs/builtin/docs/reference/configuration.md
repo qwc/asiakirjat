@@ -173,6 +173,40 @@ auth:
 
 See [Configure OAuth2](../how-to/configure-oauth2.md) for details.
 
+## Global Access Settings
+
+The `access` section controls who can access projects with **private** visibility. Projects have three visibility levels:
+
+| Visibility | Who can view | Governed by |
+|---|---|---|
+| `public` | Anyone, including anonymous users | — |
+| `private` | Authenticated users in the global access list | `access.private` config + admin UI |
+| `custom` | Only users with explicit per-project access | Per-project access grants |
+
+```yaml
+access:
+  private:
+    viewers:
+      users: ["user1", "user2"]
+      ldap_groups: ["cn=readers,ou=groups,dc=example,dc=com"]
+      oauth2_groups: ["readers"]
+    editors:
+      users: ["editor1"]
+      ldap_groups: ["cn=writers,ou=groups,dc=example,dc=com"]
+      oauth2_groups: ["writers"]
+```
+
+| Option | Description |
+|--------|-------------|
+| `viewers.users` | Usernames granted viewer access to all private projects |
+| `viewers.ldap_groups` | LDAP group DNs whose members get viewer access |
+| `viewers.oauth2_groups` | OAuth2 group names whose members get viewer access |
+| `editors.users` | Usernames granted editor access to all private projects |
+| `editors.ldap_groups` | LDAP group DNs whose members get editor access |
+| `editors.oauth2_groups` | OAuth2 group names whose members get editor access |
+
+LDAP and OAuth2 group rules are resolved into per-user grants at login time.
+
 ## Complete Example
 
 ```yaml
@@ -214,6 +248,13 @@ auth:
       - group: "engineering"
         project: "api-docs"
         role: "viewer"
+
+access:
+  private:
+    viewers:
+      ldap_groups: ["cn=staff,ou=groups,dc=company,dc=com"]
+    editors:
+      ldap_groups: ["cn=writers,ou=groups,dc=company,dc=com"]
 ```
 
 ## Configuration Precedence

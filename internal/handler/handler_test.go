@@ -124,10 +124,14 @@ func seedAdmin(t *testing.T, app *testApp) *database.User {
 func seedProject(t *testing.T, app *testApp, slug, name string, isPublic bool) *database.Project {
 	t.Helper()
 	ctx := context.Background()
+	visibility := database.VisibilityCustom
+	if isPublic {
+		visibility = database.VisibilityPublic
+	}
 	project := &database.Project{
-		Slug:     slug,
-		Name:     name,
-		IsPublic: isPublic,
+		Slug:       slug,
+		Name:       name,
+		Visibility: visibility,
 	}
 	if err := app.handler.projects.Create(ctx, project); err != nil {
 		t.Fatal(err)
@@ -951,7 +955,7 @@ func TestAdminCreateProject(t *testing.T) {
 	form.Set("slug", "new-project")
 	form.Set("name", "New Project")
 	form.Set("description", "A test project")
-	form.Set("is_public", "1")
+	form.Set("visibility", "public")
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -978,8 +982,8 @@ func TestAdminCreateProject(t *testing.T) {
 	if project.Name != "New Project" {
 		t.Errorf("expected project name 'New Project', got %q", project.Name)
 	}
-	if !project.IsPublic {
-		t.Error("expected project to be public")
+	if project.Visibility != database.VisibilityPublic {
+		t.Errorf("expected project visibility 'public', got %q", project.Visibility)
 	}
 }
 
@@ -999,7 +1003,7 @@ func TestAdminUpdateProject(t *testing.T) {
 	form.Set("slug", "update-me")
 	form.Set("name", "Updated Name")
 	form.Set("description", "Updated description")
-	form.Set("is_public", "1")
+	form.Set("visibility", "public")
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/update-me/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1022,8 +1026,8 @@ func TestAdminUpdateProject(t *testing.T) {
 	if project.Name != "Updated Name" {
 		t.Errorf("expected 'Updated Name', got %q", project.Name)
 	}
-	if !project.IsPublic {
-		t.Error("expected project to be public after update")
+	if project.Visibility != database.VisibilityPublic {
+		t.Errorf("expected project visibility 'public', got %q", project.Visibility)
 	}
 }
 
@@ -1846,7 +1850,7 @@ func TestProjectDetailMarkdownDescription(t *testing.T) {
 		Slug:        "md-test",
 		Name:        "Markdown Test",
 		Description: "This is **bold** and *italic* text.\n\n- Item 1\n- Item 2",
-		IsPublic:    true,
+		Visibility:  database.VisibilityPublic,
 	}
 	app.handler.projects.Create(ctx, project)
 

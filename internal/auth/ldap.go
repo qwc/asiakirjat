@@ -48,6 +48,7 @@ type LDAPAuthenticator struct {
 	users         store.UserStore
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
+	globalAccess  store.GlobalAccessStore
 	logger        *slog.Logger
 	dialer        LDAPDialer
 }
@@ -72,11 +73,12 @@ func NewLDAPAuthenticatorWithDialer(cfg config.LDAPConfig, users store.UserStore
 	}
 }
 
-// SetStores sets the access and group mapping stores for project-level access sync.
+// SetStores sets the access, group mapping, and global access stores.
 // This is called after authenticator creation to avoid circular dependencies.
-func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore) {
+func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore) {
 	a.access = access
 	a.groupMappings = groupMappings
+	a.globalAccess = globalAccess
 }
 
 func (a *LDAPAuthenticator) Name() string {
@@ -156,6 +158,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 	if a.access != nil && a.groupMappings != nil {
 		if err := a.syncProjectAccess(ctx, user, memberOf); err != nil {
 			a.logger.Warn("syncing LDAP project access", "username", username, "error", err)
+		}
+	}
+
+	// Sync global access based on group membership
+	if a.globalAccess != nil {
+		if err := a.syncGlobalAccess(ctx, user, memberOf); err != nil {
+			a.logger.Warn("syncing LDAP global access", "username", username, "error", err)
 		}
 	}
 
@@ -256,6 +265,53 @@ func (a *LDAPAuthenticator) syncProjectAccess(ctx context.Context, user *databas
 			if err := a.access.RevokeBySource(ctx, projectID, user.ID, "ldap"); err != nil {
 				a.logger.Warn("revoking LDAP project access", "project_id", projectID, "error", err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// syncGlobalAccess resolves the user's LDAP group membership against global access rules
+// and upserts or deletes the user's global access grant accordingly.
+func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database.User, memberOf []string) error {
+	rules, err := a.globalAccess.ListRules(ctx)
+	if err != nil {
+		return fmt.Errorf("listing global access rules: %w", err)
+	}
+
+	// Build a set of user's groups for fast lookup (case-insensitive)
+	userGroups := make(map[string]bool)
+	for _, g := range memberOf {
+		userGroups[strings.ToLower(g)] = true
+	}
+
+	// Find the highest role from matching LDAP group rules
+	var bestRole string
+	for _, rule := range rules {
+		if rule.SubjectType != "ldap_group" {
+			continue
+		}
+		if userGroups[strings.ToLower(rule.SubjectIdentifier)] {
+			if roleHigher(rule.Role, bestRole) {
+				bestRole = rule.Role
+			}
+		}
+	}
+
+	if bestRole != "" {
+		// Upsert the grant
+		grant := &database.GlobalAccessGrant{
+			UserID: user.ID,
+			Role:   bestRole,
+			Source: "ldap",
+		}
+		if err := a.globalAccess.UpsertGrant(ctx, grant); err != nil {
+			return fmt.Errorf("upserting global access grant: %w", err)
+		}
+	} else {
+		// No matching rules — remove any existing LDAP-sourced grant
+		if err := a.globalAccess.DeleteGrantsBySource(ctx, user.ID, "ldap"); err != nil {
+			return fmt.Errorf("deleting global access grants: %w", err)
 		}
 	}
 

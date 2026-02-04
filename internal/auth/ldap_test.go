@@ -781,8 +781,8 @@ func TestLDAPProjectAccessSync(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test projects
-	project1 := &database.Project{Slug: "proj1", Name: "Project 1", IsPublic: false}
-	project2 := &database.Project{Slug: "proj2", Name: "Project 2", IsPublic: false}
+	project1 := &database.Project{Slug: "proj1", Name: "Project 1", Visibility: database.VisibilityCustom}
+	project2 := &database.Project{Slug: "proj2", Name: "Project 2", Visibility: database.VisibilityCustom}
 	projectStore.Create(ctx, project1)
 	projectStore.Create(ctx, project2)
 
@@ -829,7 +829,7 @@ func TestLDAPProjectAccessSync(t *testing.T) {
 
 	dialer := &mockLDAPDialer{conn: mockConn}
 	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
-	auth.SetStores(accessStore, mappingStore)
+	auth.SetStores(accessStore, mappingStore, nil)
 
 	// Authenticate - should sync project access
 	user, err := auth.Authenticate(ctx, "developer", "password")
@@ -864,7 +864,7 @@ func TestLDAPProjectAccessSyncRevokesRemovedGroups(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test project
-	project := &database.Project{Slug: "revoke-test", Name: "Revoke Test", IsPublic: false}
+	project := &database.Project{Slug: "revoke-test", Name: "Revoke Test", Visibility: database.VisibilityCustom}
 	projectStore.Create(ctx, project)
 
 	// Create group mapping
@@ -919,7 +919,7 @@ func TestLDAPProjectAccessSyncRevokesRemovedGroups(t *testing.T) {
 
 	dialer := &mockLDAPDialer{conn: mockConn}
 	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
-	auth.SetStores(accessStore, mappingStore)
+	auth.SetStores(accessStore, mappingStore, nil)
 
 	// Authenticate - should revoke access
 	_, err := auth.Authenticate(ctx, "ex-dev", "password")

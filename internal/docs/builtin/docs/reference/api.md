@@ -31,11 +31,13 @@ GET /api/projects
     "slug": "my-project",
     "name": "My Project",
     "description": "Project description",
-    "is_public": false,
+    "visibility": "custom",
     "created_at": "2024-01-15T10:30:00Z"
   }
 ]
 ```
+
+The `visibility` field is one of: `public`, `private`, or `custom`.
 
 **Status Codes:**
 - `200 OK` - Success

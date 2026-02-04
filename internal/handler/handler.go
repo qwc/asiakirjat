@@ -25,6 +25,7 @@ type Handler struct {
 	access         store.ProjectAccessStore
 	tokens         store.TokenStore
 	groupMappings  store.AuthGroupMappingStore
+	globalAccess   store.GlobalAccessStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
@@ -53,6 +54,7 @@ type Deps struct {
 	Access         store.ProjectAccessStore
 	Tokens         store.TokenStore
 	GroupMappings  store.AuthGroupMappingStore
+	GlobalAccess   store.GlobalAccessStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
@@ -73,6 +75,7 @@ func New(deps Deps) *Handler {
 		access:         deps.Access,
 		tokens:         deps.Tokens,
 		groupMappings:  deps.GroupMappings,
+		globalAccess:   deps.GlobalAccess,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
@@ -132,6 +135,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminCreateUser)))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteUser)))
+	mux.HandleFunc("POST "+bp+"/admin/users/{id}/role", h.withSession(h.requireAdmin(h.handleAdminUpdateUserRole)))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/password", h.withSession(h.requireAdmin(h.handleAdminResetPassword)))
 	mux.HandleFunc("GET "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminRobots)))
 	mux.HandleFunc("POST "+bp+"/admin/robots", h.withSession(h.requireAdmin(h.handleAdminCreateRobot)))
