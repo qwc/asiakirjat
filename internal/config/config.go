@@ -56,6 +56,7 @@ type SessionConfig struct {
 type LDAPConfig struct {
 	Enabled       bool               `yaml:"enabled" env:"ASIAKIRJAT_LDAP_ENABLED"`
 	URL           string             `yaml:"url" env:"ASIAKIRJAT_LDAP_URL"`
+	SkipVerify    bool               `yaml:"skip_verify" env:"ASIAKIRJAT_LDAP_SKIP_VERIFY"`
 	BindDN        string             `yaml:"bind_dn" env:"ASIAKIRJAT_LDAP_BIND_DN"`
 	BindPassword  string             `yaml:"bind_password" env:"ASIAKIRJAT_LDAP_BIND_PASSWORD"`
 	BaseDN        string             `yaml:"base_dn" env:"ASIAKIRJAT_LDAP_BASE_DN"`
