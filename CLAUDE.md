@@ -10,7 +10,7 @@ Asiakirjat (Finnish for "documents") is a self-hosted HTML documentation server 
 
 ```bash
 # Build
-CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o asiakirjat .
+CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w -X main.version=dev" -o asiakirjat .
 
 # Run all tests
 go test -mod=vendor -count=1 ./...
@@ -61,6 +61,15 @@ Supports SQLite (default), PostgreSQL, and MySQL. Migrations in `internal/databa
 ### Archive Formats
 
 Supports: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
+
+## CI/CD
+
+Workflows live in `.forgejo/workflows/`:
+
+- **ci.yml** — Runs tests, builds binary, and pushes a Docker image on every push to `main`
+- **release.yml** — Triggered by `v*` tags; runs tests, builds a version-tagged Docker image, and sends a deploy notification via `repository_dispatch`
+
+The Dockerfile accepts a `VERSION` build arg (default `dev`) injected via ldflags into `main.version`.
 
 ## Configuration
 
