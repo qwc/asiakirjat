@@ -32,45 +32,52 @@
             <small>Auto-delete non-semver versions older than this many days. 0 = unlimited. Leave empty to use global default.</small>
         </div>
 
-        {{if eq .Project.Visibility "private"}}
-        <div class="info-box" style="background: var(--color-bg-muted, #f6f8fa); border: 1px solid var(--color-border, #d0d7de); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-            <strong>Private visibility</strong>: Access is controlled by the global private access list
-            (configured in <code>config.yaml</code> under <code>access.private</code> or via the admin panel).
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{url "/admin/projects"}}" class="btn btn-secondary">Cancel</a>
         </div>
-        {{end}}
+    </form>
 
-        {{if eq .Project.Visibility "custom"}}
-        <h2>Project Access</h2>
-        <table class="admin-table">
-            <thead>
-                <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{range .AccessList}}
-                <tr>
-                    <td>{{.Username}}</td>
-                    <td>{{.Role}}</td>
-                    <td>
-                        <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/access/revoke" class="inline-form">
-                            <input type="hidden" name="user_id" value="{{.UserID}}">
-                            <button type="submit" class="btn btn-small btn-danger">Revoke</button>
-                        </form>
-                    </td>
-                </tr>
-                {{else}}
-                <tr><td colspan="3">No specific access grants.</td></tr>
-                {{end}}
-            </tbody>
-        </table>
+    {{if eq .Project.Visibility "private"}}
+    <div class="info-box" style="background: var(--color-bg-muted, #f6f8fa); border: 1px solid var(--color-border, #d0d7de); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+        <strong>Private visibility</strong>: Access is controlled by the global private access list
+        (configured in <code>config.yaml</code> under <code>access.private</code> or via the admin panel).
+    </div>
+    {{end}}
 
+    {{if eq .Project.Visibility "custom"}}
+    <h2>Project Access</h2>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .AccessList}}
+            <tr>
+                <td>{{.Username}}</td>
+                <td>{{.Role}}</td>
+                <td>
+                    <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/access/revoke" class="inline-form">
+                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+                    </form>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="3">No specific access grants.</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
         <div class="form-row">
             <div class="form-group">
                 <label for="grant_user">Grant Access</label>
-                <select id="grant_user" name="grant_user_id" form="grant-form">
+                <select id="grant_user" name="grant_user_id">
                     {{range .Users}}
                     <option value="{{.ID}}">{{.Username}}</option>
                     {{end}}
@@ -78,21 +85,14 @@
             </div>
             <div class="form-group">
                 <label for="grant_role">Role</label>
-                <select id="grant_role" name="grant_role" form="grant-form">
+                <select id="grant_role" name="grant_role">
                     <option value="viewer">Viewer</option>
                     <option value="editor">Editor</option>
                 </select>
             </div>
         </div>
-        <form id="grant-form" method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
-            <button type="submit" class="btn btn-secondary">Grant Access</button>
-        </form>
-        {{end}}
-
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="{{url "/admin/projects"}}" class="btn btn-secondary">Cancel</a>
-        </div>
+        <button type="submit" class="btn btn-secondary">Grant Access</button>
     </form>
+    {{end}}
 </div>
 {{end}}
