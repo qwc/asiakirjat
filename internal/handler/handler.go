@@ -86,7 +86,8 @@ func New(deps Deps) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	bp := h.config.Server.BasePath
+	// Use RoutePrefix for route registration (empty when proxy strips path)
+	bp := h.config.RoutePrefix()
 
 	// Static files
 	mux.Handle("GET "+bp+"/static/", http.StripPrefix(bp+"/static/", http.FileServerFS(h.staticFS)))
@@ -156,6 +157,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/healthz", h.handleHealthz)
 	if bp != "" {
 		mux.HandleFunc("GET /healthz", h.handleHealthz)
+		// Redirect root to base path for convenience when routes are prefixed
+		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, h.config.Server.BasePath+"/", http.StatusFound)
+		})
 	}
 }
 
