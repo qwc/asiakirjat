@@ -31,10 +31,11 @@ type BrandingConfig struct {
 }
 
 type ServerConfig struct {
-	Address  string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
-	Port     int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
-	BasePath string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
-	LogLevel string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
+	Address         string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
+	Port            int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
+	BasePath        string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
+	ProxyStripPath  bool   `yaml:"proxy_strip_path" env:"ASIAKIRJAT_SERVER_PROXY_STRIP_PATH"`
+	LogLevel        string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
 }
 
 type DatabaseConfig struct {
@@ -216,4 +217,14 @@ func applyEnvToStruct(v reflect.Value) {
 
 func (c *Config) ListenAddr() string {
 	return fmt.Sprintf("%s:%d", c.Server.Address, c.Server.Port)
+}
+
+// RoutePrefix returns the prefix to use for HTTP route registration.
+// When ProxyStripPath is true (reverse proxy strips the base path),
+// routes are registered at root. Otherwise routes include the base path.
+func (c *Config) RoutePrefix() string {
+	if c.Server.ProxyStripPath {
+		return ""
+	}
+	return c.Server.BasePath
 }
