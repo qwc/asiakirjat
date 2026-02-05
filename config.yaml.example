@@ -2,6 +2,7 @@ server:
   address: "0.0.0.0"
   port: 8080
   # base_path: "/docs"  # Optional: URL prefix for subdirectory deployment (e.g., https://example.com/docs/)
+  # proxy_strip_path: false  # Set to true when reverse proxy strips base_path (e.g., nginx rewrite-target)
   # log_level: "info"   # Log level: debug, info, warn, error (default: info)
 
 database:
