@@ -79,7 +79,8 @@ func New() (*Engine, error) {
 		"safe":     func(s string) template.HTML { return template.HTML(s) },
 		"url":      func(path string) string { return basePath + path },
 		"basePath": func() string { return basePath },
-		"appName":  func() string { return branding.AppName },
+		"appName":    func() string { return branding.AppName },
+		"rawAppName": func() string { return "asiakirjat" },
 		"version":  func() string { return appVersion },
 		"logoURL":  func() string { return branding.LogoURL },
 		"customCSS": func() string {
