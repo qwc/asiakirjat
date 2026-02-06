@@ -54,8 +54,8 @@ jobs:
         run: |
           curl -f -X POST \
             -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
-            -F "file=@docs.zip" \
-            -F "tag=${{ github.ref_name }}" \
+            -F "archive=@docs.zip" \
+            -F "version=${{ github.ref_name }}" \
             "$ASIAKIRJAT_URL/api/project/my-project/upload"
 ```
 
@@ -66,16 +66,16 @@ jobs:
   run: |
     curl -f -X POST \
       -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
-      -F "file=@docs.zip" \
-      -F "tag=${{ github.ref_name }}" \
+      -F "archive=@docs.zip" \
+      -F "version=${{ github.ref_name }}" \
       "$ASIAKIRJAT_URL/api/project/my-project/upload"
 
 - name: Upload as latest
   run: |
     curl -f -X POST \
       -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
-      -F "file=@docs.zip" \
-      -F "tag=latest" \
+      -F "archive=@docs.zip" \
+      -F "version=latest" \
       "$ASIAKIRJAT_URL/api/project/my-project/upload"
 ```
 
@@ -102,8 +102,8 @@ deploy_docs:
     - |
       curl -f -X POST \
         -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
-        -F "file=@docs.tar.gz" \
-        -F "tag=$CI_COMMIT_TAG" \
+        -F "archive=@docs.tar.gz" \
+        -F "version=$CI_COMMIT_TAG" \
         "$ASIAKIRJAT_URL/api/project/my-project/upload"
   only:
     - tags
@@ -138,8 +138,8 @@ pipeline {
                     sh '''
                         curl -f -X POST \
                             -H "Authorization: Bearer $TOKEN" \
-                            -F "file=@docs.zip" \
-                            -F "tag=${TAG_NAME}" \
+                            -F "archive=@docs.zip" \
+                            -F "version=${TAG_NAME}" \
                             "${ASIAKIRJAT_URL}/api/project/my-project/upload"
                     '''
                 }
@@ -174,8 +174,8 @@ steps:
   - script: |
       curl -f -X POST \
         -H "Authorization: Bearer $(ASIAKIRJAT_TOKEN)" \
-        -F "file=@docs.zip" \
-        -F "tag=$(Build.SourceBranchName)" \
+        -F "archive=@docs.zip" \
+        -F "version=$(Build.SourceBranchName)" \
         "$(ASIAKIRJAT_URL)/api/project/my-project/upload"
     displayName: 'Upload to Asiakirjat'
 ```
