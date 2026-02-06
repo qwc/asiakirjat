@@ -40,8 +40,8 @@ For CI/CD integration, use the REST API:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer YOUR_API_TOKEN" \
-  -F "file=@docs.zip" \
-  -F "tag=v1.0.0" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
   https://your-server/api/project/my-docs/upload
 ```
 
