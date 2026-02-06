@@ -91,16 +91,16 @@ POST /api/project/{slug}/upload
 - `slug` - Project slug
 
 **Form Parameters:**
-- `file` - Archive file (multipart/form-data)
-- `tag` - Version tag (e.g., "v1.0.0", "latest")
+- `archive` - Archive file (multipart/form-data)
+- `version` - Version tag (e.g., "v1.0.0", "latest")
 
 **Example:**
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN" \
-  -F "file=@docs.zip" \
-  -F "tag=v1.0.0" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
   https://docs.example.com/api/project/my-project/upload
 ```
 

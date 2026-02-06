@@ -37,8 +37,8 @@ Include the token in the `Authorization` header:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  -F "file=@docs.zip" \
-  -F "tag=v1.0.0" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
   https://docs.example.com/api/project/my-project/upload
 ```
 
@@ -51,8 +51,8 @@ POST /api/project/{slug}/upload
 ```
 
 Parameters:
-- `file`: Archive file (multipart form)
-- `tag`: Version tag (e.g., "v1.0.0")
+- `archive`: Archive file (multipart form)
+- `version`: Version tag (e.g., "v1.0.0")
 
 Response:
 ```json
@@ -111,8 +111,8 @@ Returns versions for a specific project.
   run: |
     curl -X POST \
       -H "Authorization: Bearer $DOCS_TOKEN" \
-      -F "file=@dist/docs.zip" \
-      -F "tag=${{ github.ref_name }}" \
+      -F "archive=@dist/docs.zip" \
+      -F "version=${{ github.ref_name }}" \
       https://docs.example.com/api/project/my-api/upload
 ```
 
@@ -124,8 +124,8 @@ deploy_docs:
     - |
       curl -X POST \
         -H "Authorization: Bearer $DOCS_TOKEN" \
-        -F "file=@public.zip" \
-        -F "tag=$CI_COMMIT_TAG" \
+        -F "archive=@public.zip" \
+        -F "version=$CI_COMMIT_TAG" \
         https://docs.example.com/api/project/my-api/upload
 ```
 
@@ -136,8 +136,8 @@ withCredentials([string(credentialsId: 'asiakirjat-token', variable: 'TOKEN')]) 
     sh '''
         curl -X POST \
             -H "Authorization: Bearer $TOKEN" \
-            -F "file=@docs.zip" \
-            -F "tag=${BUILD_TAG}" \
+            -F "archive=@docs.zip" \
+            -F "version=${BUILD_TAG}" \
             https://docs.example.com/api/project/my-api/upload
     '''
 }
@@ -156,4 +156,4 @@ withCredentials([string(credentialsId: 'asiakirjat-token', variable: 'TOKEN')]) 
 
 **400 Bad Request**
 - Check archive format is supported
-- Verify `tag` parameter is provided
+- Verify `version` parameter is provided
