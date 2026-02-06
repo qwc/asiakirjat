@@ -100,8 +100,29 @@ func (h *Handler) handleAPIVersions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleAPIUpload(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	slug := r.PathValue("slug")
+	h.handleAPIUploadWithSlug(w, r, slug)
+}
+
+func (h *Handler) handleAPIUploadGeneral(w http.ResponseWriter, r *http.Request) {
+	// Parse form first to get the project slug
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		h.jsonError(w, "File too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	slug := r.FormValue("project")
+	if slug == "" {
+		h.jsonError(w, "Project slug is required", http.StatusBadRequest)
+		return
+	}
+
+	h.handleAPIUploadWithSlug(w, r, slug)
+}
+
+func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request, slug string) {
+	ctx := r.Context()
 
 	// Get project first to know the project ID for token scope validation
 	project, err := h.projects.GetBySlug(ctx, slug)
@@ -123,10 +144,13 @@ func (h *Handler) handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-		h.jsonError(w, "File too large", http.StatusRequestEntityTooLarge)
-		return
+	// Parse form if not already parsed (for path-based endpoint)
+	if r.MultipartForm == nil {
+		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+			h.jsonError(w, "File too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 	}
 
 	versionTag := r.FormValue("version")
