@@ -121,6 +121,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/api/projects", h.withSession(h.handleAPIProjects))
 	mux.HandleFunc("GET "+bp+"/api/project/{slug}/versions", h.withSession(h.handleAPIVersions))
 	mux.HandleFunc("POST "+bp+"/api/project/{slug}/upload", h.handleAPIUpload)
+	mux.HandleFunc("POST "+bp+"/api/upload", h.handleAPIUploadGeneral)
 
 	// Profile routes
 	mux.HandleFunc("GET "+bp+"/profile", h.withSession(h.requireAuth(h.handleProfilePage)))
