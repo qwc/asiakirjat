@@ -83,6 +83,8 @@ Versions are sorted by semantic version (newest first).
 
 Upload a documentation archive for a project version.
 
+**Option 1: Project in URL path**
+
 ```
 POST /api/project/{slug}/upload
 ```
@@ -91,24 +93,46 @@ POST /api/project/{slug}/upload
 - `slug` - Project slug
 
 **Form Parameters:**
-- `file` - Archive file (multipart/form-data)
-- `tag` - Version tag (e.g., "v1.0.0", "latest")
+- `archive` - Archive file (multipart/form-data)
+- `version` - Version tag (e.g., "v1.0.0", "latest")
 
 **Example:**
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN" \
-  -F "file=@docs.zip" \
-  -F "tag=v1.0.0" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
   https://docs.example.com/api/project/my-project/upload
+```
+
+**Option 2: Project as form parameter**
+
+```
+POST /api/upload
+```
+
+**Form Parameters:**
+- `project` - Project slug
+- `archive` - Archive file (multipart/form-data)
+- `version` - Version tag (e.g., "v1.0.0", "latest")
+
+**Example:**
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "project=my-project" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
+  https://docs.example.com/api/upload
 ```
 
 **Response:**
 
 ```json
 {
-  "message": "Documentation uploaded successfully",
+  "status": "ok",
   "project": "my-project",
   "version": "v1.0.0"
 }
@@ -122,6 +146,7 @@ curl -X POST \
 - `404 Not Found` - Project not found
 
 **Notes:**
+- Both endpoints are functionally identical; choose based on your preference
 - If the version already exists, it will be replaced
 - Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
 - The archive is extracted and indexed for search
