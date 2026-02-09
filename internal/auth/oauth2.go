@@ -282,12 +282,9 @@ func (a *OAuth2Authenticator) mapGroupsToRole(groups []string) (string, bool) {
 func (a *OAuth2Authenticator) provisionUser(ctx context.Context, username, email, role string) (*database.User, error) {
 	existing, err := a.users.GetByUsername(ctx, username)
 	if err == nil && existing != nil {
-		// Update role and email if changed
-		if existing.Role != role || (existing.Email != email && email != "") {
-			existing.Role = role
-			if email != "" {
-				existing.Email = email
-			}
+		// Only update email if changed; preserve manually-assigned role
+		if existing.Email != email && email != "" {
+			existing.Email = email
 			if err := a.users.Update(ctx, existing); err != nil {
 				a.logger.Warn("updating OAuth2 user", "username", username, "error", err)
 			}

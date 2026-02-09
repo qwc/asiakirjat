@@ -741,7 +741,7 @@ func TestLDAPUserProvisioningUpdatesExistingUser(t *testing.T) {
 						"uid=promoted,ou=users,dc=example,dc=com",
 						"promoted",
 						"new@example.com", // Updated email
-						[]string{"cn=admins,ou=groups,dc=example,dc=com"}, // Now admin
+						[]string{"cn=admins,ou=groups,dc=example,dc=com"}, // Now admin group
 					),
 				},
 			}, nil
@@ -751,24 +751,25 @@ func TestLDAPUserProvisioningUpdatesExistingUser(t *testing.T) {
 	dialer := &mockLDAPDialer{conn: mockConn}
 	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
 
-	// Authenticate - should update user
+	// Authenticate - should update email but preserve role
 	user, err := auth.Authenticate(ctx, "promoted", "password")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify user was updated
-	if user.Role != "admin" {
-		t.Errorf("expected role to be updated to 'admin', got %q", user.Role)
+	// Verify role was preserved (not overwritten by LDAP group)
+	if user.Role != "viewer" {
+		t.Errorf("expected role to be preserved as 'viewer', got %q", user.Role)
 	}
+	// Verify email was updated
 	if user.Email != "new@example.com" {
 		t.Errorf("expected email to be updated to 'new@example.com', got %q", user.Email)
 	}
 
 	// Verify changes persisted in database
 	dbUser, _ := userStore.GetByUsername(ctx, "promoted")
-	if dbUser.Role != "admin" {
-		t.Errorf("expected persisted role 'admin', got %q", dbUser.Role)
+	if dbUser.Role != "viewer" {
+		t.Errorf("expected persisted role 'viewer', got %q", dbUser.Role)
 	}
 	if dbUser.Email != "new@example.com" {
 		t.Errorf("expected persisted email 'new@example.com', got %q", dbUser.Email)

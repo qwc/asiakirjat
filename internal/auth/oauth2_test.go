@@ -204,13 +204,17 @@ func TestOAuth2HandleCallbackExistingUser(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should return existing user with updated email
+	// Should return existing user with updated email but preserved role
 	if user.ID != existing.ID {
 		t.Error("expected to return existing user")
 	}
-	// Role should be updated to viewer (no groups configured means viewer)
-	if user.Role != "viewer" {
-		t.Errorf("expected role 'viewer', got %q", user.Role)
+	// Role should be preserved (not overwritten by OAuth2)
+	if user.Role != "editor" {
+		t.Errorf("expected role to be preserved as 'editor', got %q", user.Role)
+	}
+	// Email should be updated
+	if user.Email != "new@example.com" {
+		t.Errorf("expected email to be updated to 'new@example.com', got %q", user.Email)
 	}
 }
 
