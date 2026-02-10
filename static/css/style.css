@@ -100,12 +100,15 @@ body {
 /* Navbar Search */
 .navbar-search {
     position: relative;
-    flex: 0 1 300px;
+    flex: 0 1 auto;
     margin: 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .navbar-search input {
-    width: 100%;
+    width: 300px;
     padding: 0.35rem 0.75rem;
     border: 1px solid #475569;
     border-radius: var(--radius);
@@ -873,7 +876,7 @@ mark, .search-result-snippet b {
     .form-row {
         flex-direction: column;
     }
-    .navbar-search {
+    .navbar-search input {
         display: none;
     }
     .search-form-row {
