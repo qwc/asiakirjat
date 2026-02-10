@@ -91,20 +91,24 @@ body {
     color: white;
 }
 
-/* Mobile search link - hidden by default, shown on mobile */
-.navbar-search-link {
-    display: none;
+/* Custom search link - next to the search field */
+.navbar-custom-search {
+    font-size: 0.75rem;
+    white-space: nowrap;
 }
 
 /* Navbar Search */
 .navbar-search {
     position: relative;
-    flex: 0 1 300px;
+    flex: 0 1 auto;
     margin: 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .navbar-search input {
-    width: 100%;
+    width: 300px;
     padding: 0.35rem 0.75rem;
     border: 1px solid #475569;
     border-radius: var(--radius);
@@ -872,11 +876,8 @@ mark, .search-result-snippet b {
     .form-row {
         flex-direction: column;
     }
-    .navbar-search {
+    .navbar-search input {
         display: none;
-    }
-    .navbar-search-link {
-        display: inline;
     }
     .search-form-row {
         flex-direction: column;

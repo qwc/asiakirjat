@@ -16,10 +16,10 @@
         </div>
         <div class="navbar-search">
             <input type="text" id="navbar-search-input" placeholder="Search docs..." autocomplete="off">
+            <a href="{{url "/search"}}" class="navbar-link navbar-custom-search">Custom Search</a>
             <div id="navbar-search-dropdown" class="navbar-search-dropdown"></div>
         </div>
         <div class="navbar-menu">
-            <a href="{{url "/search"}}" class="navbar-link navbar-search-link">Search</a>
             {{if .User}}
                 <a href="{{url "/profile"}}" class="navbar-user">{{.User.Username}}</a>
                 {{if eq .User.Role "admin"}}
