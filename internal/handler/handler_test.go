@@ -1944,7 +1944,7 @@ func TestLoginRateLimiting(t *testing.T) {
 	}
 
 	// Make 3 login attempts with X-Forwarded-For (all allowed)
-	for i := range 3 {
+	for i := 0; i < 3; i++ {
 		form := url.Values{}
 		form.Set("username", "admin")
 		form.Set("password", "wrongpass")

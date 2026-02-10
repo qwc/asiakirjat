@@ -324,6 +324,28 @@
             diffModeActive = true;
         }
 
+        // Strip elements that shouldn't be diffed (theme-agnostic)
+        function sanitizeForDiff(html) {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+            var root = doc.body.firstChild;
+
+            // Remove elements that cause noise in diffs
+            var removeSelectors = [
+                'nav', 'script', 'style',
+                '.breadcrumb', '.headerlink', '.anchor-link',
+                '.toctree-wrapper', '[aria-label="breadcrumbs"]'
+            ];
+            removeSelectors.forEach(function(sel) {
+                var els = root.querySelectorAll(sel);
+                for (var i = 0; i < els.length; i++) {
+                    els[i].parentNode.removeChild(els[i]);
+                }
+            });
+
+            return root.innerHTML;
+        }
+
         compareSelect.addEventListener("change", function() {
             var targetVersion = compareSelect.value;
             if (!targetVersion) {
@@ -363,12 +385,14 @@
                     return r.text();
                 })
                 .then(function(targetHtml) {
-                    var currentContent = originalContentHtml;
+                    var currentContent = sanitizeForDiff(originalContentHtml);
                     var targetContent = extractContentFromHtml(targetHtml, containerSelectors);
 
                     if (!targetContent) {
                         throw new Error("Could not extract content from " + targetVersion + " (different page structure?)");
                     }
+
+                    targetContent = sanitizeForDiff(targetContent);
 
                     // Check if htmldiff is available
                     if (typeof htmldiff !== 'function') {
@@ -382,8 +406,23 @@
 
                     if (hasChanges) {
                         // Compute HTML diff (target = old version, current = new version)
-                        var diffHtml = htmldiff(targetContent, currentContent);
-                        contentContainer.innerHTML = diffHtml;
+                        try {
+                            var diffHtml = htmldiff(targetContent, currentContent);
+
+                            // Guard: if diff output is suspiciously short, fall back
+                            var minExpected = Math.min(currentContent.length, targetContent.length) * 0.1;
+                            if (diffHtml.length < minExpected) {
+                                throw new Error("Diff produced unusable output");
+                            }
+
+                            contentContainer.innerHTML = diffHtml;
+                        } catch (diffErr) {
+                            // Fall back to showing current version with warning
+                            contentContainer.innerHTML =
+                                '<div class="htmldiff-warning">Could not compute diff: ' +
+                                diffErr.message + '. Showing current version.</div>' +
+                                currentContent;
+                        }
                     }
 
                     showDiffIndicator(targetVersion, hasChanges);
