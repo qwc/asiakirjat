@@ -46,6 +46,7 @@ type Version struct {
 	ProjectID   int64     `db:"project_id"`
 	Tag         string    `db:"tag"`
 	StoragePath string    `db:"storage_path"`
+	ContentType string    `db:"content_type"` // "archive" or "pdf"
 	UploadedBy  int64     `db:"uploaded_by"`
 	CreatedAt   time.Time `db:"created_at"`
 }

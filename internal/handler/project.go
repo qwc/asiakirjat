@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/qwc/asiakirjat/internal/auth"
@@ -15,6 +16,7 @@ type versionViewData struct {
 	URL         string
 	CreatedAt   interface{ Format(string) string }
 	ProjectSlug string
+	IsPDF       bool
 }
 
 func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +65,7 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 			URL:         bp + "/project/" + slug + "/" + v.Tag + "/",
 			CreatedAt:   v.CreatedAt,
 			ProjectSlug: slug,
+			IsPDF:       v.ContentType == "pdf",
 		})
 	}
 
@@ -178,7 +181,7 @@ func (h *Handler) handleDownloadVersion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_, err = h.versions.GetByProjectAndTag(ctx, project.ID, tag)
+	ver, err := h.versions.GetByProjectAndTag(ctx, project.ID, tag)
 	if err != nil {
 		http.Error(w, "Version not found", http.StatusNotFound)
 		return
@@ -187,6 +190,13 @@ func (h *Handler) handleDownloadVersion(w http.ResponseWriter, r *http.Request) 
 	versionPath := h.storage.VersionPath(slug, tag)
 	if !h.storage.VersionExists(slug, tag) {
 		http.Error(w, "Version files not found", http.StatusNotFound)
+		return
+	}
+
+	if ver.ContentType == "pdf" {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-%s.pdf"`, slug, tag))
+		http.ServeFile(w, r, filepath.Join(versionPath, "document.pdf"))
 		return
 	}
 

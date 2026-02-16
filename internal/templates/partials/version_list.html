@@ -3,9 +3,10 @@
     {{range .Versions}}
     <li class="version-item">
         <a href="{{.URL}}" class="version-link">{{.Tag}}</a>
+        {{if .IsPDF}}<span class="version-badge version-badge-pdf">PDF</span>{{end}}
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
         <a href="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/download"
-           class="btn btn-tiny btn-secondary" title="Download as ZIP">Download</a>
+           class="btn btn-tiny btn-secondary" title="{{if .IsPDF}}Download PDF{{else}}Download as ZIP{{end}}">{{if .IsPDF}}Download PDF{{else}}Download{{end}}</a>
         {{if $.CanDelete}}
         <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/delete"
               class="inline-form" onsubmit="return confirm('Delete version {{.Tag}}?')">
