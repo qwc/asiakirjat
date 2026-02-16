@@ -15,7 +15,8 @@
         </div>
         <div class="form-group">
             <label for="description">Description</label>
-            <textarea id="description" name="description" rows="5">{{.Project.Description}}</textarea>
+            <textarea id="description" name="description" rows="5" placeholder="Markdown supported">{{.Project.Description}}</textarea>
+            <small>Markdown is supported and rendered on the project detail page.</small>
         </div>
         <div class="form-group">
             <label for="visibility">Visibility</label>
