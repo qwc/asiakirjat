@@ -128,9 +128,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/profile", h.withSession(h.requireAuth(h.handleProfilePage)))
 	mux.HandleFunc("POST "+bp+"/profile/password", h.withSession(h.requireAuth(h.handleChangePassword)))
 
-	// Admin routes
-	mux.HandleFunc("GET "+bp+"/admin/projects", h.withSession(h.requireAdmin(h.handleAdminProjects)))
-	mux.HandleFunc("POST "+bp+"/admin/projects", h.withSession(h.requireAdmin(h.handleAdminCreateProject)))
+	// Admin routes (project list + create accessible to editors)
+	mux.HandleFunc("GET "+bp+"/admin/projects", h.withSession(h.requireEditorOrAdmin(h.handleAdminProjects)))
+	mux.HandleFunc("POST "+bp+"/admin/projects", h.withSession(h.requireEditorOrAdmin(h.handleAdminCreateProject)))
 	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminEditProject)))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminUpdateProject)))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireAdmin(h.handleAdminDeleteProject)))

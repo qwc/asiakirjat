@@ -24,6 +24,8 @@
                 <a href="{{url "/profile"}}" class="navbar-user">{{.User.Username}}</a>
                 {{if eq .User.Role "admin"}}
                     <a href="{{url "/admin/projects"}}" class="navbar-link">Admin</a>
+                {{else if eq .User.Role "editor"}}
+                    <a href="{{url "/admin/projects"}}" class="navbar-link">Manage Projects</a>
                 {{end}}
                 <a href="{{url "/logout"}}" class="navbar-link">Logout</a>
             {{else}}
