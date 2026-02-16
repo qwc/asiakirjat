@@ -4,6 +4,8 @@
     <li class="version-item">
         <a href="{{.URL}}" class="version-link">{{.Tag}}</a>
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
+        <a href="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/download"
+           class="btn btn-tiny btn-secondary" title="Download as ZIP">Download</a>
         {{if $.CanDelete}}
         <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/delete"
               class="inline-form" onsubmit="return confirm('Delete version {{.Tag}}?')">
