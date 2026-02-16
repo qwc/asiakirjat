@@ -49,6 +49,12 @@
         window.location.href = basePath + "/project/" + slug + "/" + newVersion + suffix;
     });
 
+    // Update download link when version changes
+    var downloadLink = document.getElementById("asiakirjat-download-link");
+    if (downloadLink) {
+        downloadLink.href = basePath + "/project/" + slug + "/version/" + current + "/download";
+    }
+
     // Version comparison feature - inline diff
     var compareSelect = document.getElementById("asiakirjat-compare-select");
     var diffIndicator = document.getElementById("asiakirjat-diff-indicator");

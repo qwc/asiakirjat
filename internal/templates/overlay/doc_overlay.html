@@ -145,6 +145,15 @@
     background: #2563eb;
     color: #fff;
 }
+#asiakirjat-overlay .ao-download {
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+#asiakirjat-overlay .ao-download:hover {
+    color: #60a5fa;
+}
 #asiakirjat-overlay .ao-label {
     color: #94a3b8;
     font-size: 0.7rem;
@@ -275,6 +284,13 @@ del {
             <select id="asiakirjat-version-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
                 <option value="{{.Version}}" selected>{{.Version}}</option>
             </select>
+            <a id="asiakirjat-download-link" class="ao-download"
+               href="{{url "/project/"}}{{.Slug}}/version/{{.Version}}/download"
+               title="Download this version as ZIP">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 1v10M4 8l4 4 4-4M2 14h12"/>
+                </svg>
+            </a>
             <span class="ao-label">Compare</span>
             <select id="asiakirjat-compare-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
                 <option value="">Select version...</option>

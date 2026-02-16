@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -136,6 +137,65 @@ func TestExtractUnsupportedFormat(t *testing.T) {
 	err := ExtractArchive(bytes.NewReader([]byte("not an archive")), "docs.rar", dest)
 	if err == nil {
 		t.Error("expected error for unsupported format")
+	}
+}
+
+func TestWriteZipFromDir(t *testing.T) {
+	// Create a temp directory with nested files
+	srcDir := t.TempDir()
+	os.MkdirAll(filepath.Join(srcDir, "sub"), 0755)
+	os.WriteFile(filepath.Join(srcDir, "index.html"), []byte("<html>hello</html>"), 0644)
+	os.WriteFile(filepath.Join(srcDir, "sub", "page.html"), []byte("<html>page</html>"), 0644)
+
+	// Write zip to buffer
+	var buf bytes.Buffer
+	if err := WriteZipFromDir(&buf, srcDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	files := make(map[string]string)
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(rc)
+		rc.Close()
+		files[f.Name] = string(data)
+	}
+
+	if len(files) != 2 {
+		t.Errorf("expected 2 files in zip, got %d", len(files))
+	}
+	if files["index.html"] != "<html>hello</html>" {
+		t.Errorf("unexpected index.html content: %s", files["index.html"])
+	}
+	if files["sub/page.html"] != "<html>page</html>" {
+		t.Errorf("unexpected sub/page.html content: %s", files["sub/page.html"])
+	}
+}
+
+func TestWriteZipFromDirEmpty(t *testing.T) {
+	srcDir := t.TempDir()
+
+	var buf bytes.Buffer
+	if err := WriteZipFromDir(&buf, srcDir); err != nil {
+		t.Fatal(err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(zr.File) != 0 {
+		t.Errorf("expected 0 files in zip, got %d", len(zr.File))
 	}
 }
 
