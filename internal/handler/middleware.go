@@ -42,6 +42,22 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireEditorOrAdmin returns 403 if the user is not an editor or admin.
+func (h *Handler) requireEditorOrAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user := auth.UserFromContext(r.Context())
+		if user == nil {
+			h.redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if user.Role != "admin" && user.Role != "editor" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // requireAdmin returns 403 if the user is not an admin.
 func (h *Handler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
