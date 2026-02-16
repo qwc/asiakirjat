@@ -231,6 +231,39 @@ del {
 #asiakirjat-exit-diff:hover {
     background: #334155;
 }
+/* Diff navigation buttons */
+#asiakirjat-diff-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0.75rem;
+}
+#asiakirjat-diff-nav button {
+    background: #92400e;
+    color: #fef3c7;
+    border: 1px solid #b45309;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+#asiakirjat-diff-nav button:hover {
+    background: #78350f;
+}
+/* Currently focused change */
+ins.asiakirjat-current-change,
+del.asiakirjat-current-change {
+    outline: 3px solid #f59e0b;
+    outline-offset: 1px;
+}
+ins.asiakirjat-current-change {
+    background-color: #bbf7d0;
+}
+del.asiakirjat-current-change {
+    background-color: #fecaca;
+}
 /* Loading overlay */
 #asiakirjat-diff-loading-overlay {
     position: fixed;
@@ -299,7 +332,15 @@ del {
     </div>
 </div>
 <div id="asiakirjat-diff-indicator">
-    <span>Showing changes from version <strong id="asiakirjat-diff-from-version"></strong></span>
+    <span>
+        Showing changes from version <strong id="asiakirjat-diff-from-version"></strong>
+        — <strong id="asiakirjat-diff-change-info" style="display:none;"></strong>
+    </span>
+    <span id="asiakirjat-diff-nav" style="display:none;">
+        <button id="asiakirjat-prev-change" title="Previous change (p)">&#9650; Prev</button>
+        <span id="asiakirjat-diff-change-counter"></span>
+        <button id="asiakirjat-next-change" title="Next change (n)">Next &#9660;</button>
+    </span>
     <button id="asiakirjat-exit-diff">Exit Diff View</button>
 </div>
 <script src="{{url "/static/js/htmldiff.min.js"}}"></script>
