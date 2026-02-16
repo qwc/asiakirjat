@@ -21,8 +21,11 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isAdmin := user != nil && user.Role == "admin"
+
 	data := map[string]any{
 		"User":            user,
+		"IsAdmin":         isAdmin,
 		"Projects":        projects,
 		"ReindexRunning":  h.reindexRunning,
 		"ReindexProgress": h.reindexProgress,
