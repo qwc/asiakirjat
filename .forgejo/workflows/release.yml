@@ -25,7 +25,7 @@ jobs:
     needs: test
     steps:
       - name: Install deps
-        run: apk add --no-cache git nodejs curl
+        run: apk add --no-cache git nodejs curl jq
 
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
               -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\"}" \
               "${API_BASE}/releases")
           }
-          RELEASE_ID=$(echo "${RELEASE_JSON}" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+          RELEASE_ID=$(echo "${RELEASE_JSON}" | jq '.id')
           if [ -z "${RELEASE_ID}" ]; then
             echo "ERROR: Failed to get release ID. API response:"
             echo "${RELEASE_JSON}"
