@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags="-s -w -X main.versio
 # Runtime stage
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata poppler-utils
 
 RUN adduser -D -u 1000 asiakirjat
 USER asiakirjat
