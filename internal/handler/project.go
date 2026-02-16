@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -154,6 +155,47 @@ func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("version deleted", "project", slug, "version", tag, "user", user.Username)
 	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+}
+
+func (h *Handler) handleDownloadVersion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+	tag := r.PathValue("tag")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.canViewProject(ctx, user, project) {
+		if user == nil {
+			h.redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	_, err = h.versions.GetByProjectAndTag(ctx, project.ID, tag)
+	if err != nil {
+		http.Error(w, "Version not found", http.StatusNotFound)
+		return
+	}
+
+	versionPath := h.storage.VersionPath(slug, tag)
+	if !h.storage.VersionExists(slug, tag) {
+		http.Error(w, "Version files not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-%s.zip"`, slug, tag))
+
+	if err := docs.WriteZipFromDir(w, versionPath); err != nil {
+		h.logger.Error("streaming version zip", "project", slug, "version", tag, "error", err)
+	}
 }
 
 // handleProjectTokens lists API tokens scoped to this project.

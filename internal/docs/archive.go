@@ -322,6 +322,44 @@ func stripSingleRootTar(name string) string {
 	return name
 }
 
+// WriteZipFromDir walks srcDir and streams its contents as a zip archive to w.
+// Paths inside the zip are relative to srcDir, using forward slashes.
+// Symlinks, directories, and non-regular files are skipped.
+func WriteZipFromDir(w io.Writer, srcDir string) error {
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	return filepath.WalkDir(srcDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return fmt.Errorf("computing relative path: %w", err)
+		}
+
+		fw, err := zw.Create(filepath.ToSlash(rel))
+		if err != nil {
+			return fmt.Errorf("creating zip entry %s: %w", rel, err)
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("opening %s: %w", rel, err)
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(fw, f); err != nil {
+			return fmt.Errorf("writing %s: %w", rel, err)
+		}
+		return nil
+	})
+}
+
 func isPathSafe(base, target string) bool {
 	absBase, err := filepath.Abs(base)
 	if err != nil {
