@@ -84,16 +84,18 @@ func (h *Handler) handleAPIVersions(w http.ResponseWriter, r *http.Request) {
 	docs.SortVersionTags(tags)
 
 	type versionJSON struct {
-		Tag       string `json:"tag"`
-		CreatedAt string `json:"created_at"`
+		Tag         string `json:"tag"`
+		ContentType string `json:"content_type"`
+		CreatedAt   string `json:"created_at"`
 	}
 
 	result := make([]versionJSON, 0, len(tags))
 	for _, tag := range tags {
 		v := versionMap[tag]
 		result = append(result, versionJSON{
-			Tag:       v.Tag,
-			CreatedAt: v.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			Tag:         v.Tag,
+			ContentType: v.ContentType,
+			CreatedAt:   v.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 
@@ -233,8 +235,8 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	// Invalidate latest tags cache
 	h.invalidateLatestTagsCache()
 
-	// Async index for full-text search (skip PDF — no text extraction yet)
-	if h.searchIndex != nil && contentType != "pdf" {
+	// Async index for full-text search
+	if h.searchIndex != nil {
 		go func() {
 			if err := h.searchIndex.IndexVersion(project.ID, version.ID, slug, project.Name, versionTag, destPath); err != nil {
 				h.logger.Error("indexing version", "error", err, "project", slug, "version", versionTag)

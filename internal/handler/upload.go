@@ -169,8 +169,8 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	// Invalidate latest tags cache
 	h.invalidateLatestTagsCache()
 
-	// Async index for full-text search (skip PDF — no text extraction yet)
-	if h.searchIndex != nil && contentType != "pdf" {
+	// Async index for full-text search
+	if h.searchIndex != nil {
 		go func() {
 			if err := h.searchIndex.IndexVersion(project.ID, version.ID, slug, project.Name, versionTag, destPath); err != nil {
 				h.logger.Error("indexing version", "error", err, "project", slug, "version", versionTag)
