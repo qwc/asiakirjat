@@ -65,6 +65,8 @@
     var originalContentHtml = null;
     var contentContainer = null;
     var diffModeActive = false;
+    var diffChanges = [];
+    var currentChangeIndex = -1;
 
     if (compareSelect) {
         // Populate compare dropdown with versions (excluding current)
@@ -80,6 +82,14 @@
                         compareSelect.appendChild(opt);
                     }
                 });
+
+                // Auto-trigger diff if ?compare= is in URL
+                var initParams = new URLSearchParams(window.location.search);
+                var compareParam = initParams.get("compare");
+                if (compareParam && compareSelect.querySelector('option[value="' + CSS.escape(compareParam) + '"]')) {
+                    compareSelect.value = compareParam;
+                    compareSelect.dispatchEvent(new Event("change"));
+                }
             })
             .catch(function(err) {
                 console.error("Failed to load versions for compare:", err);
@@ -265,16 +275,99 @@
             return null;
         }
 
+        // Collect change regions from diffed content
+        function collectChanges(container) {
+            var elements = container.querySelectorAll("ins, del");
+            var groups = [];
+            var visited = [];
+
+            for (var i = 0; i < elements.length; i++) {
+                if (visited.indexOf(elements[i]) !== -1) continue;
+
+                var group = [elements[i]];
+                visited.push(elements[i]);
+
+                // Group adjacent ins/del elements (e.g. del immediately followed by ins = one change)
+                var next = elements[i].nextElementSibling;
+                while (next && (next.tagName === "INS" || next.tagName === "DEL") && visited.indexOf(next) === -1) {
+                    group.push(next);
+                    visited.push(next);
+                    next = next.nextElementSibling;
+                }
+
+                groups.push(group);
+            }
+
+            return groups;
+        }
+
+        // Scroll to a specific change and highlight it
+        function scrollToChange(index) {
+            if (diffChanges.length === 0) return;
+
+            // Remove highlight from previous
+            var prev = document.querySelectorAll(".asiakirjat-current-change");
+            for (var i = 0; i < prev.length; i++) {
+                prev[i].classList.remove("asiakirjat-current-change");
+            }
+
+            // Add highlight to new
+            var group = diffChanges[index];
+            for (var i = 0; i < group.length; i++) {
+                group[i].classList.add("asiakirjat-current-change");
+            }
+
+            // Scroll first element into view
+            group[0].scrollIntoView({ behavior: "smooth", block: "center" });
+
+            currentChangeIndex = index;
+
+            // Update counter
+            var counter = document.getElementById("asiakirjat-diff-change-counter");
+            if (counter) {
+                counter.textContent = (index + 1) + " / " + diffChanges.length;
+            }
+        }
+
+        function nextChange() {
+            if (diffChanges.length === 0) return;
+            var next = (currentChangeIndex + 1) % diffChanges.length;
+            scrollToChange(next);
+        }
+
+        function prevChange() {
+            if (diffChanges.length === 0) return;
+            var prev = currentChangeIndex <= 0 ? diffChanges.length - 1 : currentChangeIndex - 1;
+            scrollToChange(prev);
+        }
+
         // Show diff indicator banner
-        function showDiffIndicator(targetVersion, hasChanges) {
+        function showDiffIndicator(targetVersion, hasChanges, changeCount) {
             var indicator = document.getElementById("asiakirjat-diff-indicator");
             var fromVersion = document.getElementById("asiakirjat-diff-from-version");
+            var changeInfo = document.getElementById("asiakirjat-diff-change-info");
+            var nav = document.getElementById("asiakirjat-diff-nav");
+
             if (indicator && fromVersion) {
                 if (hasChanges) {
                     fromVersion.textContent = targetVersion;
                 } else {
                     fromVersion.innerHTML = targetVersion + ' <em>(no changes on this page)</em>';
                 }
+
+                // Show/hide change info and nav
+                if (changeInfo) {
+                    if (hasChanges && changeCount > 0) {
+                        changeInfo.textContent = changeCount + " change" + (changeCount !== 1 ? "s" : "") + " found";
+                        changeInfo.style.display = "";
+                    } else {
+                        changeInfo.style.display = "none";
+                    }
+                }
+                if (nav) {
+                    nav.style.display = (hasChanges && changeCount > 0) ? "" : "none";
+                }
+
                 // Position indicator below the main overlay
                 indicator.style.top = overlay.offsetHeight + "px";
                 indicator.style.display = "flex";
@@ -303,6 +396,16 @@
             }
             diffModeActive = false;
             contentContainer = null;
+            diffChanges = [];
+            currentChangeIndex = -1;
+
+            // Remove ?compare= from URL
+            var params = new URLSearchParams(window.location.search);
+            if (params.has("compare")) {
+                params.delete("compare");
+                var newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
+                history.replaceState(null, "", newUrl);
+            }
         }
 
         // Show loading state
@@ -431,8 +534,17 @@
                         }
                     }
 
-                    showDiffIndicator(targetVersion, hasChanges);
+                    // Collect changes for navigation
+                    diffChanges = hasChanges ? collectChanges(contentContainer) : [];
+                    currentChangeIndex = -1;
+
+                    showDiffIndicator(targetVersion, hasChanges, diffChanges.length);
                     hideLoading();
+
+                    // Add ?compare= to URL
+                    var params = new URLSearchParams(window.location.search);
+                    params.set("compare", targetVersion);
+                    history.replaceState(null, "", window.location.pathname + "?" + params.toString() + window.location.hash);
                 })
                 .catch(function(err) {
                     hideLoading();
@@ -443,6 +555,14 @@
                         originalContentHtml = null;
                     }
                     contentContainer = null;
+
+                    // Remove ?compare= from URL on error
+                    var errParams = new URLSearchParams(window.location.search);
+                    if (errParams.has("compare")) {
+                        errParams.delete("compare");
+                        var errUrl = window.location.pathname + (errParams.toString() ? "?" + errParams.toString() : "") + window.location.hash;
+                        history.replaceState(null, "", errUrl);
+                    }
                 });
         });
 
@@ -451,11 +571,65 @@
             exitDiffBtn.addEventListener("click", exitDiffMode);
         }
 
-        // Escape key to exit diff mode
+        // Keyboard shortcuts for diff mode
         document.addEventListener("keydown", function(e) {
             if (e.key === "Escape" && diffModeActive) {
                 exitDiffMode();
+                return;
             }
+            if (!diffModeActive) return;
+            var tag = document.activeElement && document.activeElement.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+            if (e.key === "n") {
+                nextChange();
+            } else if (e.key === "p") {
+                prevChange();
+            }
+        });
+
+        // Button click handlers for diff navigation
+        var prevBtn = document.getElementById("asiakirjat-prev-change");
+        var nextBtn = document.getElementById("asiakirjat-next-change");
+        if (prevBtn) prevBtn.addEventListener("click", prevChange);
+        if (nextBtn) nextBtn.addEventListener("click", nextChange);
+
+        // Link click interception to preserve ?compare= during diff mode
+        document.addEventListener("click", function(e) {
+            if (!diffModeActive) return;
+
+            var link = e.target.closest("a");
+            if (!link) return;
+
+            // Skip overlay elements
+            if (link.closest("#asiakirjat-overlay") || link.closest("#asiakirjat-diff-indicator")) return;
+
+            var href = link.getAttribute("href");
+            if (!href) return;
+
+            // Skip special links
+            if (href.indexOf("javascript:") === 0 || href.indexOf("mailto:") === 0) return;
+            if (href.charAt(0) === "#") return;
+
+            // Resolve relative URL
+            var resolved = new URL(href, window.location.href);
+
+            // Only intercept same-origin links
+            if (resolved.origin !== window.location.origin) return;
+
+            // Only intercept links within the same project/version
+            var projectPrefix = basePath + "/project/" + slug + "/" + current;
+            if (resolved.pathname.indexOf(projectPrefix) !== 0) return;
+
+            // Get current compare version
+            var compareVersion = compareSelect.value;
+            if (!compareVersion) return;
+
+            e.preventDefault();
+
+            // Navigate with ?compare= preserved
+            var linkParams = new URLSearchParams(resolved.search);
+            linkParams.set("compare", compareVersion);
+            window.location.href = resolved.pathname + "?" + linkParams.toString() + resolved.hash;
         });
     }
 
