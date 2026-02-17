@@ -139,8 +139,17 @@ auth:
     group_filter: "(member={{.UserDN}})"
     group_attr: "cn"
 
+    # Recursive group resolution
+    recursive_groups: false
+    group_prefix: ""          # CN prefix filter for recursion (empty = all)
+
     project_groups: []
 ```
+
+| Option | Description |
+|--------|-------------|
+| `recursive_groups` | Walk up each group's `memberOf` chain to resolve nested group memberships (default: `false`) |
+| `group_prefix` | Only recurse into groups whose CN (common name) starts with this prefix (case-insensitive). For example, `"team-"` matches `cn=team-a,...` but not `cn=editors,...`. Groups outside the prefix still appear in the user's group list but are not expanded. Empty means all groups are followed. |
 
 See [Configure LDAP](../how-to/configure-ldap.md) for details.
 
