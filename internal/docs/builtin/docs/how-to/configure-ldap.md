@@ -72,6 +72,34 @@ auth:
       ca_cert: "/path/to/ca.pem"
 ```
 
+## Recursive Group Resolution
+
+By default, Asiakirjat only checks a user's direct LDAP group memberships. If your directory uses nested groups (e.g., a user is in `team-a` and `team-a` is a member of `editors`), enable recursive group resolution to walk up the `memberOf` chain:
+
+```yaml
+auth:
+  ldap:
+    recursive_groups: true
+    editor_group: "cn=editors,ou=groups,dc=example,dc=com"
+```
+
+With this configuration, a user who is a direct member of `cn=team-a,ou=groups,dc=example,dc=com` will also match `editor_group` if `team-a` is itself a member of `cn=editors,ou=groups,dc=example,dc=com`.
+
+Recursive resolution is performed while bound as the service account, before the user's password is verified. It is capped at 50 LDAP lookups to prevent runaway traversals.
+
+### Limiting Recursion with Group Prefix
+
+In large directories you may want to limit which groups are recursed into. The `group_prefix` option restricts recursion to groups whose CN (common name) starts with the given prefix (case-insensitive). Groups outside the prefix still appear in the user's group list but their own parent groups are not expanded:
+
+```yaml
+auth:
+  ldap:
+    recursive_groups: true
+    group_prefix: "team-"
+```
+
+With this configuration, only groups like `cn=team-a,...`, `cn=team-frontend,...` are recursed into. Groups such as `cn=external-admins,...` or `cn=distribution-list,...` are kept in the user's membership set but their parents are not followed. This avoids unnecessary lookups against unrelated groups.
+
 ## Group-Based Project Access
 
 Automatically grant project access based on LDAP group membership:
@@ -127,4 +155,6 @@ All LDAP settings can be overridden with environment variables:
 ASIAKIRJAT_AUTH_LDAP_ENABLED=true
 ASIAKIRJAT_AUTH_LDAP_URL=ldaps://ldap.example.com:636
 ASIAKIRJAT_AUTH_LDAP_BIND_PASSWORD=secret
+ASIAKIRJAT_LDAP_RECURSIVE_GROUPS=true
+ASIAKIRJAT_LDAP_GROUP_PREFIX="team-"
 ```

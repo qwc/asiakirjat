@@ -62,17 +62,19 @@ type SessionConfig struct {
 }
 
 type LDAPConfig struct {
-	Enabled       bool               `yaml:"enabled" env:"ASIAKIRJAT_LDAP_ENABLED"`
-	URL           string             `yaml:"url" env:"ASIAKIRJAT_LDAP_URL"`
-	SkipVerify    bool               `yaml:"skip_verify" env:"ASIAKIRJAT_LDAP_SKIP_VERIFY"`
-	BindDN        string             `yaml:"bind_dn" env:"ASIAKIRJAT_LDAP_BIND_DN"`
-	BindPassword  string             `yaml:"bind_password" env:"ASIAKIRJAT_LDAP_BIND_PASSWORD"`
-	BaseDN        string             `yaml:"base_dn" env:"ASIAKIRJAT_LDAP_BASE_DN"`
-	UserFilter    string             `yaml:"user_filter" env:"ASIAKIRJAT_LDAP_USER_FILTER"`
-	AdminGroup    string             `yaml:"admin_group" env:"ASIAKIRJAT_LDAP_ADMIN_GROUP"`
-	EditorGroup   string             `yaml:"editor_group" env:"ASIAKIRJAT_LDAP_EDITOR_GROUP"`
-	ViewerGroup   string             `yaml:"viewer_group" env:"ASIAKIRJAT_LDAP_VIEWER_GROUP"`
-	ProjectGroups []AuthGroupMapping `yaml:"project_groups"`
+	Enabled         bool               `yaml:"enabled" env:"ASIAKIRJAT_LDAP_ENABLED"`
+	URL             string             `yaml:"url" env:"ASIAKIRJAT_LDAP_URL"`
+	SkipVerify      bool               `yaml:"skip_verify" env:"ASIAKIRJAT_LDAP_SKIP_VERIFY"`
+	BindDN          string             `yaml:"bind_dn" env:"ASIAKIRJAT_LDAP_BIND_DN"`
+	BindPassword    string             `yaml:"bind_password" env:"ASIAKIRJAT_LDAP_BIND_PASSWORD"`
+	BaseDN          string             `yaml:"base_dn" env:"ASIAKIRJAT_LDAP_BASE_DN"`
+	UserFilter      string             `yaml:"user_filter" env:"ASIAKIRJAT_LDAP_USER_FILTER"`
+	AdminGroup      string             `yaml:"admin_group" env:"ASIAKIRJAT_LDAP_ADMIN_GROUP"`
+	EditorGroup     string             `yaml:"editor_group" env:"ASIAKIRJAT_LDAP_EDITOR_GROUP"`
+	ViewerGroup     string             `yaml:"viewer_group" env:"ASIAKIRJAT_LDAP_VIEWER_GROUP"`
+	RecursiveGroups bool               `yaml:"recursive_groups" env:"ASIAKIRJAT_LDAP_RECURSIVE_GROUPS"`
+	GroupPrefix     string             `yaml:"group_prefix" env:"ASIAKIRJAT_LDAP_GROUP_PREFIX"`
+	ProjectGroups   []AuthGroupMapping `yaml:"project_groups"`
 }
 
 type OAuth2Config struct {
