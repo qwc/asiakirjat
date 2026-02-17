@@ -41,7 +41,7 @@ cp config.yaml.example config.yaml
 
 ```yaml
 server:
-  host: "0.0.0.0"
+  address: "0.0.0.0"
   port: 8080
 
 database:
@@ -49,7 +49,7 @@ database:
   dsn: data/asiakirjat.db
 
 storage:
-  base_path: data/docs
+  base_path: data/projects
 
 auth:
   initial_admin:
@@ -60,7 +60,7 @@ auth:
 3. If running without Docker, create the data directory:
 
 ```bash
-mkdir -p data/docs
+mkdir -p data/projects
 ```
 
 ## Running

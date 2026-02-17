@@ -39,8 +39,10 @@ Background information and concepts:
 ## Key Features
 
 - **Version Management** - Upload multiple versions of documentation, semver-sorted
+- **Version Diffing** - Compare HTML documentation between versions side-by-side
 - **Full-Text Search** - Search across all projects and versions using Bleve
+- **PDF Support** - Upload PDF documents with full-text search indexing
 - **Multiple Auth Methods** - Built-in users, LDAP, OAuth2/OIDC
 - **Role-Based Access** - Admin, editor, and viewer roles with project-level permissions
-- **Archive Support** - Upload .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
+- **Archive Support** - Upload .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z, or .pdf
 - **API Access** - REST API with token authentication for CI/CD integration

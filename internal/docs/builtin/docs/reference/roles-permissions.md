@@ -21,6 +21,7 @@ Full system access:
 ### Editor
 
 Limited management, broad access:
+- Create projects
 - View public projects
 - View private projects they have access to
 - Upload to projects where they have editor access
@@ -106,7 +107,8 @@ Group mappings can also be managed in **Admin > Group Mappings**.
 | Delete version (with grant) | Yes | Yes | No |
 | Create project API tokens | Yes | Yes | No |
 | Access admin panel | Yes | No | No |
-| Create/edit projects | Yes | No | No |
+| Create projects | Yes | Yes | No |
+| Edit/delete projects | Yes | No | No |
 | Create/edit users | Yes | No | No |
 | Manage robot users | Yes | No | No |
 | Manage group mappings | Yes | No | No |

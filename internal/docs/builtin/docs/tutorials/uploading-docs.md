@@ -6,11 +6,11 @@ This tutorial shows you how to upload documentation to Asiakirjat.
 
 - A project created in Asiakirjat
 - Editor or admin access to the project
-- HTML documentation in a supported archive format
+- An HTML documentation archive or a PDF file
 
 ## Preparing Your Documentation
 
-Asiakirjat serves static HTML documentation. Your archive should contain:
+Asiakirjat serves static HTML documentation or PDF documents. For HTML archives, your archive should contain:
 
 - An `index.html` file at the root (or in a single subdirectory)
 - All HTML, CSS, JS, and image files your docs need
@@ -21,6 +21,9 @@ Supported archive formats:
 - `.tar.bz2` / `.tbz2`
 - `.tar.xz` / `.txz`
 - `.7z`
+- `.pdf` (single PDF document)
+
+The maximum upload size is **100 MB**.
 
 ## Uploading via Web Interface
 
@@ -28,10 +31,18 @@ Supported archive formats:
 2. Click **Upload New Version**
 3. Fill in the form:
    - **Version Tag**: e.g., `v1.0.0`, `2.0.0`, `latest`
-   - **Archive File**: Select your documentation archive
+   - **Archive File**: Select your documentation archive or PDF file
 4. Click **Upload**
 
 The archive is extracted and indexed for full-text search automatically.
+
+## PDF Upload
+
+You can upload a single PDF file instead of an HTML archive. The PDF is:
+
+- Stored as `document.pdf` in the version directory
+- Displayed in the browser's built-in PDF viewer
+- Text is extracted and indexed for full-text search
 
 ## Uploading via API
 
