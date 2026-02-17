@@ -20,11 +20,12 @@ For example: `data/docs/.search-index/`
 
 When documentation is uploaded:
 
-1. Archive is extracted
-2. HTML files (`.html`, `.htm`) are scanned
-3. Text content is extracted (excluding scripts, styles, navigation)
-4. Page title is extracted from `<title>` tag
-5. Content is indexed with metadata
+1. Archive is extracted (or PDF is stored)
+2. HTML files (`.html`, `.htm`) are scanned for text content
+3. PDF files have their text extracted (see below)
+4. Text content is extracted from HTML (excluding scripts, styles, navigation)
+5. Page title is extracted from `<title>` tag (HTML) or first text line (PDF)
+6. Content is indexed with metadata
 
 ### Indexed Fields
 
@@ -60,6 +61,15 @@ Skipped elements:
 - `<script>` (JavaScript)
 - `<style>` (CSS)
 - `<nav>` (Navigation)
+
+## PDF Text Extraction
+
+PDF documents are indexed for full-text search using a two-tier extraction approach:
+
+1. **pdftotext (preferred)**: If `pdftotext` (from poppler-utils) is installed, it is used for best-quality text extraction. Install it with `apt install poppler-utils` (Debian/Ubuntu) or `apk add poppler-utils` (Alpine).
+2. **Pure Go fallback**: If `pdftotext` is not available, a pure Go PDF reader (`ledongthuc/pdf`) is used. This works without external dependencies but may produce lower-quality output for complex PDFs.
+
+The page title for search results is derived from the first non-empty line of extracted text.
 
 ## Search Query Processing
 

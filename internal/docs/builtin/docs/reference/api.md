@@ -59,17 +59,19 @@ GET /api/project/{slug}/versions
 ```json
 [
   {
-    "id": 1,
     "tag": "v2.0.0",
+    "content_type": "archive",
     "created_at": "2024-01-20T14:00:00Z"
   },
   {
-    "id": 2,
     "tag": "v1.0.0",
+    "content_type": "pdf",
     "created_at": "2024-01-15T10:30:00Z"
   }
 ]
 ```
+
+The `content_type` field is either `"archive"` (HTML documentation) or `"pdf"` (single PDF document).
 
 Versions are sorted by semantic version (newest first).
 
@@ -148,8 +150,10 @@ curl -X POST \
 **Notes:**
 - Both endpoints are functionally identical; choose based on your preference
 - If the version already exists, it will be replaced
-- Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
-- The archive is extracted and indexed for search
+- Supported formats: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z, .pdf
+- PDF files are stored directly; archives are extracted
+- All uploads are indexed for full-text search
+- Maximum upload size is 100 MB
 
 ### Search
 
