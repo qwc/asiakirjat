@@ -134,14 +134,17 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 	entry := result.Entries[0]
 	userDN := entry.DN
 
+	// Extract group membership while still bound as service account
+	memberOf := entry.GetAttributeValues("memberOf")
+	if a.config.RecursiveGroups {
+		memberOf = resolveTransitiveGroups(conn, memberOf, a.config.GroupPrefix, a.logger)
+	}
+	a.logger.Debug("LDAP user groups", "username", username, "memberOf", memberOf)
+
 	// Bind as the user to verify password
 	if err := conn.Bind(userDN, password); err != nil {
 		return nil, fmt.Errorf("invalid LDAP credentials")
 	}
-
-	// Determine role from group membership
-	memberOf := entry.GetAttributeValues("memberOf")
-	a.logger.Debug("LDAP user groups", "username", username, "memberOf", memberOf)
 	role, allowed := MapGroupToRole(memberOf, a.config.AdminGroup, a.config.EditorGroup, a.config.ViewerGroup)
 	if !allowed {
 		a.logger.Debug("LDAP user not in any allowed group", "username", username, "admin_group", a.config.AdminGroup, "editor_group", a.config.EditorGroup, "viewer_group", a.config.ViewerGroup)
@@ -335,6 +338,85 @@ func (a *LDAPAuthenticator) syncGlobalAccess(ctx context.Context, user *database
 func roleHigher(a, b string) bool {
 	priority := map[string]int{"admin": 3, "editor": 2, "viewer": 1, "": 0}
 	return priority[a] > priority[b]
+}
+
+// groupCN extracts the CN value from a distinguished name.
+// Returns empty string if the DN cannot be parsed or has no CN attribute.
+func groupCN(dn string) string {
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil || len(parsed.RDNs) == 0 {
+		return ""
+	}
+	for _, attr := range parsed.RDNs[0].Attributes {
+		if strings.EqualFold(attr.Type, "CN") {
+			return attr.Value
+		}
+	}
+	return ""
+}
+
+// resolveTransitiveGroups walks up the memberOf chain for each group to build
+// the full transitive set of group memberships. Only groups whose CN starts with
+// groupPrefix (case-insensitive) are recursed into; if groupPrefix is empty, all
+// groups are followed. Groups outside the prefix still appear in results but
+// their own parent groups are not expanded. Capped at 50 LDAP lookups.
+func resolveTransitiveGroups(conn LDAPConn, directGroups []string, groupPrefix string, logger *slog.Logger) []string {
+	visited := make(map[string]bool)
+	queue := make([]string, 0, len(directGroups))
+
+	for _, g := range directGroups {
+		lower := strings.ToLower(g)
+		if !visited[lower] {
+			visited[lower] = true
+			queue = append(queue, g)
+		}
+	}
+
+	iterations := 0
+	for i := 0; i < len(queue) && iterations < 50; i++ {
+		groupDN := queue[i]
+
+		// Only recurse into groups whose CN matches the prefix
+		if groupPrefix != "" {
+			cn := groupCN(groupDN)
+			if !strings.HasPrefix(strings.ToLower(cn), strings.ToLower(groupPrefix)) {
+				continue
+			}
+		}
+
+		iterations++
+		searchReq := ldap.NewSearchRequest(
+			groupDN,
+			ldap.ScopeBaseObject,
+			ldap.NeverDerefAliases,
+			1, // size limit
+			0, // time limit
+			false,
+			"(objectClass=*)",
+			[]string{"memberOf"},
+			nil,
+		)
+
+		result, err := conn.Search(searchReq)
+		if err != nil {
+			logger.Debug("recursive group lookup failed", "group_dn", groupDN, "error", err)
+			continue
+		}
+
+		if len(result.Entries) == 0 {
+			continue
+		}
+
+		for _, parent := range result.Entries[0].GetAttributeValues("memberOf") {
+			lower := strings.ToLower(parent)
+			if !visited[lower] {
+				visited[lower] = true
+				queue = append(queue, parent)
+			}
+		}
+	}
+
+	return queue
 }
 
 // RenderUserFilter applies the username to the LDAP user filter template.
