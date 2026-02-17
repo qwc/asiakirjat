@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
@@ -965,6 +967,257 @@ func TestLDAPSearchFailed(t *testing.T) {
 	}
 	if !contains(err.Error(), "LDAP search failed") {
 		t.Errorf("expected 'LDAP search failed' error, got %q", err.Error())
+	}
+}
+
+func TestResolveTransitiveGroups(t *testing.T) {
+	// A -> B -> C (linear chain)
+	groupA := "cn=team-a,ou=groups,dc=example,dc=com"
+	groupB := "cn=team-b,ou=groups,dc=example,dc=com"
+	groupC := "cn=team-c,ou=groups,dc=example,dc=com"
+
+	mockConn := &mockLDAPConn{
+		searchFunc: func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+			switch strings.ToLower(req.BaseDN) {
+			case strings.ToLower(groupA):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupA, map[string][]string{"memberOf": {groupB}}),
+					},
+				}, nil
+			case strings.ToLower(groupB):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupB, map[string][]string{"memberOf": {groupC}}),
+					},
+				}, nil
+			case strings.ToLower(groupC):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupC, map[string][]string{}),
+					},
+				}, nil
+			}
+			return &ldap.SearchResult{}, nil
+		},
+	}
+
+	result := resolveTransitiveGroups(mockConn, []string{groupA}, "", testLogger())
+
+	if len(result) != 3 {
+		t.Fatalf("expected 3 groups, got %d: %v", len(result), result)
+	}
+
+	resultSet := make(map[string]bool)
+	for _, g := range result {
+		resultSet[strings.ToLower(g)] = true
+	}
+	for _, expected := range []string{groupA, groupB, groupC} {
+		if !resultSet[strings.ToLower(expected)] {
+			t.Errorf("expected %q in result set", expected)
+		}
+	}
+}
+
+func TestResolveTransitiveGroupsCycle(t *testing.T) {
+	// A -> B -> A (circular)
+	groupA := "cn=team-a,ou=groups,dc=example,dc=com"
+	groupB := "cn=team-b,ou=groups,dc=example,dc=com"
+
+	mockConn := &mockLDAPConn{
+		searchFunc: func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+			switch strings.ToLower(req.BaseDN) {
+			case strings.ToLower(groupA):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupA, map[string][]string{"memberOf": {groupB}}),
+					},
+				}, nil
+			case strings.ToLower(groupB):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupB, map[string][]string{"memberOf": {groupA}}),
+					},
+				}, nil
+			}
+			return &ldap.SearchResult{}, nil
+		},
+	}
+
+	result := resolveTransitiveGroups(mockConn, []string{groupA}, "", testLogger())
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 groups (cycle handled), got %d: %v", len(result), result)
+	}
+}
+
+func TestResolveTransitiveGroupsLimit(t *testing.T) {
+	// Deep chain: group-0 -> group-1 -> ... -> group-99
+	// Should stop at 50 iterations
+	searchCount := 0
+	mockConn := &mockLDAPConn{
+		searchFunc: func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+			searchCount++
+			// Each group points to the next
+			parent := fmt.Sprintf("cn=group-%d,ou=groups,dc=example,dc=com", searchCount)
+			return &ldap.SearchResult{
+				Entries: []*ldap.Entry{
+					ldap.NewEntry(req.BaseDN, map[string][]string{"memberOf": {parent}}),
+				},
+			}, nil
+		},
+	}
+
+	start := "cn=group-0,ou=groups,dc=example,dc=com"
+	result := resolveTransitiveGroups(mockConn, []string{start}, "", testLogger())
+
+	if searchCount > 50 {
+		t.Errorf("expected at most 50 LDAP lookups, got %d", searchCount)
+	}
+	// Should have start + 50 parents = 51 groups
+	if len(result) != 51 {
+		t.Errorf("expected 51 groups, got %d", len(result))
+	}
+}
+
+func TestResolveTransitiveGroupsPrefix(t *testing.T) {
+	// team-a -> external-admins -> top-editors
+	// With prefix "team-", only team-a (CN starts with "team-") is recursed into
+	groupA := "cn=team-a,ou=groups,dc=example,dc=com"
+	groupB := "cn=external-admins,ou=groups,dc=example,dc=com"
+	groupC := "cn=top-editors,ou=groups,dc=example,dc=com"
+
+	searchedDNs := make(map[string]bool)
+	mockConn := &mockLDAPConn{
+		searchFunc: func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+			searchedDNs[strings.ToLower(req.BaseDN)] = true
+			switch strings.ToLower(req.BaseDN) {
+			case strings.ToLower(groupA):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupA, map[string][]string{"memberOf": {groupB}}),
+					},
+				}, nil
+			case strings.ToLower(groupB):
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						ldap.NewEntry(groupB, map[string][]string{"memberOf": {groupC}}),
+					},
+				}, nil
+			}
+			return &ldap.SearchResult{}, nil
+		},
+	}
+
+	result := resolveTransitiveGroups(mockConn, []string{groupA}, "team-", testLogger())
+
+	// groupA CN is "team-a" → matches prefix "team-", recursed, discovers groupB
+	// groupB CN is "external-admins" → does NOT match, included but not recursed
+	// groupC is never discovered because groupB was not recursed
+	if len(result) != 2 {
+		t.Fatalf("expected 2 groups (A + B), got %d: %v", len(result), result)
+	}
+
+	// Verify groupB was NOT searched (CN doesn't match prefix)
+	if searchedDNs[strings.ToLower(groupB)] {
+		t.Error("groupB should not have been searched (CN doesn't match prefix)")
+	}
+}
+
+func TestGroupCN(t *testing.T) {
+	tests := []struct {
+		dn       string
+		expected string
+	}{
+		{"cn=team-a,ou=groups,dc=example,dc=com", "team-a"},
+		{"CN=Editors,OU=Groups,DC=Example,DC=Com", "Editors"},
+		{"ou=groups,dc=example,dc=com", ""},
+		{"invalid", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := groupCN(tt.dn)
+		if got != tt.expected {
+			t.Errorf("groupCN(%q) = %q, want %q", tt.dn, got, tt.expected)
+		}
+	}
+}
+
+func TestLDAPAuthRecursiveGroups(t *testing.T) {
+	userStore, _, _, _ := setupLDAPTest(t)
+
+	teamA := "cn=team-a,ou=groups,dc=example,dc=com"
+	editors := "cn=editors,ou=groups,dc=example,dc=com"
+
+	cfg := config.LDAPConfig{
+		URL:             "ldap://localhost:389",
+		BindDN:          "cn=admin,dc=example,dc=com",
+		BindPassword:    "adminpass",
+		BaseDN:          "dc=example,dc=com",
+		UserFilter:      "(uid={{.Username}})",
+		EditorGroup:     editors,
+		RecursiveGroups: true,
+	}
+
+	bindCount := 0
+	mockConn := &mockLDAPConn{
+		bindFunc: func(username, password string) error {
+			bindCount++
+			if username == cfg.BindDN && password == cfg.BindPassword {
+				return nil
+			}
+			if username == "uid=alice,ou=users,dc=example,dc=com" && password == "alicepass" {
+				return nil
+			}
+			return errors.New("invalid credentials")
+		},
+		searchFunc: func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+			// User search (subtree scope)
+			if req.Scope == ldap.ScopeWholeSubtree {
+				return &ldap.SearchResult{
+					Entries: []*ldap.Entry{
+						createTestEntry(
+							"uid=alice,ou=users,dc=example,dc=com",
+							"alice",
+							"alice@example.com",
+							[]string{teamA}, // Only direct member of team-a
+						),
+					},
+				}, nil
+			}
+			// Group search (base scope for recursive resolution)
+			if req.Scope == ldap.ScopeBaseObject {
+				switch strings.ToLower(req.BaseDN) {
+				case strings.ToLower(teamA):
+					return &ldap.SearchResult{
+						Entries: []*ldap.Entry{
+							ldap.NewEntry(teamA, map[string][]string{"memberOf": {editors}}),
+						},
+					}, nil
+				case strings.ToLower(editors):
+					return &ldap.SearchResult{
+						Entries: []*ldap.Entry{
+							ldap.NewEntry(editors, map[string][]string{}),
+						},
+					}, nil
+				}
+			}
+			return &ldap.SearchResult{}, nil
+		},
+	}
+
+	dialer := &mockLDAPDialer{conn: mockConn}
+	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
+
+	ctx := context.Background()
+	user, err := auth.Authenticate(ctx, "alice", "alicepass")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// User should get editor role via recursive group: team-a -> editors
+	if user.Role != "editor" {
+		t.Errorf("expected role 'editor' via recursive group, got %q", user.Role)
 	}
 }
 

@@ -146,6 +146,8 @@ auth:
     admin_group: ""
     editor_group: ""
     viewer_group: ""
+    recursive_groups: false
+    group_prefix: ""          # CN prefix filter for recursion (empty = all)
     project_groups: []
 ```
 
@@ -161,6 +163,8 @@ auth:
 | `admin_group` | LDAP group DN — members get admin role |
 | `editor_group` | LDAP group DN — members get editor role |
 | `viewer_group` | LDAP group DN — members get viewer role |
+| `recursive_groups` | Walk up each group's `memberOf` chain to resolve nested group memberships (default: `false`) |
+| `group_prefix` | Only recurse into groups whose CN (common name) starts with this prefix (case-insensitive). For example, `"team-"` matches `cn=team-a,...` but not `cn=editors,...`. Groups outside the prefix still appear in the user's group list but are not expanded. Empty means all groups are followed. |
 | `project_groups` | List of group-to-project access mappings |
 
 See [Configure LDAP](../how-to/configure-ldap.md) for details.
