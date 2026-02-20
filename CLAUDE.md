@@ -75,6 +75,10 @@ The Dockerfile accepts a `VERSION` build arg (default `dev`) injected via ldflag
 
 Copy `config.yaml.example` to `config.yaml`. All settings can be overridden with environment variables prefixed `ASIAKIRJAT_` (e.g., `ASIAKIRJAT_DB_DRIVER`).
 
+## Built-in Documentation
+
+The built-in docs live in `internal/docs/builtin/docs/` and are deployed via **Admin > Deploy Built-in Docs**. They must always reflect the current state of the application. When adding or changing user-facing features, update the relevant documentation files in the same PR.
+
 ## AI Contribution Policy
 
 Mark commits/PRs created with AI assistance. Keep commits under ~250 changed lines for human reviewability.
