@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/qwc/asiakirjat/internal/auth"
@@ -29,122 +30,83 @@ func latestVersionTag(versions []database.Version) string {
 	return tags[0]
 }
 
+// filterAccessibleProjects returns only the projects the user has access to.
+func (h *Handler) filterAccessibleProjects(ctx context.Context, user *database.User, all []database.Project) []database.Project {
+	accessIDs, _ := h.access.ListAccessibleProjectIDs(ctx, user.ID)
+	accessMap := make(map[int64]bool)
+	for _, id := range accessIDs {
+		accessMap[id] = true
+	}
+
+	var hasGlobalAccess bool
+	if h.globalAccess != nil {
+		grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
+		if err == nil && grant != nil {
+			hasGlobalAccess = true
+		}
+	}
+
+	var filtered []database.Project
+	for _, p := range all {
+		switch p.Visibility {
+		case database.VisibilityPublic:
+			filtered = append(filtered, p)
+		case database.VisibilityPrivate:
+			if hasGlobalAccess {
+				filtered = append(filtered, p)
+			}
+		case database.VisibilityCustom:
+			if accessMap[p.ID] {
+				filtered = append(filtered, p)
+			}
+		}
+	}
+	return filtered
+}
+
 func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
 
-	var projects []projectCardData
+	var dbProjects []database.Project
 
 	if user != nil && user.Role == "admin" {
-		// Admin sees all projects
 		all, err := h.projects.List(ctx)
 		if err != nil {
 			h.logger.Error("listing projects", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		for _, p := range all {
-			card := projectCardData{
-				Name:        p.Name,
-				Slug:        p.Slug,
-				Description: p.Description,
-				Visibility:  p.Visibility,
-			}
-			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			card.LatestVersion = latestVersionTag(versions)
-			projects = append(projects, card)
-		}
+		dbProjects = all
 	} else if user != nil {
-		// Authenticated user sees public + accessible projects
-		public, err := h.projects.ListByVisibility(ctx, database.VisibilityPublic)
+		all, err := h.projects.List(ctx)
 		if err != nil {
-			h.logger.Error("listing public projects", "error", err)
+			h.logger.Error("listing projects", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-
-		accessIDs, _ := h.access.ListAccessibleProjectIDs(ctx, user.ID)
-		accessMap := make(map[int64]bool)
-		for _, id := range accessIDs {
-			accessMap[id] = true
-		}
-
-		// Check global access for private projects
-		var hasGlobalAccess bool
-		if h.globalAccess != nil {
-			grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
-			if err == nil && grant != nil {
-				hasGlobalAccess = true
-			}
-		}
-
-		all, _ := h.projects.List(ctx)
-		seen := make(map[int64]bool)
-
-		for _, p := range public {
-			seen[p.ID] = true
-			card := projectCardData{
-				Name:        p.Name,
-				Slug:        p.Slug,
-				Description: p.Description,
-				Visibility:  p.Visibility,
-			}
-			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			card.LatestVersion = latestVersionTag(versions)
-			projects = append(projects, card)
-		}
-
-		for _, p := range all {
-			if seen[p.ID] {
-				continue
-			}
-			// Private projects: user needs global access
-			if p.Visibility == database.VisibilityPrivate && hasGlobalAccess {
-				seen[p.ID] = true
-				card := projectCardData{
-					Name:        p.Name,
-					Slug:        p.Slug,
-					Description: p.Description,
-					Visibility:  p.Visibility,
-				}
-				versions, _ := h.versions.ListByProject(ctx, p.ID)
-				card.LatestVersion = latestVersionTag(versions)
-				projects = append(projects, card)
-				continue
-			}
-			// Custom projects: user needs explicit access
-			if !accessMap[p.ID] {
-				continue
-			}
-			card := projectCardData{
-				Name:        p.Name,
-				Slug:        p.Slug,
-				Description: p.Description,
-				Visibility:  p.Visibility,
-			}
-			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			card.LatestVersion = latestVersionTag(versions)
-			projects = append(projects, card)
-		}
+		dbProjects = h.filterAccessibleProjects(ctx, user, all)
 	} else {
-		// Anonymous user sees only public projects
 		public, err := h.projects.ListByVisibility(ctx, database.VisibilityPublic)
 		if err != nil {
 			h.logger.Error("listing public projects", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		for _, p := range public {
-			card := projectCardData{
-				Name:        p.Name,
-				Slug:        p.Slug,
-				Description: p.Description,
-				Visibility:  p.Visibility,
-			}
-			versions, _ := h.versions.ListByProject(ctx, p.ID)
-			card.LatestVersion = latestVersionTag(versions)
-			projects = append(projects, card)
+		dbProjects = public
+	}
+
+	var projects []projectCardData
+	for _, p := range dbProjects {
+		card := projectCardData{
+			Name:        p.Name,
+			Slug:        p.Slug,
+			Description: p.Description,
+			Visibility:  p.Visibility,
 		}
+		versions, _ := h.versions.ListByProject(ctx, p.ID)
+		card.LatestVersion = latestVersionTag(versions)
+		projects = append(projects, card)
 	}
 
 	h.render(w, "frontpage", map[string]any{

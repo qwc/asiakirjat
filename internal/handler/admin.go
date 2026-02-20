@@ -14,14 +14,22 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
 
-	projects, err := h.projects.List(ctx)
+	isAdmin := user != nil && user.Role == "admin"
+
+	allProjects, err := h.projects.List(ctx)
 	if err != nil {
 		h.logger.Error("listing projects", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	isAdmin := user != nil && user.Role == "admin"
+	// Admins see all projects; editors only see projects they have access to
+	var projects []database.Project
+	if isAdmin {
+		projects = allProjects
+	} else {
+		projects = h.filterAccessibleProjects(ctx, user, allProjects)
+	}
 
 	data := map[string]any{
 		"User":            user,
@@ -88,6 +96,19 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 
 	if err := h.storage.EnsureProjectDir(slug); err != nil {
 		h.logger.Error("creating project directory", "error", err)
+	}
+
+	// Auto-grant editor access to the creator for non-public projects
+	creator := auth.UserFromContext(ctx)
+	if creator != nil && creator.Role != "admin" && visibility != database.VisibilityPublic {
+		access := &database.ProjectAccess{
+			ProjectID: project.ID,
+			UserID:    creator.ID,
+			Role:      "editor",
+		}
+		if err := h.access.Grant(ctx, access); err != nil {
+			h.logger.Error("auto-granting creator access", "error", err)
+		}
 	}
 
 	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
