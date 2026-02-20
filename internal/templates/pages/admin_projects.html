@@ -16,22 +16,28 @@
 
     <div class="admin-create-form">
         <h2>Create Project</h2>
-        <form method="POST" action="{{url "/admin/projects"}}">
+        <form method="POST" action="{{url "/admin/projects"}}" id="create-project-form">
             <div class="form-row">
-                <div class="form-group">
-                    <label for="slug">Slug</label>
-                    <input type="text" id="slug" name="slug" required pattern="[a-z0-9-]+" placeholder="my-project">
-                </div>
-                <div class="form-group">
+                <div class="form-group" style="flex:1;min-width:180px;">
                     <label for="name">Name</label>
                     <input type="text" id="name" name="name" required placeholder="My Project">
                 </div>
-                <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" name="description" rows="3" placeholder="Optional description (Markdown supported)"></textarea>
+                <div class="form-group" id="slug-group" style="flex:1;min-width:180px;">
+                    <label for="slug">Slug</label>
+                    <input type="text" id="slug" name="slug" required pattern="[a-z0-9-]+" placeholder="my-project">
                 </div>
-                <div class="form-group">
-                    <label for="visibility">Visibility</label>
+                <div class="form-group" style="align-self:end;">
+                    <label style="display:inline;font-weight:400;cursor:pointer;">
+                        <input type="checkbox" id="auto-slug" checked> Auto slug
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="4" placeholder="Optional description (Markdown supported)" style="resize:vertical;"></textarea>
+            </div>
+            <div class="form-row" style="align-items:center;">
+                <div class="form-group" style="margin-bottom:0;">
                     <select id="visibility" name="visibility">
                         <option value="public">Public</option>
                         <option value="private">Private</option>
@@ -42,6 +48,42 @@
             </div>
         </form>
     </div>
+
+    <script>
+    (function() {
+        var nameInput = document.getElementById("name");
+        var slugInput = document.getElementById("slug");
+        var slugGroup = document.getElementById("slug-group");
+        var autoSlug = document.getElementById("auto-slug");
+
+        function deriveSlug(name) {
+            return name.toLowerCase().trim()
+                .replace(/[^a-z0-9\s-]/g, "")
+                .replace(/[\s]+/g, "-")
+                .replace(/-+/g, "-")
+                .replace(/^-|-$/g, "");
+        }
+
+        function updateSlugVisibility() {
+            if (autoSlug.checked) {
+                slugGroup.style.display = "none";
+                slugInput.removeAttribute("required");
+                slugInput.value = deriveSlug(nameInput.value);
+            } else {
+                slugGroup.style.display = "";
+                slugInput.setAttribute("required", "");
+                if (!slugInput.value) slugInput.value = deriveSlug(nameInput.value);
+            }
+        }
+
+        autoSlug.addEventListener("change", updateSlugVisibility);
+        nameInput.addEventListener("input", function() {
+            if (autoSlug.checked) slugInput.value = deriveSlug(nameInput.value);
+        });
+
+        updateSlugVisibility();
+    })();
+    </script>
 
     {{if .IsAdmin}}
     <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
