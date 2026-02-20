@@ -31,6 +31,7 @@ type indexDoc struct {
 	TextContent string `json:"text_content"`
 	ProjectID   int64  `json:"project_id"`
 	VersionID   int64  `json:"version_id"`
+	PageNumber  int    `json:"page_number"`
 }
 
 // SearchQuery describes a full-text search request.
@@ -52,6 +53,7 @@ type SearchResult struct {
 	PageTitle   string `json:"page_title"`
 	Snippet     string `json:"snippet"`
 	URL         string `json:"url"`
+	PageNumber  int    `json:"page_number"`
 }
 
 // SearchResults contains paged search results.
@@ -84,6 +86,7 @@ func buildIndexMapping() *mapping.IndexMappingImpl {
 	docMapping.AddFieldMappingsAt("text_content", textFieldMapping)
 	docMapping.AddFieldMappingsAt("project_id", numericFieldMapping)
 	docMapping.AddFieldMappingsAt("version_id", numericFieldMapping)
+	docMapping.AddFieldMappingsAt("page_number", numericFieldMapping)
 
 	indexMapping.DefaultMapping = docMapping
 
@@ -214,18 +217,40 @@ func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, pro
 			return nil
 		}
 
-		var pageTitle, textContent string
-		var extractErr error
-
 		switch ext {
 		case ".pdf":
-			pageTitle, textContent, extractErr = ExtractTextFromPDF(path)
+			pdfTitle, pages, extractErr := ExtractPDFPages(path)
+			if extractErr != nil || len(pages) == 0 {
+				return nil
+			}
+			for _, page := range pages {
+				docID := fmt.Sprintf("%d/%d/%s#p%d", projectID, versionID, relPath, page.Number)
+				title := pdfTitle
+				if page.Number > 1 {
+					title = fmt.Sprintf("%s (page %d)", pdfTitle, page.Number)
+				}
+				doc := indexDoc{
+					ProjectSlug: projectSlug,
+					ProjectName: projectName,
+					VersionTag:  versionTag,
+					FilePath:    relPath,
+					PageTitle:   title,
+					PageNumber:  page.Number,
+					TextContent: page.Text,
+					ProjectID:   projectID,
+					VersionID:   versionID,
+				}
+				batch.Index(docID, doc)
+			}
+			return nil
+
 		case ".html", ".htm":
-			pageTitle, textContent, extractErr = ExtractTextFromHTML(path)
+			// handled below
 		default:
 			return nil
 		}
 
+		pageTitle, textContent, extractErr := ExtractTextFromHTML(path)
 		if extractErr != nil {
 			return nil // skip files we can't parse
 		}
@@ -352,7 +377,7 @@ func (si *SearchIndex) Search(sq SearchQuery, latestVersionTags map[string]strin
 	}
 
 	searchReq := bleve.NewSearchRequestOptions(finalQuery, sq.Limit, sq.Offset, false)
-	searchReq.Fields = []string{"project_slug", "project_name", "version_tag", "file_path", "page_title"}
+	searchReq.Fields = []string{"project_slug", "project_name", "version_tag", "file_path", "page_title", "page_number"}
 	searchReq.Highlight = bleve.NewHighlightWithStyle(html.Name)
 	searchReq.Highlight.AddField("text_content")
 	searchReq.Highlight.AddField("page_title")
@@ -374,6 +399,7 @@ func (si *SearchIndex) Search(sq SearchQuery, latestVersionTags map[string]strin
 			VersionTag:  fieldString(hit.Fields, "version_tag"),
 			FilePath:    fieldString(hit.Fields, "file_path"),
 			PageTitle:   fieldString(hit.Fields, "page_title"),
+			PageNumber:  fieldInt(hit.Fields, "page_number"),
 		}
 
 		if fragments, ok := hit.Fragments["text_content"]; ok && len(fragments) > 0 {
@@ -382,7 +408,13 @@ func (si *SearchIndex) Search(sq SearchQuery, latestVersionTags map[string]strin
 			sr.Snippet = fragments[0]
 		}
 
-		sr.URL = "/project/" + sr.ProjectSlug + "/" + sr.VersionTag + "/" + sr.FilePath
+		if sr.PageNumber > 0 {
+			// PDF result: link to the viewer wrapper (without the filename)
+			// so the page fragment (#page=N) works with the embedded PDF
+			sr.URL = "/project/" + sr.ProjectSlug + "/" + sr.VersionTag + "/"
+		} else {
+			sr.URL = "/project/" + sr.ProjectSlug + "/" + sr.VersionTag + "/" + sr.FilePath
+		}
 
 		results.Results = append(results.Results, sr)
 	}
@@ -463,6 +495,21 @@ func (si *SearchIndex) ReindexAllWithProgress(projects []ReindexProject, version
 	}
 
 	return nil
+}
+
+func fieldInt(fields map[string]interface{}, key string) int {
+	val, ok := fields[key]
+	if !ok {
+		return 0
+	}
+	switch v := val.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	default:
+		return 0
+	}
 }
 
 func fieldString(fields map[string]interface{}, key string) string {

@@ -37,6 +37,7 @@ When documentation is uploaded:
 | `file_path` | Keyword | Relative path in archive |
 | `page_title` | Text | HTML title (boosted in search) |
 | `text_content` | Text | Page body text |
+| `page_number` | Numeric | PDF page number (0 for HTML) |
 
 ## Text Extraction
 
@@ -64,12 +65,18 @@ Skipped elements:
 
 ## PDF Text Extraction
 
-PDF documents are indexed for full-text search using a two-tier extraction approach:
+PDF documents are indexed **per page** for full-text search. Each page becomes a separate search document, so search results link directly to the matching page.
 
-1. **pdftotext (preferred)**: If `pdftotext` (from poppler-utils) is installed, it is used for best-quality text extraction. Install it with `apt install poppler-utils` (Debian/Ubuntu) or `apk add poppler-utils` (Alpine).
-2. **Pure Go fallback**: If `pdftotext` is not available, a pure Go PDF reader (`ledongthuc/pdf`) is used. This works without external dependencies but may produce lower-quality output for complex PDFs.
+Text is extracted using a two-tier approach:
 
-The page title for search results is derived from the first non-empty line of extracted text.
+1. **pdftotext (preferred)**: If `pdftotext` (from poppler-utils) is installed, it is used for best-quality text extraction. The output is split on form-feed characters to get individual pages. Install it with `apt install poppler-utils` (Debian/Ubuntu) or `apk add poppler-utils` (Alpine).
+2. **Pure Go fallback**: If `pdftotext` is not available, a pure Go PDF reader (`ledongthuc/pdf`) is used. Each page is read individually. This works without external dependencies but may produce lower-quality output for complex PDFs.
+
+The page title for search results is derived from the first non-empty line of page 1. For pages beyond page 1, the title includes the page number (e.g. "Document Title (page 3)").
+
+### PDF Page Jump
+
+When a search result matches text on a specific PDF page, the result URL includes a `#page=N` fragment. The browser's built-in PDF viewer uses this to jump directly to the matching page. A search hint banner is shown above the PDF to remind you to use Ctrl+F to find the exact term on the page.
 
 ## Search Query Processing
 
@@ -140,7 +147,7 @@ Admins can rebuild the entire index:
 
 This is useful after:
 - Index corruption
-- Schema changes
+- Schema changes (e.g. adding per-page PDF indexing)
 - Bulk imports
 
 ## Search Results
@@ -155,7 +162,23 @@ Results include:
   "file_path": "auth/configure.html",
   "page_title": "Configure Authentication",
   "snippet": "...set up <mark>authentication</mark> for your API...",
-  "url": "/project/api-docs/v2.0.0/auth/configure.html"
+  "url": "/project/api-docs/v2.0.0/auth/configure.html",
+  "page_number": 0
+}
+```
+
+For PDF results, `page_number` is set to the matching page and the URL points to the PDF viewer wrapper:
+
+```json
+{
+  "project_slug": "manual",
+  "project_name": "User Manual",
+  "version_tag": "v1.0.0",
+  "file_path": "document.pdf",
+  "page_title": "User Manual (page 5)",
+  "snippet": "...configure <mark>authentication</mark> settings...",
+  "url": "/project/manual/v1.0.0/",
+  "page_number": 5
 }
 ```
 
