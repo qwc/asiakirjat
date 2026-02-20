@@ -22,11 +22,8 @@ auth:
     url: "ldap://ldap.example.com:389"
     bind_dn: "cn=service,dc=example,dc=com"
     bind_password: "service-password"
-    user_base_dn: "ou=users,dc=example,dc=com"
+    base_dn: "ou=users,dc=example,dc=com"
     user_filter: "(uid={{.Username}})"
-    username_attr: "uid"
-    email_attr: "mail"
-    display_name_attr: "cn"
 ```
 
 ## Configuration Options
@@ -35,13 +32,14 @@ auth:
 |--------|-------------|
 | `enabled` | Set to `true` to enable LDAP |
 | `url` | LDAP server URL. Use `ldaps://` for TLS |
+| `skip_verify` | Skip TLS certificate verification (for testing only) |
 | `bind_dn` | Service account DN for searching users |
 | `bind_password` | Service account password |
-| `user_base_dn` | Base DN for user searches |
+| `base_dn` | Base DN for user searches |
 | `user_filter` | LDAP filter to find users. `{{.Username}}` is replaced with the login username |
-| `username_attr` | Attribute containing the username |
-| `email_attr` | Attribute containing email address |
-| `display_name_attr` | Attribute for display name |
+| `admin_group` | LDAP group DN — members get admin role |
+| `editor_group` | LDAP group DN — members get editor role |
+| `viewer_group` | LDAP group DN — members get viewer role |
 
 ## Active Directory Example
 
@@ -52,24 +50,19 @@ auth:
     url: "ldaps://ad.corp.example.com:636"
     bind_dn: "CN=AsiakirjatSvc,OU=Service Accounts,DC=corp,DC=example,DC=com"
     bind_password: "secure-password"
-    user_base_dn: "OU=Users,DC=corp,DC=example,DC=com"
+    base_dn: "OU=Users,DC=corp,DC=example,DC=com"
     user_filter: "(sAMAccountName={{.Username}})"
-    username_attr: "sAMAccountName"
-    email_attr: "mail"
-    display_name_attr: "displayName"
 ```
 
 ## TLS Configuration
 
-For secure connections:
+For secure connections, use `ldaps://` in the URL. To skip certificate verification (for testing only):
 
 ```yaml
 auth:
   ldap:
     url: "ldaps://ldap.example.com:636"
-    tls:
-      skip_verify: false        # Set true only for testing
-      ca_cert: "/path/to/ca.pem"
+    skip_verify: false        # Set true only for testing
 ```
 
 ## Recursive Group Resolution
@@ -100,17 +93,27 @@ auth:
 
 With this configuration, only groups like `cn=team-a,...`, `cn=team-frontend,...` are recursed into. Groups such as `cn=external-admins,...` or `cn=distribution-list,...` are kept in the user's membership set but their parents are not followed. This avoids unnecessary lookups against unrelated groups.
 
-## Group-Based Project Access
+## Role Assignment via Groups
 
-Automatically grant project access based on LDAP group membership:
+Assign global roles based on LDAP group membership:
 
 ```yaml
 auth:
   ldap:
-    group_base_dn: "ou=groups,dc=example,dc=com"
-    group_filter: "(member={{.UserDN}})"
-    group_attr: "cn"
+    admin_group: "cn=admins,ou=groups,dc=example,dc=com"
+    editor_group: "cn=editors,ou=groups,dc=example,dc=com"
+    viewer_group: "cn=readers,ou=groups,dc=example,dc=com"
+```
 
+Members of `admin_group` are granted the admin role, `editor_group` the editor role, and `viewer_group` the viewer role.
+
+## Project-Level Access via Groups
+
+Grant project-specific access based on LDAP group membership:
+
+```yaml
+auth:
+  ldap:
     project_groups:
       - group: "docs-team"
         project: "internal-docs"
@@ -152,9 +155,12 @@ You can also manage group mappings in the Admin UI under **Group Mappings**.
 All LDAP settings can be overridden with environment variables:
 
 ```bash
-ASIAKIRJAT_AUTH_LDAP_ENABLED=true
-ASIAKIRJAT_AUTH_LDAP_URL=ldaps://ldap.example.com:636
-ASIAKIRJAT_AUTH_LDAP_BIND_PASSWORD=secret
+ASIAKIRJAT_LDAP_ENABLED=true
+ASIAKIRJAT_LDAP_URL=ldaps://ldap.example.com:636
+ASIAKIRJAT_LDAP_BIND_DN=cn=service,dc=example,dc=com
+ASIAKIRJAT_LDAP_BIND_PASSWORD=secret
+ASIAKIRJAT_LDAP_BASE_DN=ou=users,dc=example,dc=com
+ASIAKIRJAT_LDAP_SKIP_VERIFY=false
 ASIAKIRJAT_LDAP_RECURSIVE_GROUPS=true
 ASIAKIRJAT_LDAP_GROUP_PREFIX="team-"
 ```

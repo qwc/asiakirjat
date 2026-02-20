@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -83,16 +84,18 @@ func (h *Handler) handleAPIVersions(w http.ResponseWriter, r *http.Request) {
 	docs.SortVersionTags(tags)
 
 	type versionJSON struct {
-		Tag       string `json:"tag"`
-		CreatedAt string `json:"created_at"`
+		Tag         string `json:"tag"`
+		ContentType string `json:"content_type"`
+		CreatedAt   string `json:"created_at"`
 	}
 
 	result := make([]versionJSON, 0, len(tags))
 	for _, tag := range tags {
 		v := versionMap[tag]
 		result = append(result, versionJSON{
-			Tag:       v.Tag,
-			CreatedAt: v.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			Tag:         v.Tag,
+			ContentType: v.ContentType,
+			CreatedAt:   v.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 
@@ -161,10 +164,12 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 
 	file, header, err := r.FormFile("archive")
 	if err != nil {
-		h.jsonError(w, "Archive file is required", http.StatusBadRequest)
+		h.jsonError(w, "File is required", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
+
+	isPDF := strings.HasSuffix(strings.ToLower(header.Filename), ".pdf")
 
 	if err := h.storage.EnsureVersionDir(slug, versionTag); err != nil {
 		h.logger.Error("creating version directory", "error", err)
@@ -173,10 +178,21 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	}
 
 	destPath := h.storage.VersionPath(slug, versionTag)
-	if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
-		h.storage.DeleteVersion(slug, versionTag)
-		h.jsonError(w, "Failed to extract archive: "+err.Error(), http.StatusBadRequest)
-		return
+	contentType := "archive"
+
+	if isPDF {
+		contentType = "pdf"
+		if err := storePDF(file, destPath); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.jsonError(w, "Failed to store PDF: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.jsonError(w, "Failed to extract archive: "+err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Check if version already exists (for re-upload)
@@ -187,6 +203,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	if isReupload {
 		// Update existing version
 		existingVersion.StoragePath = destPath
+		existingVersion.ContentType = contentType
 		existingVersion.UploadedBy = user.ID
 		if err := h.versions.Update(ctx, existingVersion); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
@@ -205,6 +222,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 			ProjectID:   project.ID,
 			Tag:         versionTag,
 			StoragePath: destPath,
+			ContentType: contentType,
 			UploadedBy:  user.ID,
 		}
 		if err := h.versions.Create(ctx, version); err != nil {

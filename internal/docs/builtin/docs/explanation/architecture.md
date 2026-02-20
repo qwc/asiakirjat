@@ -116,10 +116,15 @@ Documentation files are stored on the filesystem:
 │   │   └── ...
 │   └── v2.0.0/
 │       └── ...
-└── project-b/
-    └── latest/
-        └── ...
+├── project-b/
+│   └── latest/
+│       └── ...
+└── project-c/
+    └── v1.0.0/
+        └── document.pdf        # PDF uploads stored as document.pdf
 ```
+
+PDF uploads are stored as a single `document.pdf` file in the version directory, rather than extracted from an archive.
 
 ### Search Index
 
@@ -137,7 +142,8 @@ Full-text search uses Bleve, stored at `{base_path}/.search-index/`:
 1. Request: GET /project/api-docs/v1.0.0/auth.html
 2. Session middleware loads user (if logged in)
 3. Handler checks project access
-4. File served from storage path
+4. For HTML versions: file served from storage path
+   For PDF versions: document.pdf served in embedded PDF viewer
 ```
 
 ### Uploading Documentation

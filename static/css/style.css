@@ -600,6 +600,17 @@ body {
     font-size: 0.8rem;
 }
 
+.version-badge-pdf {
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
 .version-empty {
     color: var(--color-text-muted);
     font-style: italic;

@@ -20,16 +20,20 @@ ASIAKIRJAT_AUTH_LDAP_ENABLED=true
 
 ```yaml
 server:
-  host: "0.0.0.0"        # Listen address
-  port: 8080             # Listen port
-  base_path: ""          # URL prefix (e.g., "/docs")
+  address: "0.0.0.0"        # Listen address
+  port: 8080                # Listen port
+  base_path: ""             # URL prefix (e.g., "/docs")
+  proxy_strip_path: false   # Set true if reverse proxy strips base_path
+  log_level: "info"         # Logging level
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `host` | `0.0.0.0` | IP address to bind to |
+| `address` | `0.0.0.0` | IP address to bind to |
 | `port` | `8080` | TCP port to listen on |
 | `base_path` | `""` | URL prefix for all routes |
+| `proxy_strip_path` | `false` | When true, routes are registered at root (for reverse proxies that strip the prefix) |
+| `log_level` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
 
 ## Database Settings
 
@@ -65,12 +69,12 @@ dsn: "user:pass@tcp(localhost:3306)/asiakirjat?parseTime=true"
 
 ```yaml
 storage:
-  base_path: "data/docs"
+  base_path: "data/projects"
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `base_path` | `data/docs` | Directory for documentation files |
+| `base_path` | `data/projects` | Directory for documentation files |
 
 ## Branding Settings
 
@@ -78,14 +82,27 @@ storage:
 branding:
   app_name: "Asiakirjat"          # Shown in header
   logo_url: ""                     # Logo image URL
-  custom_css: ""                   # Additional CSS
+  custom_css: ""                   # CSS filename in static/custom/
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `app_name` | `Asiakirjat` | Application name in UI |
 | `logo_url` | `""` | URL to logo image |
-| `custom_css` | `""` | Custom CSS rules |
+| `custom_css` | `""` | Filename of a custom CSS file placed in the `static/custom/` directory |
+
+## Retention Settings
+
+```yaml
+retention:
+  nonsemver_days: 0              # Days to keep non-semver versions (0 = unlimited)
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `nonsemver_days` | `0` | Delete non-semver versions older than this many days. `0` means unlimited (no automatic deletion). |
+
+Retention can also be configured per-project in the admin UI.
 
 ## Authentication Settings
 
@@ -121,35 +138,34 @@ auth:
   ldap:
     enabled: false
     url: "ldap://ldap.example.com:389"
+    skip_verify: false
     bind_dn: ""
     bind_password: ""
-    user_base_dn: ""
+    base_dn: ""
     user_filter: "(uid={{.Username}})"
-    username_attr: "uid"
-    email_attr: "mail"
-    display_name_attr: "cn"
-
-    # TLS settings (for ldaps://)
-    tls:
-      skip_verify: false
-      ca_cert: ""
-
-    # Group-based access
-    group_base_dn: ""
-    group_filter: "(member={{.UserDN}})"
-    group_attr: "cn"
-
-    # Recursive group resolution
+    admin_group: ""
+    editor_group: ""
+    viewer_group: ""
     recursive_groups: false
     group_prefix: ""          # CN prefix filter for recursion (empty = all)
-
     project_groups: []
 ```
 
 | Option | Description |
 |--------|-------------|
+| `enabled` | Set to `true` to enable LDAP |
+| `url` | LDAP server URL. Use `ldaps://` for TLS |
+| `skip_verify` | Skip TLS certificate verification (for testing only) |
+| `bind_dn` | Service account DN for searching users |
+| `bind_password` | Service account password |
+| `base_dn` | Base DN for user searches |
+| `user_filter` | LDAP filter to find users. `{{.Username}}` is replaced with the login username |
+| `admin_group` | LDAP group DN — members get admin role |
+| `editor_group` | LDAP group DN — members get editor role |
+| `viewer_group` | LDAP group DN — members get viewer role |
 | `recursive_groups` | Walk up each group's `memberOf` chain to resolve nested group memberships (default: `false`) |
 | `group_prefix` | Only recurse into groups whose CN (common name) starts with this prefix (case-insensitive). For example, `"team-"` matches `cn=team-a,...` but not `cn=editors,...`. Groups outside the prefix still appear in the user's group list but are not expanded. Empty means all groups are followed. |
+| `project_groups` | List of group-to-project access mappings |
 
 See [Configure LDAP](../how-to/configure-ldap.md) for details.
 
@@ -159,26 +175,35 @@ See [Configure LDAP](../how-to/configure-ldap.md) for details.
 auth:
   oauth2:
     enabled: false
-    provider: "generic"
     client_id: ""
     client_secret: ""
     auth_url: ""
     token_url: ""
     userinfo_url: ""
     redirect_url: ""
-    scopes:
-      - openid
-      - profile
-      - email
-
-    claims:
-      username: "preferred_username"
-      email: "email"
-      display_name: "name"
-      groups: "groups"
-
+    scopes: "openid profile email"
+    groups_claim: "groups"
+    admin_group: ""
+    editor_group: ""
+    viewer_group: ""
     project_groups: []
 ```
+
+| Option | Description |
+|--------|-------------|
+| `enabled` | Set to `true` to enable OAuth2 |
+| `client_id` | OAuth2 client ID |
+| `client_secret` | OAuth2 client secret |
+| `auth_url` | Authorization endpoint URL |
+| `token_url` | Token endpoint URL |
+| `userinfo_url` | UserInfo endpoint URL |
+| `redirect_url` | Callback URL (must match provider config) |
+| `scopes` | Space-separated list of OAuth2 scopes to request |
+| `groups_claim` | Name of the claim containing group memberships (default: `"groups"`) |
+| `admin_group` | OAuth2 group name — members get admin role |
+| `editor_group` | OAuth2 group name — members get editor role |
+| `viewer_group` | OAuth2 group name — members get viewer role |
+| `project_groups` | List of group-to-project access mappings |
 
 See [Configure OAuth2](../how-to/configure-oauth2.md) for details.
 
@@ -220,20 +245,24 @@ LDAP and OAuth2 group rules are resolved into per-user grants at login time.
 
 ```yaml
 server:
-  host: "0.0.0.0"
+  address: "0.0.0.0"
   port: 8080
   base_path: ""
+  log_level: "info"
 
 database:
   driver: postgres
   dsn: "postgres://asiakirjat:secret@db:5432/asiakirjat?sslmode=disable"
 
 storage:
-  base_path: "/data/docs"
+  base_path: "/data/projects"
 
 branding:
   app_name: "Company Docs"
   logo_url: "https://example.com/logo.png"
+
+retention:
+  nonsemver_days: 90
 
 auth:
   session:
@@ -250,8 +279,10 @@ auth:
     url: "ldaps://ldap.company.com:636"
     bind_dn: "cn=asiakirjat,ou=services,dc=company,dc=com"
     bind_password: "${LDAP_PASSWORD}"
-    user_base_dn: "ou=users,dc=company,dc=com"
+    base_dn: "ou=users,dc=company,dc=com"
     user_filter: "(uid={{.Username}})"
+    editor_group: "cn=writers,ou=groups,dc=company,dc=com"
+    viewer_group: "cn=staff,ou=groups,dc=company,dc=com"
 
     project_groups:
       - group: "engineering"
