@@ -11,6 +11,17 @@ Supported archive formats for documentation uploads.
 | Bzip2 tarball | `.tar.bz2`, `.tbz2` | Better compression |
 | XZ tarball | `.tar.xz`, `.txz` | Best compression |
 | 7-Zip | `.7z` | Cross-platform |
+| PDF | `.pdf` | Single PDF document |
+
+## PDF Documents
+
+Instead of an HTML archive, you can upload a single `.pdf` file. PDF uploads are handled differently:
+
+- The PDF is stored as `document.pdf` in the version directory
+- It is displayed using the browser's built-in PDF viewer
+- Text is extracted from the PDF and indexed for full-text search
+
+PDF uploads do not require an `index.html` or any archive structure.
 
 ## Archive Structure
 
@@ -141,12 +152,13 @@ zip -r docs.zip src/.vuepress/dist
 
 ## Size Limits
 
-There is no hard-coded size limit, but consider:
+The maximum upload size is **100 MB**. Additionally, consider:
+
 - Upload timeout (typically 2 minutes)
 - Available disk space
 - Search indexing time increases with size
 
-For very large documentation sets (>500MB), consider:
+For large documentation sets, consider:
 - Splitting into multiple projects
 - Excluding unnecessary assets
 - Compressing images

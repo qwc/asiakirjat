@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -74,13 +78,15 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		h.render(w, "upload", map[string]any{
 			"User":    user,
 			"Project": project,
-			"Error":   "Archive file is required",
+			"Error":   "File is required",
 		})
 		return
 	}
 	defer file.Close()
 
-	// Extract archive to storage
+	isPDF := strings.HasSuffix(strings.ToLower(header.Filename), ".pdf")
+
+	// Prepare storage directory
 	if err := h.storage.EnsureVersionDir(slug, versionTag); err != nil {
 		h.logger.Error("creating version directory", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -88,14 +94,29 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	destPath := h.storage.VersionPath(slug, versionTag)
-	if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
-		h.storage.DeleteVersion(slug, versionTag)
-		h.render(w, "upload", map[string]any{
-			"User":    user,
-			"Project": project,
-			"Error":   "Failed to extract archive: " + err.Error(),
-		})
-		return
+	contentType := "archive"
+
+	if isPDF {
+		contentType = "pdf"
+		if err := storePDF(file, destPath); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.render(w, "upload", map[string]any{
+				"User":    user,
+				"Project": project,
+				"Error":   "Failed to store PDF: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
+			h.storage.DeleteVersion(slug, versionTag)
+			h.render(w, "upload", map[string]any{
+				"User":    user,
+				"Project": project,
+				"Error":   "Failed to extract archive: " + err.Error(),
+			})
+			return
+		}
 	}
 
 	// Check if version already exists (for re-upload)
@@ -106,6 +127,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	if isReupload {
 		// Update existing version
 		existingVersion.StoragePath = destPath
+		existingVersion.ContentType = contentType
 		existingVersion.UploadedBy = user.ID
 		if err := h.versions.Update(ctx, existingVersion); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
@@ -129,6 +151,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 			ProjectID:   project.ID,
 			Tag:         versionTag,
 			StoragePath: destPath,
+			ContentType: contentType,
 			UploadedBy:  user.ID,
 		}
 		if err := h.versions.Create(ctx, version); err != nil {
@@ -161,6 +184,18 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+}
+
+// storePDF copies a PDF file into destDir as "document.pdf".
+func storePDF(src io.Reader, destDir string) error {
+	path := filepath.Join(destDir, "document.pdf")
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.Copy(f, src)
+	return err
 }
 
 func (h *Handler) canUpload(ctx context.Context, user *database.User, project *database.Project) bool {

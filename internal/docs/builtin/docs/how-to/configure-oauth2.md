@@ -22,17 +22,13 @@ Add the following to your `config.yaml`:
 auth:
   oauth2:
     enabled: true
-    provider: "generic"
     client_id: "asiakirjat"
     client_secret: "your-client-secret"
     auth_url: "https://idp.example.com/oauth/authorize"
     token_url: "https://idp.example.com/oauth/token"
     userinfo_url: "https://idp.example.com/oauth/userinfo"
     redirect_url: "https://docs.example.com/auth/callback"
-    scopes:
-      - openid
-      - profile
-      - email
+    scopes: "openid profile email"
 ```
 
 ## Configuration Options
@@ -40,28 +36,17 @@ auth:
 | Option | Description |
 |--------|-------------|
 | `enabled` | Set to `true` to enable OAuth2 |
-| `provider` | Provider type: `generic`, `keycloak`, `okta`, `azure` |
 | `client_id` | OAuth2 client ID |
 | `client_secret` | OAuth2 client secret |
 | `auth_url` | Authorization endpoint URL |
 | `token_url` | Token endpoint URL |
 | `userinfo_url` | UserInfo endpoint URL |
 | `redirect_url` | Callback URL (must match provider config) |
-| `scopes` | OAuth2 scopes to request |
-
-## Claim Mapping
-
-Map provider claims to Asiakirjat user attributes:
-
-```yaml
-auth:
-  oauth2:
-    claims:
-      username: "preferred_username"  # or "sub", "email"
-      email: "email"
-      display_name: "name"
-      groups: "groups"                # for group-based access
-```
+| `scopes` | Space-separated list of OAuth2 scopes (e.g. `"openid profile email"`) |
+| `groups_claim` | Name of the claim containing group memberships (default: `"groups"`) |
+| `admin_group` | OAuth2 group name — members get admin role |
+| `editor_group` | OAuth2 group name — members get editor role |
+| `viewer_group` | OAuth2 group name — members get viewer role |
 
 ## Provider-Specific Examples
 
@@ -71,17 +56,13 @@ auth:
 auth:
   oauth2:
     enabled: true
-    provider: "keycloak"
     client_id: "asiakirjat"
     client_secret: "xxx"
     auth_url: "https://keycloak.example.com/realms/main/protocol/openid-connect/auth"
     token_url: "https://keycloak.example.com/realms/main/protocol/openid-connect/token"
     userinfo_url: "https://keycloak.example.com/realms/main/protocol/openid-connect/userinfo"
     redirect_url: "https://docs.example.com/auth/callback"
-    scopes:
-      - openid
-      - profile
-      - email
+    scopes: "openid profile email"
 ```
 
 ### Azure AD
@@ -90,20 +71,14 @@ auth:
 auth:
   oauth2:
     enabled: true
-    provider: "azure"
     client_id: "your-app-id"
     client_secret: "your-secret"
     auth_url: "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
     token_url: "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
     userinfo_url: "https://graph.microsoft.com/oidc/userinfo"
     redirect_url: "https://docs.example.com/auth/callback"
-    scopes:
-      - openid
-      - profile
-      - email
-    claims:
-      username: "preferred_username"
-      groups: "groups"
+    scopes: "openid profile email"
+    groups_claim: "groups"
 ```
 
 ### Okta
@@ -112,29 +87,38 @@ auth:
 auth:
   oauth2:
     enabled: true
-    provider: "okta"
     client_id: "your-client-id"
     client_secret: "your-secret"
     auth_url: "https://yourorg.okta.com/oauth2/default/v1/authorize"
     token_url: "https://yourorg.okta.com/oauth2/default/v1/token"
     userinfo_url: "https://yourorg.okta.com/oauth2/default/v1/userinfo"
     redirect_url: "https://docs.example.com/auth/callback"
-    scopes:
-      - openid
-      - profile
-      - email
-      - groups
+    scopes: "openid profile email groups"
 ```
 
-## Group-Based Project Access
+## Role Assignment via Groups
 
-Grant project access based on OAuth2 group claims:
+Assign global roles based on OAuth2 group membership:
 
 ```yaml
 auth:
   oauth2:
-    claims:
-      groups: "groups"
+    groups_claim: "groups"
+    admin_group: "asiakirjat-admins"
+    editor_group: "asiakirjat-editors"
+    viewer_group: "asiakirjat-viewers"
+```
+
+Members of `admin_group` are granted the admin role, `editor_group` the editor role, and `viewer_group` the viewer role.
+
+## Project-Level Access via Groups
+
+Grant project-specific access based on OAuth2 group claims:
+
+```yaml
+auth:
+  oauth2:
+    groups_claim: "groups"
 
     project_groups:
       - group: "documentation-team"
@@ -161,17 +145,19 @@ When OAuth2 is enabled, a "Login with SSO" button appears on the login page. Use
 
 **User attributes not populated**
 - Check scopes include required permissions
-- Verify claim mapping matches provider's claims
+- Verify userinfo endpoint returns expected claims
 
 **Groups not working**
-- Ensure `groups` scope is requested
-- Verify the `claims.groups` mapping
+- Ensure `groups` scope is requested (if required by your provider)
+- Verify the `groups_claim` value matches your provider's claim name
 - Check provider is configured to include groups in tokens
 
 ## Environment Variables
 
 ```bash
-ASIAKIRJAT_AUTH_OAUTH2_ENABLED=true
-ASIAKIRJAT_AUTH_OAUTH2_CLIENT_ID=asiakirjat
-ASIAKIRJAT_AUTH_OAUTH2_CLIENT_SECRET=secret
+ASIAKIRJAT_OAUTH2_ENABLED=true
+ASIAKIRJAT_OAUTH2_CLIENT_ID=asiakirjat
+ASIAKIRJAT_OAUTH2_CLIENT_SECRET=secret
+ASIAKIRJAT_OAUTH2_SCOPES="openid profile email"
+ASIAKIRJAT_OAUTH2_GROUPS_CLAIM=groups
 ```

@@ -68,6 +68,8 @@
     var diffChanges = [];
     var currentChangeIndex = -1;
 
+    var currentIsPdf = false;
+
     if (compareSelect) {
         // Populate compare dropdown with versions (excluding current)
         fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
@@ -75,10 +77,16 @@
             .then(function(versions) {
                 compareSelect.innerHTML = '<option value="">Select version...</option>';
                 versions.forEach(function(v) {
+                    if (v.tag === current && v.content_type === "pdf") {
+                        currentIsPdf = true;
+                    }
                     if (v.tag !== current) {
                         var opt = document.createElement("option");
                         opt.value = v.tag;
                         opt.textContent = v.tag;
+                        if (v.content_type) {
+                            opt.setAttribute("data-content-type", v.content_type);
+                        }
                         compareSelect.appendChild(opt);
                     }
                 });
@@ -461,6 +469,13 @@
                 if (diffModeActive) {
                     exitDiffMode();
                 }
+                return;
+            }
+
+            // Block diff for PDF versions
+            var targetOpt = compareSelect.querySelector('option[value="' + CSS.escape(targetVersion) + '"]');
+            if (currentIsPdf || (targetOpt && targetOpt.getAttribute("data-content-type") === "pdf")) {
+                showError("Diff unavailable for PDF versions");
                 return;
             }
 

@@ -16,8 +16,8 @@
         </div>
         <div class="form-group">
             <label for="archive">Documentation Archive</label>
-            <input type="file" id="archive" name="archive" accept=".zip,.tar.gz,.tar.bz2,.tgz,.tbz2" required>
-            <small>Supported formats: ZIP, tar.gz, tar.bz2</small>
+            <input type="file" id="archive" name="archive" accept=".zip,.tar.gz,.tar.bz2,.tgz,.tbz2,.tar.xz,.txz,.7z,.pdf" required>
+            <small>Supported formats: ZIP, tar.gz, tar.bz2, tar.xz, 7z, PDF</small>
         </div>
         <button type="submit" class="btn btn-primary">Upload</button>
         <a href="{{url "/project/"}}{{.Project.Slug}}" class="btn btn-secondary">Cancel</a>

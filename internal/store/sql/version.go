@@ -17,9 +17,9 @@ func NewVersionStore(db *sqlx.DB) *VersionStore {
 }
 
 func (s *VersionStore) Create(ctx context.Context, version *database.Version) error {
-	query := `INSERT INTO versions (project_id, tag, storage_path, uploaded_by) VALUES (?, ?, ?, ?)`
+	query := `INSERT INTO versions (project_id, tag, storage_path, content_type, uploaded_by) VALUES (?, ?, ?, ?, ?)`
 	result, err := s.db.ExecContext(ctx, s.db.Rebind(query),
-		version.ProjectID, version.Tag, version.StoragePath, version.UploadedBy)
+		version.ProjectID, version.Tag, version.StoragePath, version.ContentType, version.UploadedBy)
 	if err != nil {
 		return fmt.Errorf("creating version: %w", err)
 	}
@@ -50,8 +50,8 @@ func (s *VersionStore) ListByProject(ctx context.Context, projectID int64) ([]da
 }
 
 func (s *VersionStore) Update(ctx context.Context, version *database.Version) error {
-	query := `UPDATE versions SET storage_path = ?, uploaded_by = ? WHERE id = ?`
-	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), version.StoragePath, version.UploadedBy, version.ID)
+	query := `UPDATE versions SET storage_path = ?, content_type = ?, uploaded_by = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), version.StoragePath, version.ContentType, version.UploadedBy, version.ID)
 	if err != nil {
 		return fmt.Errorf("updating version: %w", err)
 	}

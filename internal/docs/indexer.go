@@ -208,16 +208,24 @@ func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, pro
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext != ".html" && ext != ".htm" {
-			return nil
-		}
 
 		relPath, relErr := filepath.Rel(storagePath, path)
 		if relErr != nil {
 			return nil
 		}
 
-		pageTitle, textContent, extractErr := ExtractTextFromHTML(path)
+		var pageTitle, textContent string
+		var extractErr error
+
+		switch ext {
+		case ".pdf":
+			pageTitle, textContent, extractErr = ExtractTextFromPDF(path)
+		case ".html", ".htm":
+			pageTitle, textContent, extractErr = ExtractTextFromHTML(path)
+		default:
+			return nil
+		}
+
 		if extractErr != nil {
 			return nil // skip files we can't parse
 		}
