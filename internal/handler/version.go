@@ -102,10 +102,14 @@ func (h *Handler) servePDFViewer(w http.ResponseWriter, r *http.Request, slug, p
 </head><body>
 %s
 <embed id="pdf-embed" src="document.pdf" type="application/pdf"
-       style="position:fixed;left:0;right:0;bottom:0;width:100%%;border:none">
+       style="position:fixed;left:0;right:0;width:100%%;border:none">
 <script>
+(function(){
 var o=document.getElementById('asiakirjat-overlay');
-if(o)document.getElementById('pdf-embed').style.top=o.offsetHeight+'px';
+var e=document.getElementById('pdf-embed');
+function fit(){var h=o?o.offsetHeight:0;e.style.top=h+'px';e.style.height='calc(100vh - '+h+'px)';}
+fit();window.addEventListener('resize',fit);
+})();
 </script>
 </body></html>`, projectName, version, overlayHTML)
 }
