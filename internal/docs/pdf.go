@@ -21,24 +21,30 @@ func checkPdftotext() {
 	hasPdftotext = err == nil
 }
 
-// ExtractTextFromPDF extracts text from a PDF file for search indexing.
+// PDFPage holds the text content for a single PDF page.
+type PDFPage struct {
+	Number int
+	Text   string
+}
+
+// ExtractPDFPages extracts text from a PDF file, returning one PDFPage per page.
 // Tries pdftotext (poppler-utils) first for best quality, falls back to
 // ledongthuc/pdf (pure Go) if pdftotext is not installed.
-func ExtractTextFromPDF(filePath string) (title string, text string, err error) {
+func ExtractPDFPages(filePath string) (title string, pages []PDFPage, err error) {
 	pdftotextChecked.Do(checkPdftotext)
 
 	if hasPdftotext {
-		title, text, err = extractWithPdftotext(filePath)
+		title, pages, err = extractPagesWithPdftotext(filePath)
 		if err == nil {
-			return title, text, nil
+			return title, pages, nil
 		}
 		// Fall through to pure Go on error
 	}
 
-	return extractWithGoPDF(filePath)
+	return extractPagesWithGoPDF(filePath)
 }
 
-func extractWithPdftotext(filePath string) (string, string, error) {
+func extractPagesWithPdftotext(filePath string) (string, []PDFPage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -47,22 +53,40 @@ func extractWithPdftotext(filePath string) (string, string, error) {
 	cmd.Stdout = &out
 
 	if err := cmd.Run(); err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 
 	text := out.String()
-	title := firstNonEmptyLine(text)
-	return title, text, nil
+	// pdftotext separates pages with form-feed (\f)
+	rawPages := strings.Split(text, "\f")
+
+	var pages []PDFPage
+	for i, pageText := range rawPages {
+		trimmed := strings.TrimSpace(pageText)
+		if trimmed == "" {
+			continue
+		}
+		pages = append(pages, PDFPage{
+			Number: i + 1,
+			Text:   trimmed,
+		})
+	}
+
+	title := ""
+	if len(pages) > 0 {
+		title = firstNonEmptyLine(pages[0].Text)
+	}
+	return title, pages, nil
 }
 
-func extractWithGoPDF(filePath string) (string, string, error) {
+func extractPagesWithGoPDF(filePath string) (string, []PDFPage, error) {
 	f, reader, err := gopdf.Open(filePath)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 	defer f.Close()
 
-	var buf bytes.Buffer
+	var pages []PDFPage
 	for i := 1; i <= reader.NumPage(); i++ {
 		page := reader.Page(i)
 		if page.V.IsNull() {
@@ -72,13 +96,21 @@ func extractWithGoPDF(filePath string) (string, string, error) {
 		if err != nil {
 			continue
 		}
-		buf.WriteString(pageText)
-		buf.WriteByte('\n')
+		trimmed := strings.TrimSpace(pageText)
+		if trimmed == "" {
+			continue
+		}
+		pages = append(pages, PDFPage{
+			Number: i,
+			Text:   trimmed,
+		})
 	}
 
-	text := buf.String()
-	title := firstNonEmptyLine(text)
-	return title, text, nil
+	title := ""
+	if len(pages) > 0 {
+		title = firstNonEmptyLine(pages[0].Text)
+	}
+	return title, pages, nil
 }
 
 func firstNonEmptyLine(text string) string {
