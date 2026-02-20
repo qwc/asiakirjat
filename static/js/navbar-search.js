@@ -48,11 +48,19 @@
                 data.results.forEach(function(r) {
                     var item = document.createElement("a");
                     item.className = "navbar-search-item";
-                    item.href = r.url + "?highlight=" + encodeURIComponent(q);
+                    if (r.page_number > 0) {
+                        item.href = r.url + "?search=" + encodeURIComponent(q) + "#page=" + r.page_number;
+                    } else {
+                        item.href = r.url + "?highlight=" + encodeURIComponent(q);
+                    }
 
                     var title = document.createElement("div");
                     title.className = "navbar-search-item-title";
-                    title.textContent = r.page_title || r.file_path;
+                    var titleText = r.page_title || r.file_path;
+                    if (r.page_number > 0) {
+                        titleText += " (p. " + r.page_number + ")";
+                    }
+                    title.textContent = titleText;
                     item.appendChild(title);
 
                     var meta = document.createElement("div");

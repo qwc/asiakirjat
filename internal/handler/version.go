@@ -98,16 +98,41 @@ func (h *Handler) servePDFViewer(w http.ResponseWriter, r *http.Request, slug, p
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html><html>
 <head><meta charset="utf-8"><title>%s - %s</title>
-<style>html,body{margin:0;height:100%%;overflow:hidden}</style>
+<style>html,body{margin:0;height:100%%;overflow:hidden}
+#pdf-search-hint{position:fixed;left:0;right:0;z-index:999;background:#fef3c7;border-bottom:1px solid #d97706;padding:6px 16px;display:flex;align-items:center;gap:8px;font:14px/1.4 system-ui,sans-serif;color:#92400e}
+#pdf-search-hint b{color:#78350f}
+#pdf-search-hint button{background:none;border:none;cursor:pointer;font-size:18px;color:#92400e;padding:0 4px;margin-left:auto}
+</style>
 </head><body>
 %s
+<div id="pdf-search-hint" style="display:none"></div>
 <embed id="pdf-embed" src="document.pdf" type="application/pdf"
        style="position:fixed;left:0;right:0;width:100%%;border:none">
 <script>
 (function(){
 var o=document.getElementById('asiakirjat-overlay');
 var e=document.getElementById('pdf-embed');
-function fit(){var h=o?o.offsetHeight:0;e.style.top=h+'px';e.style.height='calc(100vh - '+h+'px)';}
+var hint=document.getElementById('pdf-search-hint');
+
+// Append page fragment from URL hash to embed src
+var hash=window.location.hash;
+if(hash&&/^#page=\d+$/.test(hash)){e.src='document.pdf'+hash;}
+
+// Show search hint banner if ?search= param present
+var params=new URLSearchParams(window.location.search);
+var searchTerm=params.get('search');
+if(searchTerm){
+hint.innerHTML='Searched for: <b>'+searchTerm.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</b> &mdash; press Ctrl+F to find on this page<button title="Dismiss">&times;</button>';
+hint.style.display='flex';
+hint.querySelector('button').addEventListener('click',function(){hint.style.display='none';fit();});
+}
+
+function fit(){
+var h=o?o.offsetHeight:0;
+if(hint.style.display!=='none')h+=hint.offsetHeight;
+if(hint.style.display!=='none')hint.style.top=(o?o.offsetHeight:0)+'px';
+e.style.top=h+'px';e.style.height='calc(100vh - '+h+'px)';
+}
 fit();window.addEventListener('resize',fit);
 })();
 </script>

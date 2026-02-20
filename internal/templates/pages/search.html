@@ -57,9 +57,9 @@
                 <span class="search-result-version">{{.VersionTag}}</span>
             </div>
             <h3 class="search-result-title">
-                <a href="{{.URL}}?highlight={{urlquery $.Query}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>
+                {{if .PageNumber}}<a href="{{.URL}}?search={{urlquery $.Query}}#page={{.PageNumber}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>{{else}}<a href="{{.URL}}?highlight={{urlquery $.Query}}">{{if .PageTitle}}{{.PageTitle}}{{else}}{{.FilePath}}{{end}}</a>{{end}}
             </h3>
-            <div class="search-result-path">{{.FilePath}}</div>
+            <div class="search-result-path">{{.FilePath}}{{if .PageNumber}} &middot; Page {{.PageNumber}}{{end}}</div>
             {{if .Snippet}}
             <div class="search-result-snippet">{{safe .Snippet}}</div>
             {{end}}
