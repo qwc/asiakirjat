@@ -16,6 +16,7 @@ Step-by-step guides for common tasks:
 
 - [Configure LDAP Authentication](how-to/configure-ldap.md)
 - [Configure OAuth2 Authentication](how-to/configure-oauth2.md)
+- [Manage Global Access](how-to/manage-global-access.md)
 - [Use API Tokens](how-to/api-tokens.md)
 - [CI/CD Integration](how-to/ci-cd-integration.md)
 

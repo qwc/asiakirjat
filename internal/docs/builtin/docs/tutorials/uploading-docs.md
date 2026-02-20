@@ -75,6 +75,18 @@ Uploading the same version tag again will:
 3. Extract the new archive
 4. Re-index for search
 
+## Deleting Versions
+
+To delete a version you no longer need:
+
+1. Navigate to the project page (`/project/{slug}`)
+2. Click the **Delete** button next to the version
+3. Confirm the deletion
+
+Deleting a version removes its files from storage and its entries from the search index. This action cannot be undone.
+
+You must have editor or admin access to the project to delete versions.
+
 ## What's Next?
 
 - [CI/CD Integration](../how-to/ci-cd-integration.md) - Automate uploads
