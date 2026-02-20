@@ -41,7 +41,9 @@
         </form>
     </div>
 
-    <table class="admin-table">
+    <input type="text" class="admin-filter" id="user-filter" placeholder="Filter users..." autocomplete="off">
+
+    <table class="admin-table" id="user-table">
         <thead>
             <tr>
                 <th>Username</th>
@@ -86,5 +88,34 @@
             {{end}}
         </tbody>
     </table>
+
+    <script>
+    (function() {
+        var input = document.getElementById("user-filter");
+        var tbody = document.querySelector("#user-table tbody");
+        var rows = tbody.querySelectorAll("tr");
+        var noMatch = document.createElement("tr");
+        noMatch.className = "filter-hidden";
+        noMatch.innerHTML = '<td colspan="6" style="color:var(--color-text-muted);text-align:center;">No matching users.</td>';
+        tbody.appendChild(noMatch);
+
+        input.addEventListener("input", function() {
+            var q = input.value.toLowerCase().trim();
+            var visible = 0;
+            rows.forEach(function(row) {
+                var cells = row.querySelectorAll("td");
+                if (cells.length < 4) return;
+                var text = cells[0].textContent.toLowerCase() + " " + cells[1].textContent.toLowerCase() + " " + cells[2].textContent.toLowerCase() + " " + cells[3].textContent.toLowerCase();
+                if (!q || text.indexOf(q) !== -1) {
+                    row.classList.remove("filter-hidden");
+                    visible++;
+                } else {
+                    row.classList.add("filter-hidden");
+                }
+            });
+            noMatch.className = visible === 0 && q ? "" : "filter-hidden";
+        });
+    })();
+    </script>
 </div>
 {{end}}

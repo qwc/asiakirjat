@@ -697,6 +697,20 @@ body {
     margin-bottom: 0.75rem;
 }
 
+.admin-filter {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    background: var(--color-surface);
+    margin-bottom: 1rem;
+}
+
+tr.filter-hidden {
+    display: none;
+}
+
 .admin-table {
     width: 100%;
     border-collapse: collapse;
