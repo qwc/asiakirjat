@@ -20,15 +20,14 @@ Created by admins for service accounts:
 
 ### Project-Scoped Tokens (Editor)
 
-Editors can create tokens scoped to specific projects they have access to:
+Editors and admins can create tokens scoped to specific projects:
 
-1. Navigate to your project
+1. Navigate to the project page (`/project/{slug}`)
 2. Click **Manage Tokens** (or go to `/project/{slug}/tokens`)
-3. Click **Create Token**
-4. Enter a name and click **Create**
-5. Copy the token immediately
+3. Enter a token name and click **Create Token**
+4. Copy the token immediately (it is shown only once)
 
-Project-scoped tokens can only upload to that specific project.
+Project-scoped tokens can **only** upload to that specific project. They cannot list other projects, upload to other projects, or perform any other actions. This makes them ideal for CI/CD pipelines where each project has its own deploy token.
 
 ## Using Tokens
 

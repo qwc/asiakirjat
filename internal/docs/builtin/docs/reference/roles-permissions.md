@@ -21,11 +21,12 @@ Full system access:
 ### Editor
 
 Limited management, broad access:
-- Create projects
+- Create projects (auto-granted editor access to non-public projects they create)
+- Access admin project list (filtered to only projects they have access to)
 - View public projects
 - View private projects they have access to
 - Upload to projects where they have editor access
-- Create project-scoped API tokens
+- Create project-scoped API tokens for their projects
 
 ### Viewer
 
@@ -78,6 +79,17 @@ A user's effective access is determined by:
 3. **Private visibility + global access grant** — Access via global access list (config or LDAP/OAuth2 groups)
 4. **Custom visibility + project grant** — Access via per-project grant (manual, LDAP, or OAuth2 group mapping)
 
+## Global Access (Private Projects)
+
+Global access controls who can view and upload to **private**-visibility projects. It can be configured two ways:
+
+1. **Config file** — via the `access.private` section in `config.yaml` (see [Configuration Reference](configuration.md))
+2. **Admin UI** — via **Admin > Global Access**, where admins can add rules for individual users, LDAP groups, or OAuth2 groups
+
+Global access rules grant either viewer or editor access to **all** private projects. For finer-grained control over individual projects, use **custom** visibility with per-project access grants instead.
+
+See [Manage Global Access](../how-to/manage-global-access.md) for a step-by-step guide.
+
 ## Group-Based Access
 
 LDAP and OAuth2 authentication can map groups to project access:
@@ -106,7 +118,8 @@ Group mappings can also be managed in **Admin > Group Mappings**.
 | Upload to project (with grant) | Yes | Yes | No |
 | Delete version (with grant) | Yes | Yes | No |
 | Create project API tokens | Yes | Yes | No |
-| Access admin panel | Yes | No | No |
+| Access admin panel (full) | Yes | No | No |
+| Access admin project list (filtered) | Yes | Yes | No |
 | Create projects | Yes | Yes | No |
 | Edit/delete projects | Yes | No | No |
 | Create/edit users | Yes | No | No |
@@ -122,6 +135,10 @@ Robot users are special accounts for API access:
 - Can only authenticate via API token
 - Created and managed by admins
 - Typically given editor role
+
+## Admin UI Features
+
+The admin panel includes live filter inputs on the **Projects** and **Users** tables. Type to instantly filter rows by name, slug, visibility, username, email, role, or auth source. This is especially useful in larger environments with many entries.
 
 ## Best Practices
 
