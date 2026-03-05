@@ -30,5 +30,35 @@
 
     <h2>Versions</h2>
     {{template "version_list" .}}
+
+    {{if .UploadLogs}}
+    <details class="upload-log-section">
+        <summary>Upload Log</summary>
+        <table class="upload-log-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>File</th>
+                    <th>User</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .UploadLogs}}
+                <tr>
+                    <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+                    <td>{{.VersionTag}}</td>
+                    <td>{{.ContentType}}</td>
+                    <td class="upload-log-filename">{{.Filename}}</td>
+                    <td>{{.Username}}</td>
+                    <td>{{if .IsReupload}}<span class="version-badge version-badge-reupload">Re-upload</span>{{else}}<span class="version-badge version-badge-new">New</span>{{end}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </details>
+    {{end}}
 </div>
 {{end}}

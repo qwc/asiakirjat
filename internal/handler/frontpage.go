@@ -17,10 +17,19 @@ type projectCardData struct {
 	LatestVersion string
 }
 
-// latestVersionTag returns the highest semver tag from a list of versions.
-func latestVersionTag(versions []database.Version) string {
+// latestVersionTag returns the "latest" version tag.
+// If pinnedVersion is set and exists in the list, it takes priority.
+// Otherwise, falls back to the highest semver-sorted tag.
+func latestVersionTag(versions []database.Version, pinnedVersion *string) string {
 	if len(versions) == 0 {
 		return ""
+	}
+	if pinnedVersion != nil {
+		for _, v := range versions {
+			if v.Tag == *pinnedVersion {
+				return *pinnedVersion
+			}
+		}
 	}
 	tags := make([]string, len(versions))
 	for i, v := range versions {
@@ -105,7 +114,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 			Visibility:  p.Visibility,
 		}
 		versions, _ := h.versions.ListByProject(ctx, p.ID)
-		card.LatestVersion = latestVersionTag(versions)
+		card.LatestVersion = latestVersionTag(versions, p.PinnedVersion)
 		projects = append(projects, card)
 	}
 

@@ -18,6 +18,7 @@ Step-by-step guides for common tasks:
 - [Configure OAuth2 Authentication](how-to/configure-oauth2.md)
 - [Manage Global Access](how-to/manage-global-access.md)
 - [Use API Tokens](how-to/api-tokens.md)
+- [Pin a Version as Latest](how-to/pin-versions.md)
 - [CI/CD Integration](how-to/ci-cd-integration.md)
 
 ## Reference
@@ -39,7 +40,7 @@ Background information and concepts:
 
 ## Key Features
 
-- **Version Management** - Upload multiple versions of documentation, semver-sorted
+- **Version Management** - Upload multiple versions of documentation, semver-sorted, with pinnable latest version
 - **Version Diffing** - Compare HTML documentation between versions side-by-side
 - **Full-Text Search** - Search across all projects and versions using Bleve
 - **PDF Support** - Upload PDF documents with full-text search indexing
