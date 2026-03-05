@@ -106,7 +106,7 @@ Query: "configure authentication"
 
 By default, search only returns results from the **latest version** of each project. This prevents outdated documentation from cluttering results.
 
-The "latest" version is determined by semantic version sorting.
+The "latest" version is determined by semantic version sorting, unless a version has been **pinned** as latest (see [Pinning Versions](../how-to/pin-versions.md)). When a version is pinned, search uses the pinned version instead of the semver-sorted latest.
 
 Options:
 - **Default**: Search latest versions only

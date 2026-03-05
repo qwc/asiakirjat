@@ -37,6 +37,8 @@ type Project struct {
 	Description   string    `db:"description"`
 	Visibility    string    `db:"visibility"`
 	RetentionDays *int      `db:"retention_days"`
+	PinnedVersion *string   `db:"pinned_version"`
+	PinPermanent  bool      `db:"pin_permanent"`
 	CreatedAt     time.Time `db:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at"`
 }
@@ -88,6 +90,17 @@ type GlobalAccess struct {
 	SubjectIdentifier string `db:"subject_identifier"` // username, LDAP DN, OAuth2 group name
 	Role              string `db:"role"`                // 'viewer' or 'editor'
 	FromConfig        bool   `db:"from_config"`
+}
+
+type UploadLog struct {
+	ID          int64     `db:"id"`
+	ProjectID   int64     `db:"project_id"`
+	VersionTag  string    `db:"version_tag"`
+	ContentType string    `db:"content_type"`
+	UploadedBy  int64     `db:"uploaded_by"`
+	IsReupload  bool      `db:"is_reupload"`
+	Filename    string    `db:"filename"`
+	CreatedAt   time.Time `db:"created_at"`
 }
 
 // GlobalAccessGrant is a resolved per-user grant for private project access.

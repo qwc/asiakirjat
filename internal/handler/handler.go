@@ -26,6 +26,7 @@ type Handler struct {
 	tokens         store.TokenStore
 	groupMappings  store.AuthGroupMappingStore
 	globalAccess   store.GlobalAccessStore
+	uploadLogs     store.UploadLogStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
@@ -55,6 +56,7 @@ type Deps struct {
 	Tokens         store.TokenStore
 	GroupMappings  store.AuthGroupMappingStore
 	GlobalAccess   store.GlobalAccessStore
+	UploadLogs     store.UploadLogStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
 	SessionMgr     *auth.SessionManager
@@ -76,6 +78,7 @@ func New(deps Deps) *Handler {
 		tokens:         deps.Tokens,
 		groupMappings:  deps.GroupMappings,
 		globalAccess:   deps.GlobalAccess,
+		uploadLogs:     deps.UploadLogs,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
@@ -107,6 +110,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))
 	mux.HandleFunc("POST "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadSubmit)))
 	mux.HandleFunc("POST "+bp+"/project/{slug}/version/{tag}/delete", h.withSession(h.requireAuth(h.handleDeleteVersion)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/version/{tag}/pin", h.withSession(h.requireAuth(h.handlePinVersion)))
+	mux.HandleFunc("POST "+bp+"/project/{slug}/unpin", h.withSession(h.requireAuth(h.handleUnpinVersion)))
 	mux.HandleFunc("GET "+bp+"/project/{slug}/version/{tag}/download", h.withSession(h.handleDownloadVersion))
 
 	// Project token management (for editors)
