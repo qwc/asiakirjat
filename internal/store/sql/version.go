@@ -50,8 +50,8 @@ func (s *VersionStore) ListByProject(ctx context.Context, projectID int64) ([]da
 }
 
 func (s *VersionStore) Update(ctx context.Context, version *database.Version) error {
-	query := `UPDATE versions SET storage_path = ?, content_type = ?, uploaded_by = ? WHERE id = ?`
-	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), version.StoragePath, version.ContentType, version.UploadedBy, version.ID)
+	query := `UPDATE versions SET storage_path = ?, content_type = ?, uploaded_by = ?, created_at = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), version.StoragePath, version.ContentType, version.UploadedBy, version.CreatedAt, version.ID)
 	if err != nil {
 		return fmt.Errorf("updating version: %w", err)
 	}
