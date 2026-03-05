@@ -166,6 +166,29 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Log the upload
+	if h.uploadLogs != nil {
+		uploadLog := &database.UploadLog{
+			ProjectID:   project.ID,
+			VersionTag:  versionTag,
+			ContentType: contentType,
+			UploadedBy:  user.ID,
+			IsReupload:  isReupload,
+			Filename:    header.Filename,
+		}
+		if err := h.uploadLogs.Create(ctx, uploadLog); err != nil {
+			h.logger.Error("creating upload log", "error", err)
+		}
+	}
+
+	// Clear temporary pin on new version upload
+	if !isReupload && project.PinnedVersion != nil && !project.PinPermanent {
+		project.PinnedVersion = nil
+		if err := h.projects.Update(ctx, project); err != nil {
+			h.logger.Error("clearing temporary pin", "error", err)
+		}
+	}
+
 	// Invalidate latest tags cache
 	h.invalidateLatestTagsCache()
 

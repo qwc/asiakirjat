@@ -87,8 +87,13 @@ Deleting a version removes its files from storage and its entries from the searc
 
 You must have editor or admin access to the project to delete versions.
 
+## Upload Log
+
+Every upload is recorded in the project's upload log. Editors and admins can view the log by expanding the **Upload Log** section on the project detail page. The log tracks who uploaded what, when, and whether it was a new upload or a re-upload.
+
 ## What's Next?
 
+- [Pin a Version as Latest](../how-to/pin-versions.md) - Override which version is "latest"
 - [CI/CD Integration](../how-to/ci-cd-integration.md) - Automate uploads
 - [Archive Formats](../reference/archive-formats.md) - Detailed format info
 - [Search](../explanation/search-indexing.md) - How search works

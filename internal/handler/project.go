@@ -81,6 +81,23 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Determine the computed latest version (by semver sort)
+	latestVersion := ""
+	if len(tags) > 0 {
+		latestVersion = tags[0]
+	}
+
+	// If a version is pinned, use it as latest (if it exists)
+	effectiveLatest := latestVersion
+	if project.PinnedVersion != nil {
+		for _, tag := range tags {
+			if tag == *project.PinnedVersion {
+				effectiveLatest = *project.PinnedVersion
+				break
+			}
+		}
+	}
+
 	// Build base URL for API examples
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
@@ -88,14 +105,57 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	baseURL := scheme + "://" + r.Host
 
-	h.render(w, "project_detail", map[string]any{
-		"User":      user,
-		"Project":   project,
-		"Versions":  versionViews,
-		"CanUpload": canUpload,
-		"CanDelete": canUpload,
-		"BaseURL":   baseURL,
-	})
+	data := map[string]any{
+		"User":            user,
+		"Project":         project,
+		"Versions":        versionViews,
+		"CanUpload":       canUpload,
+		"CanDelete":       canUpload,
+		"BaseURL":         baseURL,
+		"PinnedVersion":   project.PinnedVersion,
+		"PinPermanent":    project.PinPermanent,
+		"LatestVersion":   latestVersion,
+		"EffectiveLatest": effectiveLatest,
+	}
+
+	// Fetch upload logs for editors/admins
+	if canUpload && h.uploadLogs != nil {
+		logs, err := h.uploadLogs.ListByProject(ctx, project.ID)
+		if err != nil {
+			h.logger.Error("listing upload logs", "error", err)
+		} else {
+			// Build user lookup
+			users, _ := h.users.List(ctx)
+			userNames := make(map[int64]string)
+			for _, u := range users {
+				userNames[u.ID] = u.Username
+			}
+
+			type logView struct {
+				VersionTag  string
+				ContentType string
+				Username    string
+				IsReupload  bool
+				Filename    string
+				CreatedAt   interface{ Format(string) string }
+			}
+
+			var logViews []logView
+			for _, l := range logs {
+				logViews = append(logViews, logView{
+					VersionTag:  l.VersionTag,
+					ContentType: l.ContentType,
+					Username:    userNames[l.UploadedBy],
+					IsReupload:  l.IsReupload,
+					Filename:    l.Filename,
+					CreatedAt:   l.CreatedAt,
+				})
+			}
+			data["UploadLogs"] = logViews
+		}
+	}
+
+	h.render(w, "project_detail", data)
 }
 
 func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
@@ -382,4 +442,74 @@ func (h *Handler) handleProjectRevokeToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	h.redirect(w, r, "/project/"+slug+"/tokens", http.StatusSeeOther)
+}
+
+// handlePinVersion pins a version as the "latest" for a project.
+func (h *Handler) handlePinVersion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+	tag := r.PathValue("tag")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Verify the version exists
+	if _, err := h.versions.GetByProjectAndTag(ctx, project.ID, tag); err != nil {
+		http.Error(w, "Version not found", http.StatusNotFound)
+		return
+	}
+
+	permanent := r.FormValue("permanent") == "true"
+	project.PinnedVersion = &tag
+	project.PinPermanent = permanent
+
+	if err := h.projects.Update(ctx, project); err != nil {
+		h.logger.Error("pinning version", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	h.invalidateLatestTagsCache()
+	h.logger.Info("version pinned", "project", slug, "version", tag, "permanent", permanent, "user", user.Username)
+	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
+}
+
+// handleUnpinVersion removes the pinned version from a project.
+func (h *Handler) handleUnpinVersion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	project.PinnedVersion = nil
+	project.PinPermanent = false
+
+	if err := h.projects.Update(ctx, project); err != nil {
+		h.logger.Error("unpinning version", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	h.invalidateLatestTagsCache()
+	h.logger.Info("version unpinned", "project", slug, "user", user.Username)
+	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
 }

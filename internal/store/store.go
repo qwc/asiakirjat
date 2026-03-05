@@ -75,6 +75,11 @@ type TokenStore interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+type UploadLogStore interface {
+	Create(ctx context.Context, log *database.UploadLog) error
+	ListByProject(ctx context.Context, projectID int64) ([]database.UploadLog, error)
+}
+
 type GlobalAccessStore interface {
 	// Rules (global_access table)
 	ListRules(ctx context.Context) ([]database.GlobalAccess, error)
