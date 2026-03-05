@@ -596,3 +596,133 @@ func TestTokenStoreGetByIDNotFound(t *testing.T) {
 		t.Error("expected error for non-existent token ID")
 	}
 }
+
+func TestUploadLogStoreCRUD(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	logStore := NewUploadLogStore(db)
+	pStore := NewProjectStore(db)
+	uStore := NewUserStore(db)
+	ctx := context.Background()
+
+	// Create prerequisites
+	project := &database.Project{
+		Slug: "test-proj", Name: "Test", Visibility: database.VisibilityPublic,
+	}
+	pStore.Create(ctx, project)
+
+	hash := "fakehash"
+	user := &database.User{
+		Username: "uploader", Password: &hash, AuthSource: "builtin", Role: "editor",
+	}
+	uStore.Create(ctx, user)
+
+	// Create log entry
+	entry := &database.UploadLog{
+		ProjectID:   project.ID,
+		VersionTag:  "v1.0.0",
+		ContentType: "archive",
+		UploadedBy:  user.ID,
+		IsReupload:  false,
+		Filename:    "docs.zip",
+	}
+	if err := logStore.Create(ctx, entry); err != nil {
+		t.Fatal(err)
+	}
+	if entry.ID == 0 {
+		t.Error("expected non-zero ID after create")
+	}
+
+	// Create another log entry (reupload)
+	entry2 := &database.UploadLog{
+		ProjectID:   project.ID,
+		VersionTag:  "v1.0.0",
+		ContentType: "archive",
+		UploadedBy:  user.ID,
+		IsReupload:  true,
+		Filename:    "docs-v2.zip",
+	}
+	if err := logStore.Create(ctx, entry2); err != nil {
+		t.Fatal(err)
+	}
+
+	// List by project
+	logs, err := logStore.ListByProject(ctx, project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(logs))
+	}
+	// Should be ordered by created_at DESC (newest first)
+	if logs[0].ID != entry2.ID {
+		t.Errorf("expected newest entry first, got ID %d", logs[0].ID)
+	}
+	if !logs[0].IsReupload {
+		t.Error("expected first entry (newest) to be a reupload")
+	}
+	if logs[1].IsReupload {
+		t.Error("expected second entry (oldest) to not be a reupload")
+	}
+
+	// List for non-existent project should return empty
+	emptyLogs, err := logStore.ListByProject(ctx, 99999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emptyLogs) != 0 {
+		t.Errorf("expected 0 logs for non-existent project, got %d", len(emptyLogs))
+	}
+}
+
+func TestProjectStorePinnedVersion(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	store := NewProjectStore(db)
+	ctx := context.Background()
+
+	project := &database.Project{
+		Slug: "pinned-test", Name: "Pinned Test", Visibility: database.VisibilityPublic,
+	}
+	if err := store.Create(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	// Initially no pinned version
+	got, _ := store.GetBySlug(ctx, "pinned-test")
+	if got.PinnedVersion != nil {
+		t.Error("expected nil PinnedVersion initially")
+	}
+	if got.PinPermanent {
+		t.Error("expected PinPermanent to be false initially")
+	}
+
+	// Set a pinned version
+	v := "v1.0.0"
+	project.PinnedVersion = &v
+	project.PinPermanent = true
+	if err := store.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	got2, _ := store.GetBySlug(ctx, "pinned-test")
+	if got2.PinnedVersion == nil || *got2.PinnedVersion != "v1.0.0" {
+		t.Errorf("expected PinnedVersion 'v1.0.0', got %v", got2.PinnedVersion)
+	}
+	if !got2.PinPermanent {
+		t.Error("expected PinPermanent to be true")
+	}
+
+	// Clear pinned version
+	project.PinnedVersion = nil
+	project.PinPermanent = false
+	if err := store.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	got3, _ := store.GetBySlug(ctx, "pinned-test")
+	if got3.PinnedVersion != nil {
+		t.Error("expected nil PinnedVersion after clearing")
+	}
+	if got3.PinPermanent {
+		t.Error("expected PinPermanent to be false after clearing")
+	}
+}

@@ -253,12 +253,7 @@ func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
 		if err != nil || len(versions) == 0 {
 			continue
 		}
-		tags := make([]string, len(versions))
-		for i, v := range versions {
-			tags[i] = v.Tag
-		}
-		docs.SortVersionTags(tags)
-		result[p.Slug] = tags[0]
+		result[p.Slug] = latestVersionTag(versions, p.PinnedVersion)
 	}
 
 	// Update cache
