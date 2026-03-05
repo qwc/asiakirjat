@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -129,6 +130,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		existingVersion.StoragePath = destPath
 		existingVersion.ContentType = contentType
 		existingVersion.UploadedBy = user.ID
+		existingVersion.CreatedAt = time.Now()
 		if err := h.versions.Update(ctx, existingVersion); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
 			h.logger.Error("updating version record", "error", err)
