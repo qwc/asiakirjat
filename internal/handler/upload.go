@@ -45,8 +45,17 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
-		http.Error(w, "Project not found", http.StatusNotFound)
-		return
+		if h.config.Projects.AutoCreate && canAutoCreate(user) && isValidSlug(slug) {
+			project, err = h.autoCreateProject(ctx, slug, user)
+			if err != nil {
+				h.logger.Error("auto-creating project", "error", err)
+				http.Error(w, "Failed to create project", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, "Project not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	if !h.canUpload(ctx, user, project) {

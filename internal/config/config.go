@@ -18,6 +18,11 @@ type Config struct {
 	Storage   StorageConfig   `yaml:"storage"`
 	Retention RetentionConfig `yaml:"retention"`
 	Branding  BrandingConfig  `yaml:"branding"`
+	Projects  ProjectsConfig  `yaml:"projects"`
+}
+
+type ProjectsConfig struct {
+	AutoCreate bool `yaml:"auto_create" env:"ASIAKIRJAT_PROJECTS_AUTO_CREATE"`
 }
 
 type RetentionConfig struct {

@@ -126,20 +126,40 @@ func (h *Handler) handleAPIUploadGeneral(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request, slug string) {
 	ctx := r.Context()
-
-	// Get project first to know the project ID for token scope validation
-	project, err := h.projects.GetBySlug(ctx, slug)
-	if err != nil {
-		h.jsonError(w, "Project not found", http.StatusNotFound)
-		return
-	}
-
-	// Authenticate via Bearer token with project scope validation
 	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
-	user := tokenAuth.AuthenticateRequestForProject(r, project.ID)
-	if user == nil {
-		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
-		return
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	var user *database.User
+	if err != nil {
+		// Project doesn't exist — try auto-create path
+		if h.config.Projects.AutoCreate && isValidSlug(slug) {
+			// No project to scope to, so use unscoped auth
+			user = tokenAuth.AuthenticateRequest(r)
+			if user == nil {
+				h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if !canAutoCreate(user) {
+				h.jsonError(w, "Forbidden: insufficient role to auto-create projects", http.StatusForbidden)
+				return
+			}
+			project, err = h.autoCreateProject(ctx, slug, user)
+			if err != nil {
+				h.logger.Error("auto-creating project", "error", err)
+				h.jsonError(w, "Failed to create project", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			h.jsonError(w, "Project not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		// Project exists — use project-scoped auth
+		user = tokenAuth.AuthenticateRequestForProject(r, project.ID)
+		if user == nil {
+			h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	if !h.canUpload(ctx, user, project) {
@@ -276,6 +296,93 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 		"status":  "ok",
 		"version": versionTag,
 		"project": slug,
+	})
+}
+
+func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
+	user := tokenAuth.AuthenticateRequest(r)
+	if user == nil {
+		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if user.Role != "admin" && user.Role != "editor" {
+		h.jsonError(w, "Forbidden: admin or editor role required", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Slug        string `json:"slug"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Visibility  string `json:"visibility"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.jsonError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if !isValidSlug(req.Slug) {
+		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		req.Name = req.Slug
+	}
+	if req.Visibility == "" {
+		req.Visibility = database.VisibilityPrivate
+	}
+	if req.Visibility != database.VisibilityPublic && req.Visibility != database.VisibilityPrivate && req.Visibility != database.VisibilityCustom {
+		h.jsonError(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		return
+	}
+
+	// Check for duplicate
+	if existing, _ := h.projects.GetBySlug(ctx, req.Slug); existing != nil {
+		h.jsonError(w, "Project with this slug already exists", http.StatusConflict)
+		return
+	}
+
+	project := &database.Project{
+		Slug:        req.Slug,
+		Name:        req.Name,
+		Description: req.Description,
+		Visibility:  req.Visibility,
+	}
+
+	if err := h.projects.Create(ctx, project); err != nil {
+		h.logger.Error("creating project via API", "error", err)
+		h.jsonError(w, "Failed to create project", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.storage.EnsureProjectDir(req.Slug); err != nil {
+		h.logger.Error("creating project directory", "error", err)
+	}
+
+	// Auto-grant editor access to the creator for non-admin, non-public projects
+	if user.Role != "admin" && req.Visibility != database.VisibilityPublic {
+		access := &database.ProjectAccess{
+			ProjectID: project.ID,
+			UserID:    user.ID,
+			Role:      "editor",
+		}
+		if err := h.access.Grant(ctx, access); err != nil {
+			h.logger.Error("auto-granting creator access", "error", err)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"slug":        project.Slug,
+		"name":        project.Name,
+		"description": project.Description,
+		"visibility":  project.Visibility,
 	})
 }
 

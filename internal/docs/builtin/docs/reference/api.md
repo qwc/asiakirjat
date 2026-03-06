@@ -43,6 +43,52 @@ The `visibility` field is one of: `public`, `private`, or `custom`.
 - `200 OK` - Success
 - `401 Unauthorized` - Invalid or missing token
 
+### Create Project
+
+Create a new project.
+
+```
+POST /api/projects
+```
+
+**Request Body (JSON):**
+- `slug` (required) - URL-friendly identifier (lowercase alphanumeric with hyphens, 1-128 chars)
+- `name` - Display name (defaults to slug)
+- `description` - Project description
+- `visibility` - One of `public`, `private`, `custom` (default: `private`)
+
+**Example:**
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "my-project", "name": "My Project"}' \
+  https://docs.example.com/api/projects
+```
+
+**Response (201 Created):**
+
+```json
+{
+  "slug": "my-project",
+  "name": "My Project",
+  "description": "",
+  "visibility": "private"
+}
+```
+
+**Status Codes:**
+- `201 Created` - Project created
+- `400 Bad Request` - Invalid slug or visibility
+- `401 Unauthorized` - Invalid or missing token
+- `403 Forbidden` - Requires admin or editor role
+- `409 Conflict` - Project with this slug already exists
+
+**Notes:**
+- Requires a global (unscoped) API token — project-scoped tokens cannot create projects
+- Non-admin creators are automatically granted editor access to the new project
+
 ### List Versions
 
 List all versions for a project.
@@ -154,6 +200,7 @@ curl -X POST \
 - PDF files are stored directly; archives are extracted
 - All uploads are indexed for full-text search
 - Maximum upload size is 100 MB
+- **Auto-create:** When `projects.auto_create` is enabled in config, uploading to a non-existent project slug will automatically create the project (requires admin or editor role and a global token). See [Configuration](configuration.md) for details.
 
 ### Search
 
