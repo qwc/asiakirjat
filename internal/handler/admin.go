@@ -69,7 +69,7 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 	description := r.FormValue("description")
 	visibility := r.FormValue("visibility")
 	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
-		visibility = database.VisibilityCustom
+		visibility = database.VisibilityPrivate
 	}
 
 	// Parse retention_days
