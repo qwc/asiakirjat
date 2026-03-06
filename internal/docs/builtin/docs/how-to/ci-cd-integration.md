@@ -233,6 +233,39 @@ if [ "$http_code" != "200" ]; then
 fi
 ```
 
+## Auto-Creating Projects
+
+When `projects.auto_create` is enabled in the server config, you can upload to a project that doesn't exist yet and it will be created automatically:
+
+```bash
+# Upload to a new project — it gets created with private visibility
+curl -f -X POST \
+  -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
+  "$ASIAKIRJAT_URL/api/project/my-new-project/upload"
+```
+
+You can also create the project explicitly before uploading:
+
+```bash
+# Create project first
+curl -f -X POST \
+  -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "my-new-project", "name": "My New Project"}' \
+  "$ASIAKIRJAT_URL/api/projects"
+
+# Then upload
+curl -f -X POST \
+  -H "Authorization: Bearer $ASIAKIRJAT_TOKEN" \
+  -F "archive=@docs.zip" \
+  -F "version=v1.0.0" \
+  "$ASIAKIRJAT_URL/api/project/my-new-project/upload"
+```
+
+**Important:** Auto-create and `POST /api/projects` both require a **global (unscoped) API token** since no project exists to scope to. Project-scoped tokens only work for uploading to existing projects.
+
 ## Best Practices
 
 1. **Use version tags**: Upload with semantic version tags (`v1.2.3`)
@@ -240,3 +273,4 @@ fi
 3. **Fail fast**: Use `-f` flag to catch errors early
 4. **Secure tokens**: Store tokens in CI/CD secrets, never in code
 5. **Project-scoped tokens**: Use the minimum required permissions
+6. **Auto-create for new repos**: Enable `projects.auto_create` to let CI pipelines create projects on first deploy
