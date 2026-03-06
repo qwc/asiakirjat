@@ -104,6 +104,23 @@ retention:
 
 Retention can also be configured per-project in the admin UI.
 
+## Project Settings
+
+```yaml
+projects:
+  auto_create: false             # Auto-create projects on first upload
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `auto_create` | `false` | When enabled, uploading to a non-existent project slug automatically creates the project with private visibility. Only admins and editors can trigger auto-creation. |
+
+When auto-create is enabled:
+- The project is created with the slug as its name and `private` visibility
+- Non-admin creators are automatically granted editor access
+- API uploads require a global (unscoped) token since no project exists yet for scope validation
+- The web UI upload form also supports auto-creation for logged-in editors/admins
+
 ## Authentication Settings
 
 ### Session
@@ -263,6 +280,9 @@ branding:
 
 retention:
   nonsemver_days: 90
+
+projects:
+  auto_create: true
 
 auth:
   session:

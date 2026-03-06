@@ -97,3 +97,9 @@ branding:
   # logo_url: "/static/custom/logo.png"
   # custom_css: Filename of custom CSS in static/custom/ directory (for colors/branding)
   # custom_css: "custom.css"
+
+projects:
+  # auto_create: Automatically create projects on first upload (default: false)
+  # When enabled, admins and editors can upload to non-existent project slugs,
+  # and the project will be created automatically with private visibility.
+  # auto_create: true
