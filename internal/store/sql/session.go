@@ -3,6 +3,7 @@ package sql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -45,8 +46,8 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 }
 
 func (s *SessionStore) DeleteExpired(ctx context.Context) error {
-	query := `DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP`
-	_, err := s.db.ExecContext(ctx, query)
+	query := `DELETE FROM sessions WHERE expires_at < ?`
+	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("deleting expired sessions: %w", err)
 	}
