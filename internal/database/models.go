@@ -49,8 +49,10 @@ type Version struct {
 	Tag         string    `db:"tag"`
 	StoragePath string    `db:"storage_path"`
 	ContentType string    `db:"content_type"` // "archive" or "pdf"
-	UploadedBy  int64     `db:"uploaded_by"`
-	CreatedAt   time.Time `db:"created_at"`
+	// UploadedBy is nil when the uploading user has been deleted; the column
+	// has ON DELETE SET NULL so user removal doesn't block on historical rows.
+	UploadedBy *int64    `db:"uploaded_by"`
+	CreatedAt  time.Time `db:"created_at"`
 }
 
 type ProjectAccess struct {
@@ -93,14 +95,15 @@ type GlobalAccess struct {
 }
 
 type UploadLog struct {
-	ID          int64     `db:"id"`
-	ProjectID   int64     `db:"project_id"`
-	VersionTag  string    `db:"version_tag"`
-	ContentType string    `db:"content_type"`
-	UploadedBy  int64     `db:"uploaded_by"`
-	IsReupload  bool      `db:"is_reupload"`
-	Filename    string    `db:"filename"`
-	CreatedAt   time.Time `db:"created_at"`
+	ID          int64  `db:"id"`
+	ProjectID   int64  `db:"project_id"`
+	VersionTag  string `db:"version_tag"`
+	ContentType string `db:"content_type"`
+	// UploadedBy is nil when the uploading user has been deleted; see Version.UploadedBy.
+	UploadedBy *int64    `db:"uploaded_by"`
+	IsReupload bool      `db:"is_reupload"`
+	Filename   string    `db:"filename"`
+	CreatedAt  time.Time `db:"created_at"`
 }
 
 // GlobalAccessGrant is a resolved per-user grant for private project access.

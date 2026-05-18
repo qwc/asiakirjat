@@ -31,7 +31,7 @@ func TestDownloadVersionSuccess(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -97,7 +97,7 @@ func TestDownloadVersionPublicAnonymous(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -128,7 +128,7 @@ func TestDownloadVersionPrivateAnonymousRedirects(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -165,7 +165,7 @@ func TestDownloadVersionPrivateForbiddenForViewer(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 

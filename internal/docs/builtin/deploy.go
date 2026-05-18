@@ -100,7 +100,7 @@ func (d *Deployer) Deploy(ctx context.Context, userID int64) error {
 		ProjectID:   project.ID,
 		Tag:         versionTag,
 		StoragePath: storagePath,
-		UploadedBy:  userID,
+		UploadedBy:  &userID,
 	}
 	if err := d.Versions.Create(ctx, version); err != nil {
 		// Clean up on failure

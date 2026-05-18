@@ -162,10 +162,16 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 
 			var logViews []logView
 			for _, l := range logs {
+				username := "(deleted user)"
+				if l.UploadedBy != nil {
+					if name, ok := userNames[*l.UploadedBy]; ok {
+						username = name
+					}
+				}
 				logViews = append(logViews, logView{
 					VersionTag:  l.VersionTag,
 					ContentType: l.ContentType,
-					Username:    userNames[l.UploadedBy],
+					Username:    username,
 					IsReupload:  l.IsReupload,
 					Filename:    l.Filename,
 					CreatedAt:   l.CreatedAt,
