@@ -61,10 +61,17 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleAPIVersions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
+		h.jsonError(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Hide project existence from callers who can't view it.
+	if !h.canViewProject(ctx, user, project) {
 		h.jsonError(w, "Project not found", http.StatusNotFound)
 		return
 	}
