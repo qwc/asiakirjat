@@ -1,18 +1,18 @@
 # Manage Global Access
 
-This guide explains how to manage the global access list, which controls who can view and upload to **private**-visibility projects.
+This guide explains how to manage the global access list, which grants view/upload rights across all **private**-visibility projects at once.
 
 ## When to Use Global Access
 
-Asiakirjat has three project visibility levels. Global access applies only to **private** visibility:
+Asiakirjat has three project visibility levels:
 
 | Visibility | Access controlled by |
 |---|---|
 | **Public** | No restrictions — anyone can view |
-| **Private** | Global access list (this guide) |
-| **Custom** | Per-project access grants (see [Create Your First Project](../tutorials/first-project.md)) |
+| **Private** | Global access list (this guide) **or** per-project access grants |
+| **Custom** | Per-project access grants only (see [Create Your First Project](../tutorials/first-project.md)) |
 
-Use **private** visibility when you want all organization members (or a broad group) to see a project. Use **custom** visibility when you need fine-grained, per-project control.
+Use **private** visibility when you want all organization members (or a broad group) to see a project — global access grants apply to every private project at once. Per-project access grants on a private project act as targeted exceptions for users who aren't on the global list. Use **custom** visibility when only per-project grants should apply.
 
 ## Managing Rules via Admin UI
 
@@ -54,8 +54,9 @@ When a user accesses a private project, Asiakirjat checks:
 1. Is the user an admin? (admins always have full access)
 2. Does the global access list include the user directly?
 3. Does the global access list include an LDAP or OAuth2 group the user belongs to?
+4. Does the user have a per-project access grant on this specific project?
 
-If any check succeeds, the user can view (viewer) or view and upload (editor) to **all** private projects.
+If any check succeeds, the user can view (viewer) or view and upload (editor). Checks 2–3 apply to **all** private projects; check 4 applies only to the project that granted access.
 
 ## Global Access vs. Per-Project Access
 

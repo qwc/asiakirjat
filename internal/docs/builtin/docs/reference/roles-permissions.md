@@ -45,9 +45,9 @@ Projects have three visibility levels:
 
 ### Private
 
-- Visible to authenticated users who appear in the global access list
-- The global access list is configured in `config.yaml` under `access.private` or managed via the admin panel
+- Visible to authenticated users who appear in the global access list (configured in `config.yaml` under `access.private` or managed via the admin panel)
 - LDAP/OAuth2 group membership is resolved into access grants at login
+- Per-project access grants also work on private projects as targeted exceptions — useful when a specific user needs access without being added to the global list (e.g. the project creator)
 
 ### Custom
 
@@ -77,7 +77,7 @@ A user's effective access is determined by:
 1. **Public visibility** — Anyone can view public projects
 2. **Global admin role** — Full access to everything
 3. **Private visibility + global access grant** — Access via global access list (config or LDAP/OAuth2 groups)
-4. **Custom visibility + project grant** — Access via per-project grant (manual, LDAP, or OAuth2 group mapping)
+4. **Per-project access grant** — Works on both `custom` and `private` projects (manual, LDAP, or OAuth2 group mapping)
 
 ## Global Access (Private Projects)
 

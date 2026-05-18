@@ -61,7 +61,7 @@ func (h *Handler) filterAccessibleProjects(ctx context.Context, user *database.U
 		case database.VisibilityPublic:
 			filtered = append(filtered, p)
 		case database.VisibilityPrivate:
-			if hasGlobalAccess {
+			if hasGlobalAccess || accessMap[p.ID] {
 				filtered = append(filtered, p)
 			}
 		case database.VisibilityCustom:

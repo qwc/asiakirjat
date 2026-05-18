@@ -228,6 +228,74 @@ func TestEditorSeesOnlyAccessibleProjects(t *testing.T) {
 	}
 }
 
+// Regression test for issue #94: an editor who creates a private project (or
+// is granted explicit ProjectAccess on one) must still be able to see it,
+// even without a global access grant.
+func TestEditorSeesPrivateProjectViaProjectAccess(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	editorHash, _ := auth.HashPassword("editor123")
+	editor := &database.User{
+		Username: "privateeditor", Password: &editorHash,
+		AuthSource: "builtin", Role: "editor",
+	}
+	app.handler.users.Create(ctx, editor)
+
+	// Private project without any grant for this editor — must be hidden.
+	hiddenPriv := &database.Project{Slug: "priv-hidden", Name: "PrivHidden", Visibility: "private"}
+	app.handler.projects.Create(ctx, hiddenPriv)
+
+	// Private project with a ProjectAccess grant — must be visible.
+	grantedPriv := &database.Project{Slug: "priv-granted", Name: "PrivGranted", Visibility: "private"}
+	app.handler.projects.Create(ctx, grantedPriv)
+	app.handler.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: grantedPriv.ID,
+		UserID:    editor.ID,
+		Role:      "editor",
+	})
+
+	cookies := loginUser(t, app, "privateeditor", "editor123")
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/admin/projects", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	body := make([]byte, 64*1024)
+	n, _ := resp.Body.Read(body)
+	bodyStr := string(body[:n])
+
+	if strings.Contains(bodyStr, "PrivHidden") {
+		t.Error("editor should NOT see private project without any grant")
+	}
+	if !strings.Contains(bodyStr, "PrivGranted") {
+		t.Error("editor should see private project they were granted ProjectAccess on")
+	}
+
+	// Also verify canViewProject directly.
+	editorCtx := auth.ContextWithUser(ctx, editor)
+	if app.handler.canViewProject(editorCtx, editor, hiddenPriv) {
+		t.Error("canViewProject should deny private project without grant")
+	}
+	if !app.handler.canViewProject(editorCtx, editor, grantedPriv) {
+		t.Error("canViewProject should allow private project with ProjectAccess grant")
+	}
+}
+
 func TestViewerCannotAccessProjectManagement(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()

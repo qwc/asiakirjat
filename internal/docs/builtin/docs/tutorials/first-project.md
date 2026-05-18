@@ -21,7 +21,7 @@ A project in Asiakirjat represents a single documentation set. Each project can 
    - **Description**: Optional Markdown description
    - **Visibility**: Choose access level:
      - **Public** — anyone can view without logging in
-     - **Private** — authenticated users in the global access list can view
+     - **Private** — authenticated users in the global access list can view; per-project access grants also work as targeted exceptions
      - **Custom** — only users with explicit per-project access can view
 4. Click **Create**
 
@@ -56,7 +56,7 @@ For custom-visibility projects, you need to grant access to users individually:
    - Choose a role (viewer or editor)
    - Click **Grant**
 
-For private-visibility projects, access is controlled via the global access list. See [Manage Global Access](../how-to/manage-global-access.md).
+For private-visibility projects, access is normally controlled via the global access list (see [Manage Global Access](../how-to/manage-global-access.md)). You can also grant per-project access on a private project as a targeted exception for a user who isn't on the global list — the project creator's auto-granted access works this way.
 
 ### Roles
 

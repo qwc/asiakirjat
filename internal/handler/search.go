@@ -322,25 +322,21 @@ func (h *Handler) canViewProject(ctx context.Context, user *database.User, proje
 		h.logger.Debug("access granted: admin user", "username", username, "project", project.Slug)
 		return true
 	}
-	if project.Visibility == database.VisibilityPrivate {
-		// Private projects: check global access grants
-		if h.globalAccess != nil {
-			grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
-			if err == nil && grant != nil {
-				h.logger.Debug("access granted: global access grant", "username", username, "project", project.Slug, "grant_role", grant.Role, "grant_source", grant.Source)
-				return true
-			}
-			h.logger.Debug("access denied: no global access grant for private project", "username", username, "project", project.Slug, "user_id", user.ID)
+	// Private projects: global access grants view of all private projects
+	if project.Visibility == database.VisibilityPrivate && h.globalAccess != nil {
+		grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
+		if err == nil && grant != nil {
+			h.logger.Debug("access granted: global access grant", "username", username, "project", project.Slug, "grant_role", grant.Role, "grant_source", grant.Source)
+			return true
 		}
-		return false
 	}
-	// Custom visibility: check project-level access (from all sources: manual, ldap, oauth2)
+	// Otherwise (private without global grant, or custom): per-project access
 	effectiveRole, err := h.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	allowed := err == nil && effectiveRole != ""
 	if allowed {
 		h.logger.Debug("access granted: project-level access", "username", username, "project", project.Slug, "effective_role", effectiveRole)
 	} else {
-		h.logger.Debug("access denied: no project-level access", "username", username, "project", project.Slug, "user_id", user.ID)
+		h.logger.Debug("access denied: no access", "username", username, "project", project.Slug, "user_id", user.ID, "visibility", project.Visibility)
 	}
 	return allowed
 }
