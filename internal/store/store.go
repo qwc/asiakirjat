@@ -47,6 +47,8 @@ type ProjectAccessStore interface {
 	Grant(ctx context.Context, access *database.ProjectAccess) error
 	Revoke(ctx context.Context, projectID, userID int64) error
 	RevokeBySource(ctx context.Context, projectID, userID int64, source string) error
+	RevokeProjectBySource(ctx context.Context, projectID int64, source string) error
+	RevokeManualEditorByUser(ctx context.Context, userID int64) error
 	GetAccess(ctx context.Context, projectID, userID int64) (*database.ProjectAccess, error)
 	GetAccessBySource(ctx context.Context, projectID, userID int64, source string) (*database.ProjectAccess, error)
 	ListByProject(ctx context.Context, projectID int64) ([]database.ProjectAccess, error)
