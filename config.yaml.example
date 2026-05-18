@@ -17,8 +17,14 @@ database:
 
 auth:
   initial_admin:
+    # Created on first startup ONLY when no users exist yet. Once an admin
+    # exists, this section is ignored.
+    # The password MUST be at least 12 characters and not one of the
+    # obvious defaults ("admin", "changeme", "password") — the server
+    # refuses to start otherwise. Use ASIAKIRJAT_ADMIN_PASSWORD to keep
+    # the value out of the YAML file.
     username: "admin"
-    password: "changeme"
+    password: "REPLACE_ME_with_a_strong_password"
   session:
     cookie_name: "asiakirjat_session"
     max_age: 86400       # seconds (24h)

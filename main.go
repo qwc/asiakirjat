@@ -351,6 +351,34 @@ func syncGlobalAccessConfig(ctx context.Context, logger *slog.Logger, globalAcce
 	}
 }
 
+// minInitialAdminPasswordLen is the minimum acceptable length for the
+// initial admin password. 12 is the audit's recommended floor (M-9).
+const minInitialAdminPasswordLen = 12
+
+// insecureInitialAdminPasswords lists obvious default values we refuse
+// outright. "changeme" comes from config.yaml.example; "admin" is the
+// fallback default in config.Defaults() — both have shown up unchanged
+// in real deployments.
+var insecureInitialAdminPasswords = map[string]bool{
+	"changeme": true,
+	"admin":    true,
+	"password": true,
+}
+
+// isInsecureInitialAdminPassword reports whether the initial-admin
+// password is one we refuse to start with: empty, on the explicit
+// banned-defaults list, or below the minimum length. Pure function so
+// it's testable without booting main.
+func isInsecureInitialAdminPassword(pw string) bool {
+	if insecureInitialAdminPasswords[pw] {
+		return true
+	}
+	if len(pw) < minInitialAdminPasswordLen {
+		return true
+	}
+	return false
+}
+
 func ensureInitialAdmin(logger *slog.Logger, users store.UserStore, cfg *config.Config) {
 	ctx := context.Background()
 
@@ -364,7 +392,16 @@ func ensureInitialAdmin(logger *slog.Logger, users store.UserStore, cfg *config.
 		return
 	}
 
-	hash, err := auth.HashPassword(cfg.Auth.InitialAdmin.Password)
+	pw := cfg.Auth.InitialAdmin.Password
+	if isInsecureInitialAdminPassword(pw) {
+		logger.Error("refusing to create initial admin with insecure password",
+			"reason", "password is empty, an obvious default, or shorter than the minimum",
+			"min_length", minInitialAdminPasswordLen,
+			"hint", "set auth.initial_admin.password to a strong value (or ASIAKIRJAT_ADMIN_PASSWORD env var) and restart")
+		os.Exit(1)
+	}
+
+	hash, err := auth.HashPassword(pw)
 	if err != nil {
 		logger.Error("hashing initial admin password", "error", err)
 		return
