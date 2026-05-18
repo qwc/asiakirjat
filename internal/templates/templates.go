@@ -62,6 +62,7 @@ var templateFS embed.FS
 type Engine struct {
 	templates map[string]*template.Template
 	overlay   *template.Template
+	pdfViewer *template.Template
 }
 
 func New() (*Engine, error) {
@@ -137,6 +138,13 @@ func New() (*Engine, error) {
 	}
 	engine.overlay = overlayTmpl
 
+	// Parse the PDF viewer wrapper template separately.
+	pdfViewerTmpl, err := template.New("pdf_viewer").Funcs(funcMap).ParseFS(templateFS, "overlay/pdf_viewer.html")
+	if err != nil {
+		return nil, fmt.Errorf("parsing pdf viewer template: %w", err)
+	}
+	engine.pdfViewer = pdfViewerTmpl
+
 	return engine, nil
 }
 
@@ -162,4 +170,21 @@ func (e *Engine) RenderOverlay(data OverlayData) (string, error) {
 		return "", fmt.Errorf("rendering overlay: %w", err)
 	}
 	return buf.String(), nil
+}
+
+// PDFViewerData holds the data needed for the PDF viewer wrapper page.
+// OverlayHTML is template.HTML so the pre-rendered doc overlay is emitted
+// verbatim; all other string fields are auto-escaped by html/template.
+type PDFViewerData struct {
+	ProjectName string
+	Version     string
+	OverlayHTML template.HTML
+}
+
+// RenderPDFViewer writes the PDF viewer wrapper HTML to w.
+func (e *Engine) RenderPDFViewer(w io.Writer, data PDFViewerData) error {
+	if err := e.pdfViewer.ExecuteTemplate(w, "pdf_viewer.html", data); err != nil {
+		return fmt.Errorf("rendering pdf viewer: %w", err)
+	}
+	return nil
 }
