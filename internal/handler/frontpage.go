@@ -39,38 +39,10 @@ func latestVersionTag(versions []database.Version, pinnedVersion *string) string
 	return tags[0]
 }
 
-// filterAccessibleProjects returns only the projects the user has access to.
+// filterAccessibleProjects is a thin forwarder to access.Checker.FilterAccessible;
+// the rule lives in internal/access.
 func (h *Handler) filterAccessibleProjects(ctx context.Context, user *database.User, all []database.Project) []database.Project {
-	accessIDs, _ := h.access.ListAccessibleProjectIDs(ctx, user.ID)
-	accessMap := make(map[int64]bool)
-	for _, id := range accessIDs {
-		accessMap[id] = true
-	}
-
-	var hasGlobalAccess bool
-	if h.globalAccess != nil {
-		grant, err := h.globalAccess.GetGrantByUser(ctx, user.ID)
-		if err == nil && grant != nil {
-			hasGlobalAccess = true
-		}
-	}
-
-	var filtered []database.Project
-	for _, p := range all {
-		switch p.Visibility {
-		case database.VisibilityPublic:
-			filtered = append(filtered, p)
-		case database.VisibilityPrivate:
-			if hasGlobalAccess {
-				filtered = append(filtered, p)
-			}
-		case database.VisibilityCustom:
-			if accessMap[p.ID] {
-				filtered = append(filtered, p)
-			}
-		}
-	}
-	return filtered
+	return h.checker.FilterAccessible(ctx, user, all)
 }
 
 func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
