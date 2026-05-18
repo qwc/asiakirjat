@@ -231,12 +231,14 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	existingVersion, _ := h.versions.GetByProjectAndTag(ctx, project.ID, versionTag)
 	isReupload := existingVersion != nil
 
+	uid := user.ID
+
 	var version *database.Version
 	if isReupload {
 		// Update existing version
 		existingVersion.StoragePath = destPath
 		existingVersion.ContentType = contentType
-		existingVersion.UploadedBy = user.ID
+		existingVersion.UploadedBy = &uid
 		if err := h.versions.Update(ctx, existingVersion); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
 			h.jsonError(w, "Failed to update version", http.StatusInternalServerError)
@@ -255,7 +257,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 			Tag:         versionTag,
 			StoragePath: destPath,
 			ContentType: contentType,
-			UploadedBy:  user.ID,
+			UploadedBy:  &uid,
 		}
 		if err := h.versions.Create(ctx, version); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
@@ -270,7 +272,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 			ProjectID:   project.ID,
 			VersionTag:  versionTag,
 			ContentType: contentType,
-			UploadedBy:  user.ID,
+			UploadedBy:  &uid,
 			IsReupload:  isReupload,
 			Filename:    header.Filename,
 		}

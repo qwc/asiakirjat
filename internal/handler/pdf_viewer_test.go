@@ -52,7 +52,7 @@ func TestPDFViewerEscapesProjectName(t *testing.T) {
 		Tag:         "v1",
 		StoragePath: versionDir,
 		ContentType: "pdf",
-		UploadedBy:  uploader.ID,
+		UploadedBy:  &uploader.ID,
 	}); err != nil {
 		t.Fatal(err)
 	}

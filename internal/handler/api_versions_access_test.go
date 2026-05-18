@@ -28,13 +28,14 @@ func TestAPIVersionsHidesNonViewableProjects(t *testing.T) {
 
 	// Seed each with one version so a non-200 response unambiguously means
 	// "blocked" rather than "no rows".
+	uid := uploader.ID
 	for _, p := range []*database.Project{pub, priv, cust} {
 		if err := app.handler.versions.Create(ctx, &database.Version{
 			ProjectID:   p.ID,
 			Tag:         "v1",
 			StoragePath: "/tmp/notreal",
 			ContentType: "archive",
-			UploadedBy:  uploader.ID,
+			UploadedBy:  &uid,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -87,12 +88,13 @@ func TestAPIVersionsVisibleToGrantedViewer(t *testing.T) {
 	app.handler.access.Grant(ctx, &database.ProjectAccess{
 		ProjectID: cust.ID, UserID: viewer.ID, Role: "viewer",
 	})
+	upID := uploader.ID
 	app.handler.versions.Create(ctx, &database.Version{
 		ProjectID:   cust.ID,
 		Tag:         "v1",
 		StoragePath: "/tmp/notreal",
 		ContentType: "archive",
-		UploadedBy:  uploader.ID,
+		UploadedBy:  &upID,
 	})
 
 	cookies := loginUser(t, app, "vlist-viewer", "viewer123")

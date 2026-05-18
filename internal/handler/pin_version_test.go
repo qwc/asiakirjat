@@ -77,7 +77,7 @@ func TestPinVersionFullFlow(t *testing.T) {
 		Tag:         "v1.0.0",
 		StoragePath: "/tmp/test",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	if err := app.handler.versions.Create(ctx, version); err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestPinVersionFullFlow(t *testing.T) {
 		Tag:         "v2.0.0",
 		StoragePath: "/tmp/test2",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	if err := app.handler.versions.Create(ctx, version2); err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func TestPinVersionTemporary(t *testing.T) {
 		Tag:         "v1.0.0",
 		StoragePath: "/tmp/test",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	if err := app.handler.versions.Create(ctx, version); err != nil {
 		t.Fatal(err)
@@ -260,7 +260,7 @@ func TestTemporaryPinClearedOnNewUpload(t *testing.T) {
 		Tag:         "v1.0.0",
 		StoragePath: "/tmp/test",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	if err := app.handler.versions.Create(ctx, version); err != nil {
 		t.Fatal(err)
@@ -329,7 +329,7 @@ func TestPermanentPinNotClearedOnNewUpload(t *testing.T) {
 		Tag:         "v1.0.0",
 		StoragePath: "/tmp/test",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	if err := app.handler.versions.Create(ctx, version); err != nil {
 		t.Fatal(err)
@@ -448,8 +448,8 @@ func TestUploadCreatesLogEntry(t *testing.T) {
 	if logs[0].ContentType != "archive" {
 		t.Errorf("expected content type archive, got %s", logs[0].ContentType)
 	}
-	if logs[0].UploadedBy != admin.ID {
-		t.Errorf("expected uploaded_by %d, got %d", admin.ID, logs[0].UploadedBy)
+	if logs[0].UploadedBy == nil || *logs[0].UploadedBy != admin.ID {
+		t.Errorf("expected uploaded_by %d, got %v", admin.ID, logs[0].UploadedBy)
 	}
 	if logs[0].IsReupload {
 		t.Error("expected IsReupload to be false for new upload")
@@ -538,7 +538,7 @@ func TestProjectDetailShowsUploadLogsForEditors(t *testing.T) {
 		Tag:         "v1.0.0",
 		StoragePath: "/tmp/test",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -546,7 +546,7 @@ func TestProjectDetailShowsUploadLogsForEditors(t *testing.T) {
 		ProjectID:   project.ID,
 		VersionTag:  "v1.0.0",
 		ContentType: "archive",
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 		IsReupload:  false,
 		Filename:    "docs.zip",
 	}
@@ -585,12 +585,12 @@ func TestProjectDetailShowsPinBadge(t *testing.T) {
 	// Create versions
 	v1 := &database.Version{
 		ProjectID: project.ID, Tag: "v1.0.0",
-		StoragePath: "/tmp/test", ContentType: "archive", UploadedBy: admin.ID,
+		StoragePath: "/tmp/test", ContentType: "archive", UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, v1)
 	v2 := &database.Version{
 		ProjectID: project.ID, Tag: "v2.0.0",
-		StoragePath: "/tmp/test2", ContentType: "archive", UploadedBy: admin.ID,
+		StoragePath: "/tmp/test2", ContentType: "archive", UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, v2)
 
@@ -654,7 +654,7 @@ func TestViewerCannotPin(t *testing.T) {
 	admin, _ := app.handler.users.GetByUsername(ctx, "admin")
 	version := &database.Version{
 		ProjectID: project.ID, Tag: "v1.0.0",
-		StoragePath: "/tmp/test", ContentType: "archive", UploadedBy: admin.ID,
+		StoragePath: "/tmp/test", ContentType: "archive", UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 

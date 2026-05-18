@@ -140,11 +140,12 @@ func TestVersionStoreCRUD(t *testing.T) {
 	}
 
 	// Create version
+	uid := user.ID
 	version := &database.Version{
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: "/data/proj/v1.0.0",
-		UploadedBy:  user.ID,
+		UploadedBy:  &uid,
 	}
 	if err := vStore.Create(ctx, version); err != nil {
 		t.Fatal(err)
@@ -176,7 +177,7 @@ func TestVersionStoreCRUD(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v2.0.0",
 		StoragePath: "/data/proj/v2.0.0",
-		UploadedBy:  user.ID,
+		UploadedBy:  &uid,
 	}
 	if err := vStore.Create(ctx, v2); err != nil {
 		t.Fatal(err)
@@ -621,7 +622,7 @@ func TestUploadLogStoreCRUD(t *testing.T) {
 		ProjectID:   project.ID,
 		VersionTag:  "v1.0.0",
 		ContentType: "archive",
-		UploadedBy:  user.ID,
+		UploadedBy:  &user.ID,
 		IsReupload:  false,
 		Filename:    "docs.zip",
 	}
@@ -637,7 +638,7 @@ func TestUploadLogStoreCRUD(t *testing.T) {
 		ProjectID:   project.ID,
 		VersionTag:  "v1.0.0",
 		ContentType: "archive",
-		UploadedBy:  user.ID,
+		UploadedBy:  &user.ID,
 		IsReupload:  true,
 		Filename:    "docs-v2.zip",
 	}

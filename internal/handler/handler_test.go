@@ -327,7 +327,7 @@ func TestDocServing(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -429,11 +429,11 @@ func TestAPIVersions(t *testing.T) {
 	ctx := context.Background()
 	app.handler.versions.Create(ctx, &database.Version{
 		ProjectID: project.ID, Tag: "v1.0.0",
-		StoragePath: "/data/v1.0.0", UploadedBy: admin.ID,
+		StoragePath: "/data/v1.0.0", UploadedBy: &admin.ID,
 	})
 	app.handler.versions.Create(ctx, &database.Version{
 		ProjectID: project.ID, Tag: "v2.0.0",
-		StoragePath: "/data/v2.0.0", UploadedBy: admin.ID,
+		StoragePath: "/data/v2.0.0", UploadedBy: &admin.ID,
 	})
 
 	resp, err := http.Get(app.server.URL + "/api/project/proj/versions")
@@ -815,7 +815,7 @@ func TestUploadVersionReupload(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: app.handler.storage.VersionPath("proj", "v1.0.0"),
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	})
 
 	cookies := loginUser(t, app, "admin", "admin123")
@@ -1538,7 +1538,7 @@ func TestOverlayInjectedInHTMLDoc(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -1605,7 +1605,7 @@ func TestOverlayNotInjectedInCSS(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -1647,7 +1647,7 @@ func TestOverlayNotInjectedInImage(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -1683,7 +1683,7 @@ func TestOverlayInjectedInDirectoryIndex(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v2.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -1725,7 +1725,7 @@ func TestAPIVersionsSemverSorted(t *testing.T) {
 			ProjectID:   project.ID,
 			Tag:         tag,
 			StoragePath: vp,
-			UploadedBy:  admin.ID,
+			UploadedBy:  &admin.ID,
 		})
 	}
 
@@ -1896,7 +1896,7 @@ func TestProjectDetailSemverSortedVersions(t *testing.T) {
 			ProjectID:   project.ID,
 			Tag:         tag,
 			StoragePath: vp,
-			UploadedBy:  admin.ID,
+			UploadedBy:  &admin.ID,
 		})
 	}
 
@@ -2255,7 +2255,7 @@ func TestSearchAPIReturnsResultsAfterIndexing(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -2306,7 +2306,7 @@ func TestSearchAPIAccessControlFiltersPrivateProjects(t *testing.T) {
 
 	pubVersion := &database.Version{
 		ProjectID: pubProject.ID, Tag: "v1.0.0",
-		StoragePath: pubPath, UploadedBy: admin.ID,
+		StoragePath: pubPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, pubVersion)
 	app.handler.searchIndex.IndexVersion(pubProject.ID, pubVersion.ID, "public-search", "Public Search", "v1.0.0", pubPath)
@@ -2319,7 +2319,7 @@ func TestSearchAPIAccessControlFiltersPrivateProjects(t *testing.T) {
 
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-search", "Private Search", "v1.0.0", privPath)
@@ -2442,7 +2442,7 @@ func TestSearchPageWithQuery(t *testing.T) {
 
 	version := &database.Version{
 		ProjectID: project.ID, Tag: "v1.0.0",
-		StoragePath: versionPath, UploadedBy: admin.ID,
+		StoragePath: versionPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 	app.handler.searchIndex.IndexVersion(project.ID, version.ID, "page-search", "Page Search", "v1.0.0", versionPath)
@@ -2482,7 +2482,7 @@ func TestSearchPageAccessControlAnonymousSeesPublicOnly(t *testing.T) {
 		[]byte("<html><body><p>Public page about bananas</p></body></html>"), 0644)
 	pubVersion := &database.Version{
 		ProjectID: pubProject.ID, Tag: "v1.0.0",
-		StoragePath: pubPath, UploadedBy: admin.ID,
+		StoragePath: pubPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, pubVersion)
 	app.handler.searchIndex.IndexVersion(pubProject.ID, pubVersion.ID, "pub-page-search", "Public Page Search", "v1.0.0", pubPath)
@@ -2494,7 +2494,7 @@ func TestSearchPageAccessControlAnonymousSeesPublicOnly(t *testing.T) {
 		[]byte("<html><body><p>Private page about bananas</p></body></html>"), 0644)
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-search", "Private Page Search", "v1.0.0", privPath)
@@ -2534,7 +2534,7 @@ func TestSearchPageAccessControlUserWithAccess(t *testing.T) {
 		[]byte("<html><body><p>Private page about oranges</p></body></html>"), 0644)
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-access", "Private Page Access", "v1.0.0", privPath)
@@ -2591,7 +2591,7 @@ func TestSearchPageAccessControlUserWithoutAccess(t *testing.T) {
 		[]byte("<html><body><p>Private page about apples</p></body></html>"), 0644)
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-noaccess", "Private Page No Access", "v1.0.0", privPath)
@@ -2643,7 +2643,7 @@ func TestSearchPageAccessControlAdminSeesAll(t *testing.T) {
 		[]byte("<html><body><p>Private page about mangoes</p></body></html>"), 0644)
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "priv-page-admin", "Private Page Admin", "v1.0.0", privPath)
@@ -2688,7 +2688,7 @@ func TestSearchAPIAccessControlUserWithoutAccess(t *testing.T) {
 
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-search", "Private Search", "v1.0.0", privPath)
@@ -2742,7 +2742,7 @@ func TestSearchAPIAccessControlUserWithAccess(t *testing.T) {
 
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "private-access", "Private Access", "v1.0.0", privPath)
@@ -2803,7 +2803,7 @@ func TestSearchAPIAccessControlAdminSeesAll(t *testing.T) {
 
 	privVersion := &database.Version{
 		ProjectID: privProject.ID, Tag: "v1.0.0",
-		StoragePath: privPath, UploadedBy: admin.ID,
+		StoragePath: privPath, UploadedBy: &admin.ID,
 	}
 	app.handler.versions.Create(ctx, privVersion)
 	app.handler.searchIndex.IndexVersion(privProject.ID, privVersion.ID, "admin-search-test", "Admin Search Test", "v1.0.0", privPath)
@@ -3409,7 +3409,7 @@ func TestDeleteVersionSuccess(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -3457,7 +3457,7 @@ func TestDeleteVersionRequiresEditorAccess(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v1.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
@@ -3515,7 +3515,7 @@ func TestDeleteVersionEditorWithAccessCanDelete(t *testing.T) {
 		ProjectID:   project.ID,
 		Tag:         "v2.0.0",
 		StoragePath: versionPath,
-		UploadedBy:  admin.ID,
+		UploadedBy:  &admin.ID,
 	}
 	app.handler.versions.Create(ctx, version)
 
