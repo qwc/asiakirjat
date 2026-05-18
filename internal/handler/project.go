@@ -1,15 +1,35 @@
 package handler
 
 import (
-	"fmt"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
 )
+
+// attachmentDisposition builds a safe `attachment; filename=...` header value.
+// mime.FormatMediaType properly quotes the filename and falls back to a sanitized
+// value if the inputs contain characters that can't be represented; a plain-ASCII
+// fallback is used when that happens so the header is always valid.
+func attachmentDisposition(slug, tag, ext string) string {
+	filename := slug + "-" + tag + "." + ext
+	v := mime.FormatMediaType("attachment", map[string]string{"filename": filename})
+	if v == "" {
+		safe := strings.Map(func(r rune) rune {
+			if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
+				return r
+			}
+			return '_'
+		}, filename)
+		v = `attachment; filename="` + safe + `"`
+	}
+	return v
+}
 
 type versionViewData struct {
 	Tag         string
@@ -255,13 +275,13 @@ func (h *Handler) handleDownloadVersion(w http.ResponseWriter, r *http.Request) 
 
 	if ver.ContentType == "pdf" {
 		w.Header().Set("Content-Type", "application/pdf")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-%s.pdf"`, slug, tag))
+		w.Header().Set("Content-Disposition", attachmentDisposition(slug, tag, "pdf"))
 		http.ServeFile(w, r, filepath.Join(versionPath, "document.pdf"))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-%s.zip"`, slug, tag))
+	w.Header().Set("Content-Disposition", attachmentDisposition(slug, tag, "zip"))
 
 	if err := docs.WriteZipFromDir(w, versionPath); err != nil {
 		h.logger.Error("streaming version zip", "project", slug, "version", tag, "error", err)

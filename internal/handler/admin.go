@@ -8,6 +8,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs/builtin"
+	"github.com/qwc/asiakirjat/internal/validation"
 )
 
 func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +66,10 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 
 	slug := r.FormValue("slug")
+	if !validation.IsValidSlug(slug) {
+		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
+		return
+	}
 	name := r.FormValue("name")
 	description := r.FormValue("description")
 	visibility := r.FormValue("visibility")
@@ -177,7 +182,12 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	project.Slug = r.FormValue("slug")
+	newSlug := r.FormValue("slug")
+	if !validation.IsValidSlug(newSlug) {
+		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
+		return
+	}
+	project.Slug = newSlug
 	project.Name = r.FormValue("name")
 	project.Description = r.FormValue("description")
 	visibility := r.FormValue("visibility")

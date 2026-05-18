@@ -55,7 +55,7 @@ func TestDownloadVersionSuccess(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); ct != "application/zip" {
 		t.Errorf("expected Content-Type application/zip, got %s", ct)
 	}
-	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="dl-proj-v1.0.0.zip"` {
+	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename=dl-proj-v1.0.0.zip` {
 		t.Errorf("unexpected Content-Disposition: %s", cd)
 	}
 
