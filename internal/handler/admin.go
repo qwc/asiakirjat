@@ -60,6 +60,11 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 			Type:    "success",
 			Message: "Built-in documentation deployed successfully",
 		}
+	case "visibility_restricted":
+		data["Flash"] = &Flash{
+			Type:    "warning",
+			Message: "Project visibility changed from public — review project access so the intended users still have access.",
+		}
 	}
 
 	h.render(w, r, "admin_projects", data)
@@ -174,6 +179,7 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
 		return
 	}
+	previousVisibility := project.Visibility
 	project.Slug = newSlug
 	project.Name = r.FormValue("name")
 	project.Description = r.FormValue("description")
@@ -198,7 +204,14 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
+	// Flag visibility transitions away from public so the admin sees the
+	// "review access" prompt (audit M-3). Editors who had implicit access
+	// to a public project lose it the moment the project goes private/custom.
+	dest := "/admin/projects"
+	if previousVisibility == database.VisibilityPublic && project.Visibility != database.VisibilityPublic {
+		dest += "?msg=visibility_restricted"
+	}
+	h.redirect(w, r, dest, http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -393,11 +406,32 @@ func (h *Handler) handleAdminUpdateUserRole(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	previousRole := user.Role
 	user.Role = role
 	if err := h.users.Update(ctx, user); err != nil {
 		h.logger.Error("updating user role", "error", err)
 		http.Error(w, "Failed to update role", http.StatusInternalServerError)
 		return
+	}
+
+	// Demotion cleanup (audit M-4). When an editor or admin is demoted to
+	// viewer, the rationale for the access they accumulated as an editor
+	// no longer holds: revoke manual editor-role ProjectAccess rows and
+	// delete any API tokens they own.
+	if role == "viewer" && previousRole != "viewer" {
+		if err := h.access.RevokeManualEditorByUser(ctx, user.ID); err != nil {
+			h.logger.Error("revoking manual editor grants on demotion", "user_id", user.ID, "error", err)
+		}
+		tokens, err := h.tokens.ListByUser(ctx, user.ID)
+		if err != nil {
+			h.logger.Error("listing user tokens on demotion", "user_id", user.ID, "error", err)
+		} else {
+			for _, t := range tokens {
+				if err := h.tokens.Delete(ctx, t.ID); err != nil {
+					h.logger.Error("revoking token on demotion", "token_id", t.ID, "user_id", user.ID, "error", err)
+				}
+			}
+		}
 	}
 
 	h.redirect(w, r, "/admin/users", http.StatusSeeOther)
@@ -858,6 +892,13 @@ func (h *Handler) handleAdminDeleteGroupMapping(w http.ResponseWriter, r *http.R
 		h.logger.Error("deleting group mapping", "error", err)
 		h.redirect(w, r, "/admin/groups?msg=error&error=Failed+to+delete+mapping", http.StatusSeeOther)
 		return
+	}
+
+	// Revoke project_access rows for this project granted by the same
+	// auth source. Surviving mappings re-grant on next login; this keeps
+	// the dangling-grant window short instead of indefinite (audit M-1).
+	if err := h.access.RevokeProjectBySource(ctx, mapping.ProjectID, mapping.AuthSource); err != nil {
+		h.logger.Error("revoking project access after group mapping delete", "project_id", mapping.ProjectID, "source", mapping.AuthSource, "error", err)
 	}
 
 	h.redirect(w, r, "/admin/groups?msg=deleted", http.StatusSeeOther)

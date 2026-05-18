@@ -52,6 +52,7 @@ func setupTestApp(t *testing.T) *testApp {
 	tokenStore := sqlstore.NewTokenStore(db)
 	uploadLogStore := sqlstore.NewUploadLogStore(db)
 	globalAccessStore := sqlstore.NewGlobalAccessStore(db)
+	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
 
 	storage := docs.NewFilesystemStorage(storageDir)
 
@@ -98,6 +99,7 @@ func setupTestApp(t *testing.T) *testApp {
 		Tokens:         tokenStore,
 		UploadLogs:     uploadLogStore,
 		GlobalAccess:   globalAccessStore,
+		GroupMappings:  groupMappingStore,
 		Authenticators: []auth.Authenticator{builtinAuth},
 		SessionMgr:     sessionMgr,
 		SearchIndex:    searchIndex,
