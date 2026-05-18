@@ -42,6 +42,15 @@ func (a *TokenAuthenticator) AuthenticateRequestForProject(r *http.Request, proj
 	return user
 }
 
+// AuthenticateRequestWithToken returns both the authenticated user and the
+// token used. The caller is responsible for enforcing scope (e.g. rejecting
+// project-scoped tokens on endpoints that operate above a single project).
+// Returns (nil, nil) if the bearer credential is missing, malformed, expired,
+// or its user no longer exists.
+func (a *TokenAuthenticator) AuthenticateRequestWithToken(r *http.Request) (*database.User, *database.APIToken) {
+	return a.authenticateRequestInternal(r)
+}
+
 func (a *TokenAuthenticator) authenticateRequestInternal(r *http.Request) (*database.User, *database.APIToken) {
 	header := r.Header.Get("Authorization")
 	if header == "" {

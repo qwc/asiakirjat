@@ -89,17 +89,7 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	canUpload := false
-	if user != nil {
-		if user.Role == "admin" || user.Role == "editor" {
-			canUpload = true
-		} else {
-			access, err := h.access.GetAccess(ctx, project.ID, user.ID)
-			if err == nil && access != nil && (access.Role == "editor" || access.Role == "admin") {
-				canUpload = true
-			}
-		}
-	}
+	canUpload := h.canUpload(ctx, user, project)
 
 	// Determine the computed latest version (by semver sort)
 	latestVersion := ""
@@ -196,18 +186,7 @@ func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check editor access (same logic as canUpload)
-	canDelete := false
-	if user.Role == "admin" || user.Role == "editor" {
-		canDelete = true
-	} else {
-		access, err := h.access.GetAccess(ctx, project.ID, user.ID)
-		if err == nil && access != nil && (access.Role == "editor" || access.Role == "admin") {
-			canDelete = true
-		}
-	}
-
-	if !canDelete {
+	if !h.canUpload(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
