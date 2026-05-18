@@ -25,6 +25,7 @@ server:
   base_path: ""             # URL prefix (e.g., "/docs")
   proxy_strip_path: false   # Set true if reverse proxy strips base_path
   log_level: "info"         # Logging level
+  trusted_proxies: ""       # Trusted proxy IPs/CIDRs for X-Forwarded-For
 ```
 
 | Option | Default | Description |
@@ -34,6 +35,7 @@ server:
 | `base_path` | `""` | URL prefix for all routes |
 | `proxy_strip_path` | `false` | When true, routes are registered at root (for reverse proxies that strip the prefix) |
 | `log_level` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
+| `trusted_proxies` | `""` | Comma-separated CIDR ranges or IPs whose `X-Forwarded-For` headers are honored when deriving the client IP for rate limiting. Empty (default) means the header is ignored and the connecting peer is always used. Set this when behind a reverse proxy so the login rate limiter protects against the real client, not the proxy. |
 
 ## Database Settings
 

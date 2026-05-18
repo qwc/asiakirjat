@@ -41,6 +41,11 @@ type ServerConfig struct {
 	BasePath        string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
 	ProxyStripPath  bool   `yaml:"proxy_strip_path" env:"ASIAKIRJAT_SERVER_PROXY_STRIP_PATH"`
 	LogLevel        string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
+	// TrustedProxies is a comma-separated list of CIDR ranges or single IPs
+	// whose X-Forwarded-For headers are honored when deriving the client IP
+	// (used by rate limiters). Empty (default) means the header is ignored
+	// and the connecting RemoteAddr is always used.
+	TrustedProxies string `yaml:"trusted_proxies" env:"ASIAKIRJAT_SERVER_TRUSTED_PROXIES"`
 }
 
 type DatabaseConfig struct {

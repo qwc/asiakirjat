@@ -78,13 +78,11 @@ func (rl *RateLimiter) Cleanup() {
 }
 
 // withRateLimit wraps a handler and applies rate limiting by client IP.
-func withRateLimit(rl *RateLimiter, next http.HandlerFunc) http.HandlerFunc {
+// The client IP is derived via clientIP, which honors X-Forwarded-For only
+// when r.RemoteAddr is in the configured trusted-proxies list.
+func (h *Handler) withRateLimit(rl *RateLimiter, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		key := r.RemoteAddr
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			key = fwd
-		}
-
+		key := clientIP(r, h.trustedProxies)
 		if !rl.Allow(key) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
