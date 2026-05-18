@@ -23,7 +23,10 @@ func ServeDoc(w http.ResponseWriter, r *http.Request, storagePath, filePath stri
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	if !strings.HasPrefix(absFile, absStorage) {
+	// Separator-aware prefix check: "/data/proj/v1" must NOT be considered a
+	// prefix of a sibling like "/data/proj/v10". Match exactly or as a
+	// proper subpath (same idiom as isPathSafe in archive.go).
+	if absFile != absStorage && !strings.HasPrefix(absFile, absStorage+string(filepath.Separator)) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
