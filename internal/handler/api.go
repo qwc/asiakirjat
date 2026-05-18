@@ -319,7 +319,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 
 	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
-	user := tokenAuth.AuthenticateRequest(r)
+	user, token := tokenAuth.AuthenticateRequestWithToken(r)
 	if user == nil {
 		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -327,6 +327,14 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 
 	if user.Role != "admin" && user.Role != "editor" {
 		h.jsonError(w, "Forbidden: admin or editor role required", http.StatusForbidden)
+		return
+	}
+
+	// Project creation operates above a single project, so project-scoped
+	// tokens are not permitted here — an editor token scoped to project A
+	// must not be able to spawn project B. Use a global (unscoped) token.
+	if token.ProjectID != nil {
+		h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 		return
 	}
 
