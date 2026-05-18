@@ -3,12 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/projects"
 	"github.com/qwc/asiakirjat/internal/validation"
 )
 
@@ -339,61 +341,30 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !validation.IsValidSlug(req.Slug) {
-		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
-		return
-	}
-
-	if req.Name == "" {
-		req.Name = req.Slug
-	}
-	if req.Visibility == "" {
-		req.Visibility = database.VisibilityPrivate
-	}
-	if req.Visibility != database.VisibilityPublic && req.Visibility != database.VisibilityPrivate && req.Visibility != database.VisibilityCustom {
-		h.jsonError(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
-		return
-	}
-
-	// Public projects bypass all access checks, so only admins may create them.
-	if req.Visibility == database.VisibilityPublic && user.Role != "admin" {
-		h.jsonError(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
-		return
-	}
-
-	// Check for duplicate
-	if existing, _ := h.projects.GetBySlug(ctx, req.Slug); existing != nil {
-		h.jsonError(w, "Project with this slug already exists", http.StatusConflict)
-		return
-	}
-
-	project := &database.Project{
+	project, err := h.projectService.Create(ctx, projects.CreateOptions{
 		Slug:        req.Slug,
 		Name:        req.Name,
 		Description: req.Description,
 		Visibility:  req.Visibility,
-	}
-
-	if err := h.projects.Create(ctx, project); err != nil {
+		Creator:     user,
+	})
+	switch {
+	case errors.Is(err, projects.ErrInvalidSlug):
+		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
+		return
+	case errors.Is(err, projects.ErrInvalidVisibility):
+		h.jsonError(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		return
+	case errors.Is(err, projects.ErrPublicRequiresAdmin):
+		h.jsonError(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
+		return
+	case errors.Is(err, projects.ErrSlugConflict):
+		h.jsonError(w, "Project with this slug already exists", http.StatusConflict)
+		return
+	case err != nil:
 		h.logger.Error("creating project via API", "error", err)
 		h.jsonError(w, "Failed to create project", http.StatusInternalServerError)
 		return
-	}
-
-	if err := h.storage.EnsureProjectDir(req.Slug); err != nil {
-		h.logger.Error("creating project directory", "error", err)
-	}
-
-	// Auto-grant editor access to the creator for non-admin, non-public projects
-	if user.Role != "admin" && req.Visibility != database.VisibilityPublic {
-		access := &database.ProjectAccess{
-			ProjectID: project.ID,
-			UserID:    user.ID,
-			Role:      "editor",
-		}
-		if err := h.access.Grant(ctx, access); err != nil {
-			h.logger.Error("auto-granting creator access", "error", err)
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

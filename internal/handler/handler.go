@@ -10,6 +10,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/projects"
 	"github.com/qwc/asiakirjat/internal/store"
 	"github.com/qwc/asiakirjat/internal/templates"
 )
@@ -34,6 +35,7 @@ type Handler struct {
 	loginLimiter   *RateLimiter
 	trustedProxies []*net.IPNet
 	searchIndex    *docs.SearchIndex
+	projectService *projects.Service
 	logger         *slog.Logger
 
 	// Cache for latest version tags (invalidated on upload/delete)
@@ -87,6 +89,7 @@ func New(deps Deps) *Handler {
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
+		projectService: projects.NewService(deps.Projects, deps.Access, deps.Storage, deps.Logger),
 		logger:         deps.Logger,
 	}
 }
