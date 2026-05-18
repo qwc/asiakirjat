@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs/builtin"
+	"github.com/qwc/asiakirjat/internal/projects"
 	"github.com/qwc/asiakirjat/internal/validation"
 )
 
@@ -65,26 +67,7 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	slug := r.FormValue("slug")
-	if !validation.IsValidSlug(slug) {
-		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
-		return
-	}
-	name := r.FormValue("name")
-	description := r.FormValue("description")
-	visibility := r.FormValue("visibility")
-	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
-		visibility = database.VisibilityPrivate
-	}
-
-	// Public projects bypass all access checks, so only admins may create them.
-	creator := auth.UserFromContext(ctx)
-	if visibility == database.VisibilityPublic && (creator == nil || creator.Role != "admin") {
-		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
-		return
-	}
-
-	// Parse retention_days
+	// Parse retention_days form input.
 	var retentionDays *int
 	if rd := r.FormValue("retention_days"); rd != "" {
 		if days, err := strconv.Atoi(rd); err == nil && days >= 0 {
@@ -92,35 +75,31 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	project := &database.Project{
-		Slug:          slug,
-		Name:          name,
-		Description:   description,
-		Visibility:    visibility,
+	_, err := h.projectService.Create(ctx, projects.CreateOptions{
+		Slug:          r.FormValue("slug"),
+		Name:          r.FormValue("name"),
+		Description:   r.FormValue("description"),
+		Visibility:    r.FormValue("visibility"),
 		RetentionDays: retentionDays,
-	}
-
-	if err := h.projects.Create(ctx, project); err != nil {
-		h.logger.Error("creating project", "error", err)
-		http.Error(w, "Failed to create project: "+err.Error(), http.StatusBadRequest)
+		Creator:       auth.UserFromContext(ctx),
+	})
+	switch {
+	case errors.Is(err, projects.ErrInvalidSlug):
+		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
 		return
-	}
-
-	if err := h.storage.EnsureProjectDir(slug); err != nil {
-		h.logger.Error("creating project directory", "error", err)
-	}
-
-	// Auto-grant editor access to the creator for non-public projects.
-	// (creator was already loaded above for the public-visibility gate.)
-	if creator != nil && creator.Role != "admin" && visibility != database.VisibilityPublic {
-		access := &database.ProjectAccess{
-			ProjectID: project.ID,
-			UserID:    creator.ID,
-			Role:      "editor",
-		}
-		if err := h.access.Grant(ctx, access); err != nil {
-			h.logger.Error("auto-granting creator access", "error", err)
-		}
+	case errors.Is(err, projects.ErrInvalidVisibility):
+		http.Error(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		return
+	case errors.Is(err, projects.ErrPublicRequiresAdmin):
+		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
+		return
+	case errors.Is(err, projects.ErrSlugConflict):
+		http.Error(w, "Project with this slug already exists", http.StatusConflict)
+		return
+	case err != nil:
+		h.logger.Error("creating project", "error", err)
+		http.Error(w, "Failed to create project", http.StatusInternalServerError)
+		return
 	}
 
 	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
