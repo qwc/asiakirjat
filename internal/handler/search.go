@@ -162,7 +162,7 @@ func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "search", data)
+	h.render(w, r, "search", data)
 }
 
 func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {

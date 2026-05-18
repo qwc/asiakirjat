@@ -5,6 +5,7 @@
     <h1>Edit Project: {{.Project.Name}}</h1>
 
     <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/edit">
+        {{template "csrf_field" $.CSRFToken}}
         <div class="form-group">
             <label for="slug">Slug</label>
             <input type="text" id="slug" name="slug" value="{{.Project.Slug}}" required pattern="[a-z0-9-]+">
@@ -63,6 +64,7 @@
                 <td>{{.Role}}</td>
                 <td>
                     <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/access/revoke" class="inline-form">
+                        {{template "csrf_field" $.CSRFToken}}
                         <input type="hidden" name="user_id" value="{{.UserID}}">
                         <button type="submit" class="btn btn-small btn-danger">Revoke</button>
                     </form>
@@ -75,6 +77,7 @@
     </table>
 
     <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
+        {{template "csrf_field" $.CSRFToken}}
         <div class="form-row">
             <div class="form-group">
                 <label for="grant_user">Grant Access</label>

@@ -1,0 +1,4 @@
+{{/* csrf_field renders the hidden form input. Pass the CSRF token value
+     explicitly so the partial works inside range/with blocks where `.`
+     isn't the root scope: {{template "csrf_field" $.CSRFToken}} */}}
+{{define "csrf_field"}}<input type="hidden" name="csrf_token" value="{{.}}">{{end}}

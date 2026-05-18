@@ -20,7 +20,8 @@ func setupSessionTest(t *testing.T) (*SessionManager, *sqlstore.UserStore, *sqls
 	userStore := sqlstore.NewUserStore(db)
 	sessionStore := sqlstore.NewSessionStore(db)
 
-	sm := NewSessionManager(sessionStore, userStore, "test_session", 3600, false)
+	secret, _ := GenerateCSRFSecret()
+	sm := NewSessionManager(sessionStore, userStore, "test_session", 3600, false, secret)
 
 	ctx := context.Background()
 	pwd := "hashed"

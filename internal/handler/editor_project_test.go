@@ -71,6 +71,7 @@ func TestEditorCanCreateProject(t *testing.T) {
 		},
 	}
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -122,6 +123,7 @@ func TestEditorCreateCustomProjectGetsAccess(t *testing.T) {
 		},
 	}
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {

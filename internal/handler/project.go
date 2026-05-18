@@ -171,7 +171,7 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "project_detail", data)
+	h.render(w, r, "project_detail", data)
 }
 
 func (h *Handler) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +318,7 @@ func (h *Handler) handleProjectTokens(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	h.render(w, "project_tokens", map[string]any{
+	h.render(w, r, "project_tokens", map[string]any{
 		"User":    user,
 		"Project": project,
 		"Tokens":  tokenViews,
@@ -397,7 +397,7 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	h.render(w, "project_tokens", map[string]any{
+	h.render(w, r, "project_tokens", map[string]any{
 		"User":     user,
 		"Project":  project,
 		"Tokens":   tokenViews,

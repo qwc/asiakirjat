@@ -28,10 +28,11 @@ import (
 )
 
 type testApp struct {
-	handler *Handler
-	mux     *http.ServeMux
-	server  *httptest.Server
-	db      interface{}
+	handler    *Handler
+	mux        *http.ServeMux
+	server     *httptest.Server
+	db         interface{}
+	csrfSecret []byte
 }
 
 func setupTestApp(t *testing.T) *testApp {
@@ -60,7 +61,11 @@ func setupTestApp(t *testing.T) *testApp {
 	}
 	t.Cleanup(func() { searchIndex.Close() })
 
-	sessionMgr := auth.NewSessionManager(sessionStore, userStore, "test_session", 86400, false)
+	csrfSecret, csrfErr := auth.GenerateCSRFSecret()
+	if csrfErr != nil {
+		t.Fatal(csrfErr)
+	}
+	sessionMgr := auth.NewSessionManager(sessionStore, userStore, "test_session", 86400, false, csrfSecret)
 	builtinAuth := auth.NewBuiltinAuthenticator(userStore)
 
 	tmpl, err := templates.New()
@@ -105,7 +110,7 @@ func setupTestApp(t *testing.T) *testApp {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	return &testApp{handler: h, mux: mux, server: server, db: db}
+	return &testApp{handler: h, mux: mux, server: server, db: db, csrfSecret: csrfSecret}
 }
 
 func seedAdmin(t *testing.T, app *testApp) *database.User {
@@ -141,6 +146,19 @@ func seedProject(t *testing.T, app *testApp, slug, name string, isPublic bool) *
 		t.Fatal(err)
 	}
 	return project
+}
+
+// csrfTokenFor derives the CSRF token from the session cookie returned by
+// loginUser. Tests that submit POST forms must set csrf_token to this value.
+func csrfTokenFor(t *testing.T, app *testApp, cookies []*http.Cookie) string {
+	t.Helper()
+	for _, c := range cookies {
+		if c.Name == "test_session" {
+			return auth.ComputeCSRFToken(app.csrfSecret, c.Value)
+		}
+	}
+	t.Fatal("no test_session cookie in supplied set; cannot derive CSRF token")
+	return ""
 }
 
 func loginUser(t *testing.T, app *testApp, username, password string) []*http.Cookie {
@@ -734,6 +752,7 @@ func TestUploadFullFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	client := &http.Client{
@@ -829,6 +848,7 @@ func TestUploadVersionReupload(t *testing.T) {
 	writer.WriteField("version", "v1.0.0")
 	part, _ := writer.CreateFormFile("archive", "docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/proj/upload", body)
@@ -878,6 +898,7 @@ func TestUploadMissingVersion(t *testing.T) {
 	// Intentionally omit version field
 	part, _ := writer.CreateFormFile("archive", "docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/proj/upload", body)
@@ -961,6 +982,7 @@ func TestAdminCreateProject(t *testing.T) {
 	form.Set("description", "A test project")
 	form.Set("visibility", "public")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -1009,6 +1031,7 @@ func TestAdminUpdateProject(t *testing.T) {
 	form.Set("description", "Updated description")
 	form.Set("visibility", "public")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/update-me/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -1052,6 +1075,9 @@ func TestAdminDeleteProject(t *testing.T) {
 		req.AddCookie(c)
 	}
 
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -1086,6 +1112,7 @@ func TestAdminCreateUser(t *testing.T) {
 	form.Set("email", "editor@example.com")
 	form.Set("role", "editor")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/users", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -1133,6 +1160,7 @@ func TestAdminDeleteUser(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/users/"+strings.TrimSpace(fmt.Sprintf("%d", deleteMe.ID))+"/delete", nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -1467,6 +1495,7 @@ func TestAdminCreateRobotAndGenerateToken(t *testing.T) {
 	form := url.Values{}
 	form.Set("username", "deploy-bot")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/robots", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -1499,6 +1528,7 @@ func TestAdminCreateRobotAndGenerateToken(t *testing.T) {
 	// Generate token for the robot
 	form2 := url.Values{}
 	form2.Set("name", "deploy-token")
+	form2.Set("csrf_token", csrfTokenFor(t, app, cookies))
 
 	req2, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/robots/%d/tokens", robot.ID), strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -2009,6 +2039,7 @@ func TestAdminResetPasswordBuiltinUser(t *testing.T) {
 	form := url.Values{}
 	form.Set("password", "newpass123")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/users/%d/password", target.ID), strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -2068,6 +2099,7 @@ func TestAdminResetPasswordRejectedForNonBuiltin(t *testing.T) {
 	form := url.Values{}
 	form.Set("password", "newpass123")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+fmt.Sprintf("/admin/users/%d/password", ldapUser.ID), strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -2112,6 +2144,7 @@ func TestSelfServiceChangePasswordSuccess(t *testing.T) {
 	form.Set("new_password", "mynewpass")
 	form.Set("confirm_password", "mynewpass")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -2167,6 +2200,7 @@ func TestSelfServiceChangePasswordWrongCurrent(t *testing.T) {
 	form.Set("new_password", "newpass")
 	form.Set("confirm_password", "newpass")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -2216,6 +2250,7 @@ func TestSelfServiceChangePasswordMismatch(t *testing.T) {
 	form.Set("new_password", "newpass1")
 	form.Set("confirm_password", "newpass2")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/profile/password", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -2360,6 +2395,9 @@ func TestAdminReindexEndpoint(t *testing.T) {
 		req.AddCookie(c)
 	}
 
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -2399,6 +2437,9 @@ func TestAdminReindexRequiresAdmin(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
+
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -2954,6 +2995,7 @@ func TestProjectCreateTokenAlwaysScopedToProject(t *testing.T) {
 	form := url.Values{}
 	form.Set("name", "my-ci-token")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/scoped-proj/tokens", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3082,6 +3124,7 @@ func TestProjectRevokeTokenSuccess(t *testing.T) {
 
 	// Revoke token
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/project/revoke-proj/tokens/%d/revoke", app.server.URL, token.ID), nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -3258,6 +3301,7 @@ func TestAdminCanCreateGlobalToken(t *testing.T) {
 	form.Set("name", "global-token")
 	// Note: no project_id field = global token
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens", app.server.URL, robot.ID), strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3317,6 +3361,7 @@ func TestAdminCanCreateProjectScopedToken(t *testing.T) {
 	form.Set("name", "scoped-token")
 	form.Set("project_id", fmt.Sprintf("%d", project.ID))
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens", app.server.URL, robot.ID), strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3428,6 +3473,9 @@ func TestDeleteVersionSuccess(t *testing.T) {
 		req.AddCookie(c)
 	}
 
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -3491,6 +3539,9 @@ func TestDeleteVersionRequiresEditorAccess(t *testing.T) {
 		req.AddCookie(c)
 	}
 
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -3549,6 +3600,9 @@ func TestDeleteVersionEditorWithAccessCanDelete(t *testing.T) {
 		req.AddCookie(c)
 	}
 
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -3583,6 +3637,9 @@ func TestDeleteVersionNotFound(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
+
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -3690,6 +3747,7 @@ func TestAdminGrantAccess(t *testing.T) {
 	form.Set("grant_user_id", fmt.Sprintf("%d", user.ID))
 	form.Set("grant_role", "editor")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/grant-proj/access/grant", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3743,6 +3801,7 @@ func TestAdminGrantAccessRequiresAdmin(t *testing.T) {
 	form.Set("grant_user_id", fmt.Sprintf("%d", user.ID))
 	form.Set("grant_role", "editor")
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/noadmin-grant/access/grant", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3791,6 +3850,7 @@ func TestAdminRevokeAccess(t *testing.T) {
 	form := url.Values{}
 	form.Set("user_id", fmt.Sprintf("%d", user.ID))
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/revoke-proj/access/revoke", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3840,6 +3900,7 @@ func TestAdminRevokeAccessRequiresAdmin(t *testing.T) {
 	form := url.Values{}
 	form.Set("user_id", fmt.Sprintf("%d", user.ID))
 
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/noadmin-revoke/access/revoke", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -3891,6 +3952,7 @@ func TestAdminRevokeRobotToken(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/tokens/%d/revoke", app.server.URL, robot.ID, token.ID), nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -3993,6 +4055,7 @@ func TestAdminDeleteRobot(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/delete", app.server.URL, robot.ID), nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -4046,6 +4109,7 @@ func TestAdminDeleteRobotRequiresAdmin(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/admin/robots/%d/delete", app.server.URL, robot.ID), nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}

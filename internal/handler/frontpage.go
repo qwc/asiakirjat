@@ -90,7 +90,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 		projects = append(projects, card)
 	}
 
-	h.render(w, "frontpage", map[string]any{
+	h.render(w, r, "frontpage", map[string]any{
 		"User":     user,
 		"Projects": projects,
 	})

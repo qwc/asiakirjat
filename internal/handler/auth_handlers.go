@@ -13,7 +13,7 @@ func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "login", map[string]any{
+	h.render(w, r, "login", map[string]any{
 		"User":          nil,
 		"OAuth2Enabled": h.config.Auth.OAuth2.Enabled,
 	})
@@ -24,7 +24,7 @@ func (h *Handler) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 
 	if username == "" || password == "" {
-		h.render(w, "login", map[string]any{
+		h.render(w, r, "login", map[string]any{
 			"Error":         "Username and password are required",
 			"OAuth2Enabled": h.config.Auth.OAuth2.Enabled,
 		})
@@ -44,7 +44,7 @@ func (h *Handler) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "login", map[string]any{
+	h.render(w, r, "login", map[string]any{
 		"Error":         "Invalid username or password",
 		"OAuth2Enabled": h.config.Auth.OAuth2.Enabled,
 	})
@@ -80,7 +80,7 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	// Validate CSRF state
 	state := r.URL.Query().Get("state")
 	if !h.oauth2Auth.ValidateState(state) {
-		h.render(w, "login", map[string]any{
+		h.render(w, r, "login", map[string]any{
 			"Error":         "Invalid OAuth2 state (CSRF check failed)",
 			"OAuth2Enabled": true,
 		})
@@ -90,7 +90,7 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	// Exchange code for user
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		h.render(w, "login", map[string]any{
+		h.render(w, r, "login", map[string]any{
 			"Error":         "Missing authorization code",
 			"OAuth2Enabled": true,
 		})
@@ -100,7 +100,7 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	user, err := h.oauth2Auth.HandleCallback(r.Context(), code)
 	if err != nil {
 		h.logger.Error("OAuth2 callback failed", "error", err)
-		h.render(w, "login", map[string]any{
+		h.render(w, r, "login", map[string]any{
 			"Error":         "OAuth2 authentication failed",
 			"OAuth2Enabled": true,
 		})

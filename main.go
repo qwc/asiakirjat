@@ -110,11 +110,17 @@ func main() {
 	defer searchIndex.Close()
 
 	// Initialize auth
+	csrfSecret, err := auth.GenerateCSRFSecret()
+	if err != nil {
+		logger.Error("generating CSRF secret", "error", err)
+		os.Exit(1)
+	}
 	sessionMgr := auth.NewSessionManager(
 		sessionStore, userStore,
 		cfg.Auth.Session.CookieName,
 		cfg.Auth.Session.MaxAge,
 		cfg.Auth.Session.Secure,
+		csrfSecret,
 	)
 
 	builtinAuth := auth.NewBuiltinAuthenticator(userStore)

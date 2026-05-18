@@ -33,7 +33,7 @@ func (h *Handler) handleUploadForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "upload", map[string]any{
+	h.render(w, r, "upload", map[string]any{
 		"User":    user,
 		"Project": project,
 	})
@@ -66,7 +66,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-		h.render(w, "upload", map[string]any{
+		h.render(w, r, "upload", map[string]any{
 			"User":    user,
 			"Project": project,
 			"Error":   "File too large (max 100 MB)",
@@ -74,9 +74,17 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// CSRF check goes here, not before ParseMultipartForm — the middleware
+	// path can't parse the body without imposing a 32 MB cap that would
+	// break large uploads. r.PostForm is populated by ParseMultipartForm.
+	if !h.verifyCSRF(r) {
+		h.failCSRF(w)
+		return
+	}
+
 	versionTag := r.FormValue("version")
 	if versionTag == "" {
-		h.render(w, "upload", map[string]any{
+		h.render(w, r, "upload", map[string]any{
 			"User":    user,
 			"Project": project,
 			"Error":   "Version tag is required",
@@ -84,7 +92,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validation.IsValidVersionTag(versionTag) {
-		h.render(w, "upload", map[string]any{
+		h.render(w, r, "upload", map[string]any{
 			"User":    user,
 			"Project": project,
 			"Error":   "Invalid version tag: must be 1-64 chars, starting with a letter or digit, then letters/digits/dots/underscores/hyphens only",
@@ -94,7 +102,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("archive")
 	if err != nil {
-		h.render(w, "upload", map[string]any{
+		h.render(w, r, "upload", map[string]any{
 			"User":    user,
 			"Project": project,
 			"Error":   "File is required",
@@ -119,7 +127,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		contentType = "pdf"
 		if err := storePDF(file, destPath); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
-			h.render(w, "upload", map[string]any{
+			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
 				"Error":   "Failed to store PDF: " + err.Error(),
@@ -129,7 +137,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	} else {
 		if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
-			h.render(w, "upload", map[string]any{
+			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
 				"Error":   "Failed to extract archive: " + err.Error(),
@@ -154,7 +162,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		if err := h.versions.Update(ctx, existingVersion); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
 			h.logger.Error("updating version record", "error", err)
-			h.render(w, "upload", map[string]any{
+			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
 				"Error":   "Failed to update version",
@@ -179,7 +187,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 		if err := h.versions.Create(ctx, version); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
 			h.logger.Error("creating version record", "error", err)
-			h.render(w, "upload", map[string]any{
+			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
 				"Error":   "Failed to create version",
