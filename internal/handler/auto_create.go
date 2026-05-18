@@ -2,18 +2,10 @@ package handler
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	"github.com/qwc/asiakirjat/internal/database"
 )
-
-var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-
-// isValidSlug checks whether slug is a valid project slug (lowercase alphanumeric with hyphens, 1-128 chars).
-func isValidSlug(slug string) bool {
-	return len(slug) >= 1 && len(slug) <= 128 && slugPattern.MatchString(slug)
-}
 
 // canAutoCreate returns true if the user has a role that permits auto-creating projects.
 func canAutoCreate(user *database.User) bool {

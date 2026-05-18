@@ -14,40 +14,6 @@ import (
 	"github.com/qwc/asiakirjat/internal/database"
 )
 
-func TestIsValidSlug(t *testing.T) {
-	tests := []struct {
-		slug string
-		want bool
-	}{
-		{"my-project", true},
-		{"a", true},
-		{"abc123", true},
-		{"my-cool-project", true},
-		{"a-b-c", true},
-		{"project1", true},
-
-		{"", false},
-		{"-leading", false},
-		{"trailing-", false},
-		{"UPPERCASE", false},
-		{"has space", false},
-		{"has_underscore", false},
-		{"a--b", false},
-		{"special!char", false},
-		{strings.Repeat("a", 129), false},
-
-		{strings.Repeat("a", 128), true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.slug, func(t *testing.T) {
-			if got := isValidSlug(tt.slug); got != tt.want {
-				t.Errorf("isValidSlug(%q) = %v, want %v", tt.slug, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAPIUploadAutoCreateProject(t *testing.T) {
 	app := setupTestApp(t)
 	app.handler.config.Projects.AutoCreate = true

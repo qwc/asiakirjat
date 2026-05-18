@@ -12,6 +12,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/validation"
 )
 
 const maxUploadSize = 100 << 20 // 100 MB
@@ -45,7 +46,7 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
-		if h.config.Projects.AutoCreate && canAutoCreate(user) && isValidSlug(slug) {
+		if h.config.Projects.AutoCreate && canAutoCreate(user) && validation.IsValidSlug(slug) {
 			project, err = h.autoCreateProject(ctx, slug, user)
 			if err != nil {
 				h.logger.Error("auto-creating project", "error", err)
@@ -79,6 +80,14 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 			"User":    user,
 			"Project": project,
 			"Error":   "Version tag is required",
+		})
+		return
+	}
+	if !validation.IsValidVersionTag(versionTag) {
+		h.render(w, "upload", map[string]any{
+			"User":    user,
+			"Project": project,
+			"Error":   "Invalid version tag: must be 1-64 chars, starting with a letter or digit, then letters/digits/dots/underscores/hyphens only",
 		})
 		return
 	}

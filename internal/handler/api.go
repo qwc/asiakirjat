@@ -9,6 +9,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/validation"
 )
 
 func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +133,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	var user *database.User
 	if err != nil {
 		// Project doesn't exist — try auto-create path
-		if h.config.Projects.AutoCreate && isValidSlug(slug) {
+		if h.config.Projects.AutoCreate && validation.IsValidSlug(slug) {
 			// No project to scope to, so use unscoped auth
 			user = tokenAuth.AuthenticateRequest(r)
 			if user == nil {
@@ -179,6 +180,10 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	versionTag := r.FormValue("version")
 	if versionTag == "" {
 		h.jsonError(w, "Version tag is required", http.StatusBadRequest)
+		return
+	}
+	if !validation.IsValidVersionTag(versionTag) {
+		h.jsonError(w, "Invalid version tag: must be 1-64 chars, starting with a letter or digit, then letters/digits/dots/underscores/hyphens only", http.StatusBadRequest)
 		return
 	}
 
@@ -325,7 +330,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !isValidSlug(req.Slug) {
+	if !validation.IsValidSlug(req.Slug) {
 		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
 		return
 	}
