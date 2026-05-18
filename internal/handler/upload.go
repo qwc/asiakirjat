@@ -222,18 +222,20 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	// Invalidate latest tags cache
 	h.invalidateLatestTagsCache()
 
-	// Async index for full-text search
+	// Async index for full-text search — tracked so shutdown can drain it.
 	if h.searchIndex != nil {
-		go func() {
+		h.runJob(func(ctx context.Context) {
 			if err := h.searchIndex.IndexVersion(project.ID, version.ID, slug, project.Name, versionTag, destPath); err != nil {
 				h.logger.Error("indexing version", "error", err, "project", slug, "version", versionTag)
 			}
-		}()
+		})
 	}
 
-	// Enforce retention after new non-semver upload
+	// Enforce retention after new non-semver upload — also tracked.
 	if !isReupload && !docs.IsSemver(versionTag) {
-		go h.enforceRetentionPolicy(context.Background(), project)
+		h.runJob(func(ctx context.Context) {
+			h.enforceRetentionPolicy(ctx, project)
+		})
 	}
 
 	h.redirect(w, r, "/project/"+slug, http.StatusSeeOther)
