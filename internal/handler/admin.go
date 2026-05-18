@@ -77,6 +77,13 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		visibility = database.VisibilityPrivate
 	}
 
+	// Public projects bypass all access checks, so only admins may create them.
+	creator := auth.UserFromContext(ctx)
+	if visibility == database.VisibilityPublic && (creator == nil || creator.Role != "admin") {
+		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
+		return
+	}
+
 	// Parse retention_days
 	var retentionDays *int
 	if rd := r.FormValue("retention_days"); rd != "" {
@@ -103,8 +110,8 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		h.logger.Error("creating project directory", "error", err)
 	}
 
-	// Auto-grant editor access to the creator for non-public projects
-	creator := auth.UserFromContext(ctx)
+	// Auto-grant editor access to the creator for non-public projects.
+	// (creator was already loaded above for the public-visibility gate.)
 	if creator != nil && creator.Role != "admin" && visibility != database.VisibilityPublic {
 		access := &database.ProjectAccess{
 			ProjectID: project.ID,

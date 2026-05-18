@@ -82,12 +82,13 @@ curl -X POST \
 - `201 Created` - Project created
 - `400 Bad Request` - Invalid slug or visibility
 - `401 Unauthorized` - Invalid or missing token
-- `403 Forbidden` - Requires admin or editor role
+- `403 Forbidden` - Requires admin or editor role; only admins may create `public` projects
 - `409 Conflict` - Project with this slug already exists
 
 **Notes:**
 - Requires a global (unscoped) API token — project-scoped tokens cannot create projects
 - Non-admin creators are automatically granted editor access to the new project
+- Only admins can create projects with `visibility: public`; editors must use `private` or `custom`
 
 ### List Versions
 

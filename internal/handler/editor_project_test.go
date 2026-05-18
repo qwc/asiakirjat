@@ -63,7 +63,7 @@ func TestEditorCanCreateProject(t *testing.T) {
 	form.Set("slug", "editor-created")
 	form.Set("name", "Editor Created Project")
 	form.Set("description", "Created by an editor")
-	form.Set("visibility", "public")
+	form.Set("visibility", "private")
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

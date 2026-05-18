@@ -353,6 +353,12 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Public projects bypass all access checks, so only admins may create them.
+	if req.Visibility == database.VisibilityPublic && user.Role != "admin" {
+		h.jsonError(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
+		return
+	}
+
 	// Check for duplicate
 	if existing, _ := h.projects.GetBySlug(ctx, req.Slug); existing != nil {
 		h.jsonError(w, "Project with this slug already exists", http.StatusConflict)
