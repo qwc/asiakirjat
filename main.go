@@ -215,10 +215,9 @@ func main() {
 		Logger:         logger,
 	})
 
-	// Start retention worker
-	retentionCtx, retentionCancel := context.WithCancel(context.Background())
-	defer retentionCancel()
-	go h.StartRetentionWorker(retentionCtx)
+	// Start the periodic background workers (retention, session cleanup,
+	// rate-limit cleanup). All run under h.jobs and drain on shutdown.
+	h.StartBackgroundWorkers()
 
 	// Register routes
 	mux := http.NewServeMux()
@@ -235,13 +234,17 @@ func main() {
 		Handler: httpHandler,
 	}
 
-	// Graceful shutdown
+	// Graceful shutdown: stop accepting new requests, then drain in-flight
+	// background jobs (indexing, retention sweeps, cleanup tickers) before
+	// the process exits.
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		logger.Info("shutting down server")
 		server.Shutdown(context.Background())
+		logger.Info("draining background jobs")
+		h.StopBackgroundJobs()
 	}()
 
 	logger.Info("starting server", "address", cfg.ListenAddr())

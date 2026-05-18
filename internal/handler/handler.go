@@ -43,6 +43,9 @@ type Handler struct {
 	// Synchronized state — see internal/handler/state.go.
 	latestTags latestTagsCache
 	reindex    reindexState
+
+	// Background job lifecycle — see internal/handler/jobs.go.
+	jobs *jobs
 }
 
 type Deps struct {
@@ -89,6 +92,7 @@ func New(deps Deps) *Handler {
 		searchIndex:    deps.SearchIndex,
 		projectService: projects.NewService(deps.Projects, deps.Access, deps.Storage, deps.Logger),
 		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.Logger),
+		jobs:           newJobs(),
 		logger:         deps.Logger,
 	}
 }

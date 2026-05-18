@@ -207,7 +207,7 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	go func() {
+	h.runJob(func(jobCtx context.Context) {
 		defer h.reindex.finish()
 
 		progressFn := func(p docs.ReindexProgress) {
@@ -220,7 +220,7 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		} else {
 			h.logger.Info("reindex completed", "versions", len(versions))
 		}
-	}()
+	})
 
 	h.redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
