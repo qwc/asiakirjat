@@ -168,14 +168,16 @@ func (h *Handler) handleSearchPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Check if reindex is already running
-	if h.reindexRunning {
+	// Claim the slot atomically. tryStart returns false if a reindex is
+	// already running.
+	if !h.reindex.tryStart() {
 		h.redirect(w, r, "/admin/projects?msg=reindex_already_running", http.StatusSeeOther)
 		return
 	}
 
 	allProjects, err := h.projects.List(ctx)
 	if err != nil {
+		h.reindex.finish()
 		h.logger.Error("listing projects for reindex", "error", err)
 		h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 		return
@@ -205,18 +207,11 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mark reindex as running
-	h.reindexRunning = true
-	h.reindexProgress = "Starting..."
-
 	go func() {
-		defer func() {
-			h.reindexRunning = false
-			h.reindexProgress = ""
-		}()
+		defer h.reindex.finish()
 
 		progressFn := func(p docs.ReindexProgress) {
-			h.reindexProgress = fmt.Sprintf("%d/%d: %s %s", p.Current, p.Total, p.Project, p.Version)
+			h.reindex.setProgress(fmt.Sprintf("%d/%d: %s %s", p.Current, p.Total, p.Project, p.Version))
 			h.logger.Info("reindex progress", "current", p.Current, "total", p.Total, "project", p.Project, "version", p.Version)
 		}
 
@@ -230,15 +225,13 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 	h.redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
 
-// latestTagsCacheTTL is how long the latest version tags cache is valid.
-const latestTagsCacheTTL = 30 * time.Second
-
 // getLatestVersionTags returns a map of projectSlug -> latest version tag.
-// Results are cached to avoid per-query DB lookups.
+// Results are cached to avoid per-query DB lookups; the cache is guarded
+// by an internal mutex (see latestTagsCache).
 func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
-	// Check if cache is still valid
-	if h.latestTagsCache != nil && time.Since(h.latestTagsCacheTime) < latestTagsCacheTTL {
-		return h.latestTagsCache
+	now := time.Now()
+	if cached, ok := h.latestTags.get(now); ok {
+		return cached
 	}
 
 	result := make(map[string]string)
@@ -256,17 +249,14 @@ func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
 		result[p.Slug] = latestVersionTag(versions, p.PinnedVersion)
 	}
 
-	// Update cache
-	h.latestTagsCache = result
-	h.latestTagsCacheTime = time.Now()
-
+	h.latestTags.set(now, result)
 	return result
 }
 
-// invalidateLatestTagsCache clears the cached latest version tags.
-// Call this after uploading or deleting versions.
+// invalidateLatestTagsCache clears the cached latest version tags. Called
+// after uploading or deleting versions so the next search sees fresh data.
 func (h *Handler) invalidateLatestTagsCache() {
-	h.latestTagsCache = nil
+	h.latestTags.invalidate()
 }
 
 // filterSearchResults removes results for projects the user can't access

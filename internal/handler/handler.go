@@ -40,13 +40,9 @@ type Handler struct {
 	checker        *access.Checker
 	logger         *slog.Logger
 
-	// Cache for latest version tags (invalidated on upload/delete)
-	latestTagsCache     map[string]string
-	latestTagsCacheTime time.Time
-
-	// Reindex state tracking
-	reindexRunning  bool
-	reindexProgress string
+	// Synchronized state — see internal/handler/state.go.
+	latestTags latestTagsCache
+	reindex    reindexState
 }
 
 type Deps struct {

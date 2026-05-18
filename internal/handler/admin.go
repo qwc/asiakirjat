@@ -34,12 +34,13 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		projects = h.filterAccessibleProjects(ctx, user, allProjects)
 	}
 
+	reindexRunning, reindexProgress := h.reindex.snapshot()
 	data := map[string]any{
 		"User":            user,
 		"IsAdmin":         isAdmin,
 		"Projects":        projects,
-		"ReindexRunning":  h.reindexRunning,
-		"ReindexProgress": h.reindexProgress,
+		"ReindexRunning":  reindexRunning,
+		"ReindexProgress": reindexProgress,
 	}
 
 	// Check for flash message from query parameter
