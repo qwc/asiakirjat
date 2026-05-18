@@ -136,7 +136,6 @@ func (h *Handler) handleAPIUploadGeneral(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request, slug string) {
 	ctx := r.Context()
-	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	var user *database.User
@@ -144,7 +143,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 		// Project doesn't exist — try auto-create path
 		if h.config.Projects.AutoCreate && validation.IsValidSlug(slug) {
 			// No project to scope to, so use unscoped auth
-			user = tokenAuth.AuthenticateRequest(r)
+			user = h.tokenAuth.AuthenticateRequest(r)
 			if user == nil {
 				h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -165,7 +164,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 		}
 	} else {
 		// Project exists — use project-scoped auth
-		user = tokenAuth.AuthenticateRequestForProject(r, project.ID)
+		user = h.tokenAuth.AuthenticateRequestForProject(r, project.ID)
 		if user == nil {
 			h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -320,8 +319,7 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	tokenAuth := auth.NewTokenAuthenticator(h.tokens, h.users)
-	user, token := tokenAuth.AuthenticateRequestWithToken(r)
+	user, token := h.tokenAuth.AuthenticateRequestWithToken(r)
 	if user == nil {
 		h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 		return

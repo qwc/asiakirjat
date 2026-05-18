@@ -32,6 +32,7 @@ type Handler struct {
 	uploadLogs     store.UploadLogStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
+	tokenAuth      *auth.TokenAuthenticator
 	sessionMgr     *auth.SessionManager
 	loginLimiter   *RateLimiter
 	trustedProxies []*net.IPNet
@@ -86,6 +87,7 @@ func New(deps Deps) *Handler {
 		uploadLogs:     deps.UploadLogs,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
+		tokenAuth:      auth.NewTokenAuthenticator(deps.Tokens, deps.Users),
 		sessionMgr:     deps.SessionMgr,
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
