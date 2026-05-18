@@ -19,14 +19,17 @@
         {{if $.CanUpload}}
             {{if and $.PinnedVersion (eq .Tag (deref $.PinnedVersion))}}
             <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/unpin" class="inline-form">
+                {{template "csrf_field" $.CSRFToken}}
                 <button type="submit" class="btn btn-tiny btn-secondary">Unpin</button>
             </form>
             {{else}}
             <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/pin" class="inline-form pin-form">
+                {{template "csrf_field" $.CSRFToken}}
                 <input type="hidden" name="permanent" value="true">
                 <button type="submit" class="btn btn-tiny btn-secondary" title="Permanently pin as latest (persists across new uploads)">Pin</button>
             </form>
             <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/pin" class="inline-form pin-form">
+                {{template "csrf_field" $.CSRFToken}}
                 <input type="hidden" name="permanent" value="false">
                 <button type="submit" class="btn btn-tiny btn-secondary" title="Temporarily set as latest (cleared on next upload)">Temp. pin</button>
             </form>
@@ -35,6 +38,7 @@
         {{if $.CanDelete}}
         <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/delete"
               class="inline-form" onsubmit="return confirm('Delete version {{.Tag}}?')">
+            {{template "csrf_field" $.CSRFToken}}
             <button type="submit" class="btn btn-tiny btn-danger">Delete</button>
         </form>
         {{end}}

@@ -10,7 +10,7 @@ import (
 func (h *Handler) handleProfilePage(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
 
-	h.render(w, "profile", map[string]any{
+	h.render(w, r, "profile", map[string]any{
 		"User": user,
 	})
 }
@@ -20,7 +20,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(ctx)
 
 	if user.AuthSource != "builtin" {
-		h.render(w, "profile", map[string]any{
+		h.render(w, r, "profile", map[string]any{
 			"User":  user,
 			"Error": "Password is managed by an external provider",
 		})
@@ -32,7 +32,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	confirmPassword := r.FormValue("confirm_password")
 
 	if currentPassword == "" || newPassword == "" || confirmPassword == "" {
-		h.render(w, "profile", map[string]any{
+		h.render(w, r, "profile", map[string]any{
 			"User":  user,
 			"Error": "All password fields are required",
 		})
@@ -40,7 +40,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if newPassword != confirmPassword {
-		h.render(w, "profile", map[string]any{
+		h.render(w, r, "profile", map[string]any{
 			"User":  user,
 			"Error": "New passwords do not match",
 		})
@@ -48,7 +48,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.Password == nil {
-		h.render(w, "profile", map[string]any{
+		h.render(w, r, "profile", map[string]any{
 			"User":  user,
 			"Error": "Account has no password set",
 		})
@@ -56,7 +56,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.Password), []byte(currentPassword)); err != nil {
-		h.render(w, "profile", map[string]any{
+		h.render(w, r, "profile", map[string]any{
 			"User":  user,
 			"Error": "Current password is incorrect",
 		})
@@ -77,7 +77,7 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "profile", map[string]any{
+	h.render(w, r, "profile", map[string]any{
 		"User":    user,
 		"Success": "Password changed successfully",
 	})

@@ -102,9 +102,10 @@ func TestAdminCreateProjectRejectsInvalidSlug(t *testing.T) {
 		"trailing-",
 	}
 
+	csrf := csrfTokenFor(t, app, cookies)
 	for _, slug := range badSlugs {
 		t.Run("slug="+slug, func(t *testing.T) {
-			form := "slug=" + slug + "&name=test&visibility=custom"
+			form := "slug=" + slug + "&name=test&visibility=custom&csrf_token=" + csrf
 			req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects",
 				bytes.NewBufferString(form))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

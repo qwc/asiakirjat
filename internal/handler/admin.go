@@ -62,7 +62,7 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "admin_projects", data)
+	h.render(w, r, "admin_projects", data)
 }
 
 func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		globalRetentionLabel = strconv.Itoa(globalDefault) + " days"
 	}
 
-	h.render(w, "admin_project_edit", map[string]any{
+	h.render(w, r, "admin_project_edit", map[string]any{
 		"User":                  user,
 		"Project":               project,
 		"AccessList":            accessViews,
@@ -307,7 +307,7 @@ func (h *Handler) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "admin_users", map[string]any{
+	h.render(w, r, "admin_users", map[string]any{
 		"User":  user,
 		"Users": users,
 	})
@@ -456,7 +456,7 @@ func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	h.render(w, "admin_robots", map[string]any{
+	h.render(w, r, "admin_robots", map[string]any{
 		"User":     user,
 		"Robots":   robotViews,
 		"Projects": projects,
@@ -577,7 +577,7 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	h.render(w, "admin_robots", map[string]any{
+	h.render(w, r, "admin_robots", map[string]any{
 		"User":     user,
 		"Robots":   robotViews,
 		"Projects": projects,
@@ -771,7 +771,7 @@ func (h *Handler) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "admin_groups", data)
+	h.render(w, r, "admin_groups", data)
 }
 
 func (h *Handler) handleAdminCreateGroupMapping(w http.ResponseWriter, r *http.Request) {
@@ -897,7 +897,7 @@ func (h *Handler) handleAdminGlobalAccess(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	h.render(w, "admin_global_access", data)
+	h.render(w, r, "admin_global_access", data)
 }
 
 func (h *Handler) handleAdminCreateGlobalAccessRule(w http.ResponseWriter, r *http.Request) {

@@ -198,6 +198,7 @@ func TestWebUploadAutoCreateProject(t *testing.T) {
 	writer.WriteField("version", "v1.0.0")
 	part, _ := writer.CreateFormFile("archive", "docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	client := &http.Client{

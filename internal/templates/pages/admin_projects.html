@@ -17,6 +17,7 @@
     <div class="admin-create-form">
         <h2>Create Project</h2>
         <form method="POST" action="{{url "/admin/projects"}}" id="create-project-form">
+            {{template "csrf_field" $.CSRFToken}}
             <div class="form-row">
                 <div class="form-group" style="flex:1;min-width:180px;">
                     <label for="name">Name</label>
@@ -90,12 +91,14 @@
     <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
         <form method="POST" action="{{url "/admin/reindex"}}" class="inline-form"
             onsubmit="return confirm('Rebuild the full-text search index? This runs in the background.')">
+            {{template "csrf_field" $.CSRFToken}}
             <button type="submit" class="btn btn-secondary" {{if .ReindexRunning}}disabled{{end}}>
                 {{if .ReindexRunning}}Reindexing...{{else}}Rebuild Search Index{{end}}
             </button>
         </form>
         <form method="POST" action="{{url "/admin/deploy-docs"}}" class="inline-form"
             onsubmit="return confirm('Deploy built-in documentation as asiakirjat-docs project?')">
+            {{template "csrf_field" $.CSRFToken}}
             <button type="submit" class="btn btn-secondary">Deploy Built-in Docs</button>
         </form>
         {{if .ReindexRunning}}
@@ -130,6 +133,7 @@
                     <a href="{{url "/admin/projects/"}}{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>
                     <form method="POST" action="{{url "/admin/projects/"}}{{.Slug}}/delete" class="inline-form"
                         onsubmit="return confirm('Delete project {{.Name}}?')">
+                        {{template "csrf_field" $.CSRFToken}}
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>
                 </td>

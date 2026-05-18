@@ -10,7 +10,7 @@ import (
 func (h *Handler) handleLicenses(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
 
-	h.render(w, "licenses", map[string]any{
+	h.render(w, r, "licenses", map[string]any{
 		"User": user,
 		"Deps": licenses.Deps,
 	})

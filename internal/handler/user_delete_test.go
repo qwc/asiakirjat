@@ -69,6 +69,7 @@ func TestAdminCanDeleteUserAfterUploads(t *testing.T) {
 	}
 	req, _ := http.NewRequest("POST",
 		fmt.Sprintf("%s/admin/users/%d/delete", app.server.URL, editorID), nil)
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}

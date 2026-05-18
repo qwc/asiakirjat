@@ -104,6 +104,7 @@ func TestPinVersionFullFlow(t *testing.T) {
 	// Pin v1.0.0 as permanent
 	form := url.Values{}
 	form.Set("permanent", "true")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/version/v1.0.0/pin", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -141,6 +142,8 @@ func TestPinVersionFullFlow(t *testing.T) {
 	for _, c := range cookies {
 		req2.AddCookie(c)
 	}
+
+	req2.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp2, err := client.Do(req2)
 	if err != nil {
@@ -190,6 +193,7 @@ func TestPinVersionTemporary(t *testing.T) {
 	// Pin v1.0.0 as temporary
 	form := url.Values{}
 	form.Set("permanent", "false")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/version/v1.0.0/pin", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -231,6 +235,7 @@ func TestPinVersionNonExistentVersion(t *testing.T) {
 	// Try to pin a version that doesn't exist
 	form := url.Values{}
 	form.Set("permanent", "true")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/version/v99.0.0/pin", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
@@ -291,6 +296,7 @@ func TestTemporaryPinClearedOnNewUpload(t *testing.T) {
 	writer.WriteField("version", "v2.0.0")
 	part, _ := writer.CreateFormFile("archive", "docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/upload", body)
@@ -360,6 +366,7 @@ func TestPermanentPinNotClearedOnNewUpload(t *testing.T) {
 	writer.WriteField("version", "v2.0.0")
 	part, _ := writer.CreateFormFile("archive", "docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/upload", body)
@@ -415,6 +422,7 @@ func TestUploadCreatesLogEntry(t *testing.T) {
 	writer.WriteField("version", "v1.0.0")
 	part, _ := writer.CreateFormFile("archive", "my-docs.zip")
 	part.Write(zipBuf.Bytes())
+	writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/upload", body)
@@ -483,6 +491,7 @@ func TestReuploadCreatesLogEntryMarkedAsReupload(t *testing.T) {
 		writer.WriteField("version", "v1.0.0")
 		part, _ := writer.CreateFormFile("archive", filename)
 		part.Write(zipBuf.Bytes())
+		writer.WriteField("csrf_token", csrfTokenFor(t, app, cookies))
 		writer.Close()
 
 		req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/upload", body)
@@ -667,6 +676,7 @@ func TestViewerCannotPin(t *testing.T) {
 
 	form := url.Values{}
 	form.Set("permanent", "true")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/project/docs/version/v1.0.0/pin", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {

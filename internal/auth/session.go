@@ -18,16 +18,48 @@ type SessionManager struct {
 	cookieName string
 	maxAge     int
 	secure     bool
+	// csrfSecret is the HMAC key for deriving per-session CSRF tokens.
+	// 32 random bytes generated at startup; held in memory. On restart the
+	// secret rotates and outstanding form submissions fail (the user
+	// refreshes and continues), which is the same UX as session timeout.
+	csrfSecret []byte
 }
 
-func NewSessionManager(sessionStore store.SessionStore, userStore store.UserStore, cookieName string, maxAge int, secure bool) *SessionManager {
+// NewSessionManager constructs a manager. csrfSecret must be 32 bytes from
+// a CSPRNG (auth.GenerateCSRFSecret). Passing nil disables CSRF protection,
+// which only makes sense in tests that don't exercise form POSTs.
+func NewSessionManager(sessionStore store.SessionStore, userStore store.UserStore, cookieName string, maxAge int, secure bool, csrfSecret []byte) *SessionManager {
 	return &SessionManager{
 		store:      sessionStore,
 		userStore:  userStore,
 		cookieName: cookieName,
 		maxAge:     maxAge,
 		secure:     secure,
+		csrfSecret: csrfSecret,
 	}
+}
+
+// CSRFToken returns the CSRF token for the request's session, or "" if
+// there is no session cookie (anonymous requests). The empty value is a
+// signal to templates — embedding it in a hidden input renders an empty
+// value that will fail VerifyCSRF, which is the correct outcome.
+func (sm *SessionManager) CSRFToken(r *http.Request) string {
+	cookie, err := r.Cookie(sm.cookieName)
+	if err != nil {
+		return ""
+	}
+	return ComputeCSRFToken(sm.csrfSecret, cookie.Value)
+}
+
+// VerifyCSRF returns true when presented matches the expected CSRF token
+// for the request's session. Anonymous requests, sessions with no cookie,
+// and empty presented values all return false.
+func (sm *SessionManager) VerifyCSRF(r *http.Request, presented string) bool {
+	cookie, err := r.Cookie(sm.cookieName)
+	if err != nil {
+		return false
+	}
+	return ValidateCSRFToken(sm.csrfSecret, cookie.Value, presented)
 }
 
 func (sm *SessionManager) CreateSession(ctx context.Context, w http.ResponseWriter, userID int64) error {

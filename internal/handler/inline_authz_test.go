@@ -61,6 +61,9 @@ func TestDeleteVersionHonorsGlobalAccessGrant(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
+
+
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)

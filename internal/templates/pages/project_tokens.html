@@ -18,6 +18,7 @@
         <h2>Create New Token</h2>
         <p class="hint-text">Tokens created here are scoped to this project only.</p>
         <form method="POST" action="{{url "/project/"}}{{.Project.Slug}}/tokens">
+            {{template "csrf_field" $.CSRFToken}}
             <div class="form-row">
                 <div class="form-group">
                     <label for="name">Token Name</label>
@@ -48,6 +49,7 @@
                 <td>
                     <form method="POST" action="{{url "/project/"}}{{$.Project.Slug}}/tokens/{{.ID}}/revoke" class="inline-form"
                         onsubmit="return confirm('Revoke token {{.Name}}?')">
+                        {{template "csrf_field" $.CSRFToken}}
                         <button type="submit" class="btn btn-small btn-danger">Revoke</button>
                     </form>
                 </td>
