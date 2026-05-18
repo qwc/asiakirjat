@@ -3,7 +3,6 @@ package docs
 import (
 	"archive/tar"
 	"archive/zip"
-	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
@@ -16,7 +15,90 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-const maxFileSize = 100 << 20 // 100 MB per file
+// Extraction quotas. The per-file cap was already present; the archive,
+// total, and entry caps were added to defuse decompression bombs (audit
+// finding H-5). All four can be exceeded under reasonable use only with
+// a malicious or accidentally-pathological upload.
+const (
+	maxFileSize    = 100 << 20  // 100 MB per extracted file
+	maxArchiveSize = 1 << 30    // 1 GB input archive (after MaxBytesReader)
+	maxTotalSize   = 1 << 30    // 1 GB total extracted bytes per archive
+	maxEntries     = 10000      // entry-count cap per archive
+)
+
+// extractStats tracks the running quotas during a single extraction.
+type extractStats struct {
+	entries int
+	bytes   int64
+}
+
+// nextEntry bumps the entry counter; returns an error once the cap is
+// exceeded so the extraction aborts before opening another stream.
+func (s *extractStats) nextEntry() error {
+	s.entries++
+	if s.entries > maxEntries {
+		return fmt.Errorf("archive contains too many entries (limit %d)", maxEntries)
+	}
+	return nil
+}
+
+// addBytes credits n bytes against the total; returns an error if the
+// cumulative total would exceed maxTotalSize. Called from copyEntry's
+// incremental writer so a bomb aborts mid-stream rather than after
+// writing GB to disk.
+func (s *extractStats) addBytes(n int64) error {
+	s.bytes += n
+	if s.bytes > maxTotalSize {
+		return fmt.Errorf("archive expands beyond total extraction limit (%d bytes)", maxTotalSize)
+	}
+	return nil
+}
+
+// limitedWriter wraps an underlying writer and aborts the copy as soon as
+// the per-archive byte budget is exhausted.
+type limitedWriter struct {
+	w     io.Writer
+	stats *extractStats
+}
+
+func (lw *limitedWriter) Write(p []byte) (int, error) {
+	if err := lw.stats.addBytes(int64(len(p))); err != nil {
+		return 0, err
+	}
+	return lw.w.Write(p)
+}
+
+// bufferArchiveToTempFile copies r into a temporary file on disk so the
+// archive readers (zip, 7z) can satisfy their io.ReaderAt + size contract
+// without holding the whole archive in memory.
+//
+// The caller is responsible for both Close and os.Remove on the returned
+// file; the helper at archive call sites uses a single closure to do both.
+func bufferArchiveToTempFile(r io.Reader) (*os.File, int64, error) {
+	tmp, err := os.CreateTemp("", "asiakirjat-archive-*")
+	if err != nil {
+		return nil, 0, fmt.Errorf("creating temp file for archive: %w", err)
+	}
+	n, err := io.Copy(tmp, io.LimitReader(r, maxArchiveSize))
+	if err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return nil, 0, fmt.Errorf("buffering archive: %w", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return nil, 0, fmt.Errorf("seeking buffered archive: %w", err)
+	}
+	return tmp, n, nil
+}
+
+// closeAndRemove is a defer-friendly helper that cleans up the temp file.
+func closeAndRemove(f *os.File) {
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+}
 
 // ExtractArchive detects the archive format from the filename and extracts to destDir.
 func ExtractArchive(r io.Reader, filename, destDir string) error {
@@ -39,19 +121,21 @@ func ExtractArchive(r io.Reader, filename, destDir string) error {
 }
 
 func extractZip(r io.Reader, destDir string) error {
-	// zip.Reader needs io.ReaderAt, so we buffer to memory/disk
-	data, err := io.ReadAll(io.LimitReader(r, maxFileSize*10))
+	// zip.Reader needs io.ReaderAt + size, so buffer to a temp file rather
+	// than RAM (H-6: previously io.ReadAll up to 1 GB per concurrent upload).
+	tmp, size, err := bufferArchiveToTempFile(r)
 	if err != nil {
-		return fmt.Errorf("reading zip data: %w", err)
+		return err
 	}
+	defer closeAndRemove(tmp)
 
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	zr, err := zip.NewReader(tmp, size)
 	if err != nil {
 		return fmt.Errorf("opening zip: %w", err)
 	}
 
-	// Detect single root directory for flattening
 	prefix := detectSingleRoot(zr)
+	stats := &extractStats{}
 
 	for _, f := range zr.File {
 		name := f.Name
@@ -64,12 +148,10 @@ func extractZip(r io.Reader, destDir string) error {
 
 		target := filepath.Join(destDir, name)
 
-		// Zip-slip protection
 		if !isPathSafe(destDir, target) {
 			return fmt.Errorf("zip-slip detected: %s", f.Name)
 		}
 
-		// Skip symlinks
 		if f.FileInfo().Mode()&os.ModeSymlink != 0 {
 			continue
 		}
@@ -79,11 +161,13 @@ func extractZip(r io.Reader, destDir string) error {
 			continue
 		}
 
+		if err := stats.nextEntry(); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			return fmt.Errorf("creating directory: %w", err)
 		}
-
-		if err := extractZipFile(f, target); err != nil {
+		if err := extractZipFile(f, target, stats); err != nil {
 			return err
 		}
 	}
@@ -91,7 +175,7 @@ func extractZip(r io.Reader, destDir string) error {
 	return nil
 }
 
-func extractZipFile(f *zip.File, target string) error {
+func extractZipFile(f *zip.File, target string, stats *extractStats) error {
 	rc, err := f.Open()
 	if err != nil {
 		return fmt.Errorf("opening zip entry: %w", err)
@@ -104,10 +188,10 @@ func extractZipFile(f *zip.File, target string) error {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, io.LimitReader(rc, maxFileSize)); err != nil {
+	lw := &limitedWriter{w: out, stats: stats}
+	if _, err := io.Copy(lw, io.LimitReader(rc, maxFileSize)); err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
-
 	return nil
 }
 
@@ -160,19 +244,19 @@ func extractTarXz(r io.Reader, destDir string) error {
 }
 
 func extract7z(r io.Reader, destDir string) error {
-	// sevenzip.Reader needs io.ReaderAt, so we buffer to memory
-	data, err := io.ReadAll(io.LimitReader(r, maxFileSize*10))
+	tmp, size, err := bufferArchiveToTempFile(r)
 	if err != nil {
-		return fmt.Errorf("reading 7z data: %w", err)
+		return err
 	}
+	defer closeAndRemove(tmp)
 
-	szr, err := sevenzip.NewReader(bytes.NewReader(data), int64(len(data)))
+	szr, err := sevenzip.NewReader(tmp, size)
 	if err != nil {
 		return fmt.Errorf("opening 7z: %w", err)
 	}
 
-	// Detect single root directory for flattening
 	prefix := detectSingleRoot7z(szr)
+	stats := &extractStats{}
 
 	for _, f := range szr.File {
 		name := f.Name
@@ -185,12 +269,10 @@ func extract7z(r io.Reader, destDir string) error {
 
 		target := filepath.Join(destDir, name)
 
-		// Path traversal protection
 		if !isPathSafe(destDir, target) {
 			return fmt.Errorf("path traversal detected: %s", f.Name)
 		}
 
-		// Skip symlinks
 		if f.FileInfo().Mode()&os.ModeSymlink != 0 {
 			continue
 		}
@@ -200,11 +282,13 @@ func extract7z(r io.Reader, destDir string) error {
 			continue
 		}
 
+		if err := stats.nextEntry(); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			return fmt.Errorf("creating directory: %w", err)
 		}
-
-		if err := extract7zFile(f, target); err != nil {
+		if err := extract7zFile(f, target, stats); err != nil {
 			return err
 		}
 	}
@@ -212,7 +296,7 @@ func extract7z(r io.Reader, destDir string) error {
 	return nil
 }
 
-func extract7zFile(f *sevenzip.File, target string) error {
+func extract7zFile(f *sevenzip.File, target string, stats *extractStats) error {
 	rc, err := f.Open()
 	if err != nil {
 		return fmt.Errorf("opening 7z entry: %w", err)
@@ -225,10 +309,10 @@ func extract7zFile(f *sevenzip.File, target string) error {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, io.LimitReader(rc, maxFileSize)); err != nil {
+	lw := &limitedWriter{w: out, stats: stats}
+	if _, err := io.Copy(lw, io.LimitReader(rc, maxFileSize)); err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
-
 	return nil
 }
 
@@ -258,6 +342,7 @@ func detectSingleRoot7z(szr *sevenzip.Reader) string {
 
 func extractTar(r io.Reader, destDir string) error {
 	tr := tar.NewReader(r)
+	stats := &extractStats{}
 
 	for {
 		header, err := tr.Next()
@@ -268,17 +353,13 @@ func extractTar(r io.Reader, destDir string) error {
 			return fmt.Errorf("reading tar: %w", err)
 		}
 
-		name := header.Name
-
-		// Strip leading single root if present
-		name = stripSingleRootTar(name)
+		name := stripSingleRootTar(header.Name)
 		if name == "" || name == "." {
 			continue
 		}
 
 		target := filepath.Join(destDir, name)
 
-		// Path traversal protection
 		if !isPathSafe(destDir, target) {
 			return fmt.Errorf("path traversal detected: %s", header.Name)
 		}
@@ -287,6 +368,9 @@ func extractTar(r io.Reader, destDir string) error {
 		case tar.TypeDir:
 			os.MkdirAll(target, 0755)
 		case tar.TypeReg:
+			if err := stats.nextEntry(); err != nil {
+				return err
+			}
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return fmt.Errorf("creating directory: %w", err)
 			}
@@ -296,7 +380,8 @@ func extractTar(r io.Reader, destDir string) error {
 				return fmt.Errorf("creating file: %w", err)
 			}
 
-			if _, err := io.Copy(out, io.LimitReader(tr, maxFileSize)); err != nil {
+			lw := &limitedWriter{w: out, stats: stats}
+			if _, err := io.Copy(lw, io.LimitReader(tr, maxFileSize)); err != nil {
 				out.Close()
 				return fmt.Errorf("writing file: %w", err)
 			}
