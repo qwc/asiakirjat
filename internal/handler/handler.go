@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/qwc/asiakirjat/internal/access"
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/docs"
@@ -36,6 +37,7 @@ type Handler struct {
 	trustedProxies []*net.IPNet
 	searchIndex    *docs.SearchIndex
 	projectService *projects.Service
+	checker        *access.Checker
 	logger         *slog.Logger
 
 	// Cache for latest version tags (invalidated on upload/delete)
@@ -90,6 +92,7 @@ func New(deps Deps) *Handler {
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
 		projectService: projects.NewService(deps.Projects, deps.Access, deps.Storage, deps.Logger),
+		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.Logger),
 		logger:         deps.Logger,
 	}
 }
