@@ -3,6 +3,7 @@ package handler
 import (
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -31,6 +32,7 @@ type Handler struct {
 	oauth2Auth     *auth.OAuth2Authenticator
 	sessionMgr     *auth.SessionManager
 	loginLimiter   *RateLimiter
+	trustedProxies []*net.IPNet
 	searchIndex    *docs.SearchIndex
 	logger         *slog.Logger
 
@@ -83,6 +85,7 @@ func New(deps Deps) *Handler {
 		oauth2Auth:     deps.OAuth2Auth,
 		sessionMgr:     deps.SessionMgr,
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
+		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
 		logger:         deps.Logger,
 	}
@@ -98,7 +101,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Public pages
 	mux.HandleFunc("GET "+bp+"/{$}", h.withSession(h.handleFrontpage))
 	mux.HandleFunc("GET "+bp+"/login", h.withSession(h.handleLoginPage))
-	mux.HandleFunc("POST "+bp+"/login", withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
+	mux.HandleFunc("POST "+bp+"/login", h.withRateLimit(h.loginLimiter, h.withSession(h.handleLoginSubmit)))
 	mux.HandleFunc("GET "+bp+"/logout", h.withSession(h.handleLogout))
 	mux.HandleFunc("GET "+bp+"/licenses", h.withSession(h.handleLicenses))
 	mux.HandleFunc("GET "+bp+"/auth/oauth2", h.handleOAuth2Login)

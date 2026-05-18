@@ -4,6 +4,12 @@ server:
   # base_path: "/docs"  # Optional: URL prefix for subdirectory deployment (e.g., https://example.com/docs/)
   # proxy_strip_path: false  # Set to true when reverse proxy strips base_path (e.g., nginx rewrite-target)
   # log_level: "info"   # Log level: debug, info, warn, error (default: info)
+  # trusted_proxies: Comma-separated CIDR ranges or IPs whose X-Forwarded-For
+  # headers are honored when deriving the client IP for rate limiting.
+  # Defaults to empty (= the connecting RemoteAddr is always used, X-Forwarded-For
+  # is ignored). Set this when running behind a reverse proxy so login rate
+  # limiting protects against the proxied client IP instead of the proxy itself.
+  # trusted_proxies: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
 database:
   driver: "sqlite"     # sqlite, postgres, mysql

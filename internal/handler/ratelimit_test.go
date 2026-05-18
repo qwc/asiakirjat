@@ -102,7 +102,9 @@ func TestRateLimiterCleanup(t *testing.T) {
 func TestWithRateLimitMiddleware(t *testing.T) {
 	rl := NewRateLimiter(2, time.Minute)
 
-	handler := withRateLimit(rl, func(w http.ResponseWriter, r *http.Request) {
+	// No trusted proxies — XFF is ignored, all keys derive from RemoteAddr.
+	h := &Handler{}
+	handler := h.withRateLimit(rl, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -128,43 +130,74 @@ func TestWithRateLimitMiddleware(t *testing.T) {
 	}
 }
 
-func TestWithRateLimitUsesXForwardedFor(t *testing.T) {
-	rl := NewRateLimiter(1, time.Minute)
-
-	handler := withRateLimit(rl, func(w http.ResponseWriter, r *http.Request) {
+// Without a trusted-proxies config, X-Forwarded-For must NOT influence the
+// rate-limit key — that's the regression we're fixing (H-7). Attacker who
+// rotates the header across requests must still hit the limit on RemoteAddr.
+func TestWithRateLimitIgnoresXForwardedForWhenUntrusted(t *testing.T) {
+	rl := NewRateLimiter(2, time.Minute)
+	h := &Handler{} // trustedProxies = nil
+	handler := h.withRateLimit(rl, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// First request with X-Forwarded-For
+	// 3 requests from the same RemoteAddr but with rotating X-Forwarded-For
+	// values — the third must be blocked, because the header is being ignored.
+	xffs := []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}
+	got := make([]int, 0, len(xffs))
+	for _, xff := range xffs {
+		req := httptest.NewRequest("POST", "/login", nil)
+		req.RemoteAddr = "10.0.0.99:12345"
+		req.Header.Set("X-Forwarded-For", xff)
+		w := httptest.NewRecorder()
+		handler(w, req)
+		got = append(got, w.Code)
+	}
+	if got[0] != http.StatusOK || got[1] != http.StatusOK {
+		t.Errorf("first two requests should be allowed, got %v", got)
+	}
+	if got[2] != http.StatusTooManyRequests {
+		t.Errorf("third request should be 429 (XFF must not bypass), got %d", got[2])
+	}
+}
+
+// With a trusted-proxies list that includes the connecting peer, the
+// rightmost untrusted entry in X-Forwarded-For is the real client.
+func TestWithRateLimitHonorsXForwardedForFromTrustedProxy(t *testing.T) {
+	rl := NewRateLimiter(1, time.Minute)
+	h := &Handler{
+		trustedProxies: parseTrustedProxies("10.0.0.0/8"),
+	}
+	handler := h.withRateLimit(rl, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Peer is in trusted range (10.0.0.5). XFF chain ends with an external IP.
 	req := httptest.NewRequest("POST", "/login", nil)
-	req.RemoteAddr = "proxy:8080"
-	req.Header.Set("X-Forwarded-For", "10.0.0.1")
+	req.RemoteAddr = "10.0.0.5:8080"
+	req.Header.Set("X-Forwarded-For", "203.0.113.10")
 	w := httptest.NewRecorder()
 	handler(w, req)
-
 	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+		t.Errorf("first request should be allowed, got %d", w.Code)
 	}
 
-	// Second request from same X-Forwarded-For — blocked
+	// Same trusted peer, same claimed client — must be rate-limited.
 	req2 := httptest.NewRequest("POST", "/login", nil)
-	req2.RemoteAddr = "proxy:8080"
-	req2.Header.Set("X-Forwarded-For", "10.0.0.1")
+	req2.RemoteAddr = "10.0.0.5:8080"
+	req2.Header.Set("X-Forwarded-For", "203.0.113.10")
 	w2 := httptest.NewRecorder()
 	handler(w2, req2)
-
 	if w2.Code != http.StatusTooManyRequests {
-		t.Errorf("expected 429 for same forwarded IP, got %d", w2.Code)
+		t.Errorf("repeat from same forwarded client should be 429, got %d", w2.Code)
 	}
 
-	// Request from different X-Forwarded-For — allowed
+	// Different forwarded client — allowed.
 	req3 := httptest.NewRequest("POST", "/login", nil)
-	req3.RemoteAddr = "proxy:8080"
-	req3.Header.Set("X-Forwarded-For", "10.0.0.2")
+	req3.RemoteAddr = "10.0.0.5:8080"
+	req3.Header.Set("X-Forwarded-For", "203.0.113.11")
 	w3 := httptest.NewRecorder()
 	handler(w3, req3)
-
 	if w3.Code != http.StatusOK {
-		t.Errorf("expected 200 for different forwarded IP, got %d", w3.Code)
+		t.Errorf("different forwarded client should be allowed, got %d", w3.Code)
 	}
 }
