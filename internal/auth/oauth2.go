@@ -10,12 +10,27 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/store"
 	"golang.org/x/oauth2"
 )
+
+// oauth2StateTTL bounds how long a generated state token is valid. The
+// in-memory state map sweeps entries older than this on every new
+// GenerateAuthURL call so an attacker spamming the endpoint can't grow
+// the map without bound (audit M-7).
+const oauth2StateTTL = 10 * time.Minute
+
+// stateEntry pairs a state token's expiry with the PKCE verifier the
+// callback needs to redeem it. Both are bound to the same in-flight auth
+// attempt; consuming the state also consumes (and deletes) the verifier.
+type stateEntry struct {
+	expiresAt    time.Time
+	codeVerifier string
+}
 
 // OAuth2Authenticator handles OAuth2/OIDC authentication flows.
 type OAuth2Authenticator struct {
@@ -28,9 +43,9 @@ type OAuth2Authenticator struct {
 	globalAccess  store.GlobalAccessStore
 	logger        *slog.Logger
 
-	// CSRF state storage (in-memory, keyed by state token)
+	// In-flight auth attempts, keyed by the state token sent to the IdP.
 	mu     sync.Mutex
-	states map[string]bool
+	states map[string]stateEntry
 }
 
 // NewOAuth2Authenticator creates a new OAuth2 authenticator.
@@ -52,7 +67,7 @@ func NewOAuth2Authenticator(cfg config.OAuth2Config, users store.UserStore, logg
 		userInfoURL: cfg.UserInfoURL,
 		users:       users,
 		logger:      logger,
-		states:      make(map[string]bool),
+		states:      make(map[string]stateEntry),
 	}
 }
 
@@ -73,37 +88,67 @@ func (a *OAuth2Authenticator) Authenticate(ctx context.Context, username, passwo
 	return nil, fmt.Errorf("OAuth2 does not support direct authentication")
 }
 
-// GenerateAuthURL creates a new CSRF state token and returns the OAuth2 authorization URL.
+// GenerateAuthURL creates a new CSRF state token and PKCE verifier, stores
+// them with a TTL, and returns an OAuth2 authorization URL that carries the
+// state and an S256 code_challenge.
 func (a *OAuth2Authenticator) GenerateAuthURL() (string, error) {
 	state, err := generateState()
 	if err != nil {
 		return "", err
 	}
+	verifier := oauth2.GenerateVerifier()
+	now := time.Now()
 
 	a.mu.Lock()
-	a.states[state] = true
+	a.sweepExpiredLocked(now)
+	a.states[state] = stateEntry{
+		expiresAt:    now.Add(oauth2StateTTL),
+		codeVerifier: verifier,
+	}
 	a.mu.Unlock()
 
-	return a.oauthConfig.AuthCodeURL(state), nil
+	return a.oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), nil
 }
 
-// ValidateState checks if a state token is valid and consumes it.
-func (a *OAuth2Authenticator) ValidateState(state string) bool {
+// ConsumeState validates the state token, returns the PKCE verifier the
+// caller must pass to Exchange, and deletes the entry so it can't be
+// replayed. Returns ("", false) when the state is unknown or expired.
+func (a *OAuth2Authenticator) ConsumeState(state string) (string, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.states[state] {
-		delete(a.states, state)
-		return true
+	entry, ok := a.states[state]
+	if !ok {
+		return "", false
 	}
-	return false
+	delete(a.states, state)
+	if time.Now().After(entry.expiresAt) {
+		return "", false
+	}
+	return entry.codeVerifier, true
+}
+
+// sweepExpiredLocked drops state entries past their TTL. Caller holds a.mu.
+// Called opportunistically from GenerateAuthURL so the map is bounded by the
+// number of state issuances in any 10-minute window — without a separate
+// janitor goroutine.
+func (a *OAuth2Authenticator) sweepExpiredLocked(now time.Time) {
+	for state, entry := range a.states {
+		if now.After(entry.expiresAt) {
+			delete(a.states, state)
+		}
+	}
 }
 
 // HandleCallback exchanges the authorization code for tokens, fetches user info,
 // and auto-provisions the user. Returns the provisioned user.
-func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code string) (*database.User, error) {
-	// Exchange authorization code for token
-	token, err := a.oauthConfig.Exchange(ctx, code)
+//
+// codeVerifier is the PKCE verifier returned by ConsumeState; passing it
+// proves the callback request originated from the same client that
+// generated the auth URL.
+func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code, codeVerifier string) (*database.User, error) {
+	// Exchange authorization code for token with PKCE verifier
+	token, err := a.oauthConfig.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		return nil, fmt.Errorf("exchanging code for token: %w", err)
 	}

@@ -66,17 +66,17 @@ func TestOAuth2StateValidation(t *testing.T) {
 	state := strings.Split(parts[1], "&")[0]
 
 	// Valid state should be consumed
-	if !auth.ValidateState(state) {
+	if _, ok := auth.ConsumeState(state); !ok {
 		t.Error("expected state to be valid")
 	}
 
 	// Same state should not be valid again (consumed)
-	if auth.ValidateState(state) {
+	if _, ok := auth.ConsumeState(state); ok {
 		t.Error("expected state to be consumed")
 	}
 
 	// Unknown state should not be valid
-	if auth.ValidateState("unknown-state") {
+	if _, ok := auth.ConsumeState("unknown-state"); ok {
 		t.Error("expected unknown state to be invalid")
 	}
 }
@@ -136,7 +136,7 @@ func TestOAuth2HandleCallback(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestOAuth2HandleCallbackExistingUser(t *testing.T) {
 	}
 	auth.userInfoURL = userInfoServer.URL
 
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestOAuth2HandleCallbackEmailOnly(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestOAuth2HandleCallbackWithGroups(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestOAuth2HandleCallbackWithViewerGroup(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "mock-code")
+	_, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err == nil {
 		t.Error("expected error for user not in any allowed group")
 	}
@@ -587,7 +587,7 @@ func TestOAuth2HandleCallbackTokenExchangeFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "invalid-code")
+	_, err := auth.HandleCallback(ctx, "invalid-code", "")
 	if err == nil {
 		t.Error("expected error for invalid authorization code")
 	}
@@ -629,7 +629,7 @@ func TestOAuth2HandleCallbackUserInfoFailure(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "valid-code")
+	_, err := auth.HandleCallback(ctx, "valid-code", "")
 	if err == nil {
 		t.Error("expected error for userinfo failure")
 	}
@@ -675,7 +675,7 @@ func TestOAuth2HandleCallbackMissingUserIdentity(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "valid-code")
+	_, err := auth.HandleCallback(ctx, "valid-code", "")
 	if err == nil {
 		t.Error("expected error for missing user identity")
 	}
@@ -719,7 +719,7 @@ func TestOAuth2HandleCallbackUserInfoUnauthorized(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "valid-code")
+	_, err := auth.HandleCallback(ctx, "valid-code", "")
 	if err == nil {
 		t.Error("expected error for unauthorized userinfo request")
 	}
@@ -766,7 +766,7 @@ func TestOAuth2HandleCallbackWithEditorGroup(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -819,7 +819,7 @@ func TestOAuth2HandleCallbackNestedGroupsClaim(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -892,7 +892,7 @@ func TestOAuth2ProjectAccessSync(t *testing.T) {
 	}
 	auth.userInfoURL = userInfoServer.URL
 
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -986,7 +986,7 @@ func TestOAuth2ProjectAccessSyncRevocation(t *testing.T) {
 	}
 	auth.userInfoURL = userInfoServer.URL
 
-	_, err := auth.HandleCallback(ctx, "mock-code")
+	_, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1059,7 +1059,7 @@ func TestOAuth2ProjectAccessSyncHighestRoleWins(t *testing.T) {
 	}
 	auth.userInfoURL = userInfoServer.URL
 
-	user, err := auth.HandleCallback(ctx, "mock-code")
+	user, err := auth.HandleCallback(ctx, "mock-code", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1107,7 +1107,7 @@ func TestOAuth2HandleCallbackMalformedJSON(t *testing.T) {
 	auth.userInfoURL = userInfoServer.URL
 
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "valid-code")
+	_, err := auth.HandleCallback(ctx, "valid-code", "")
 	if err == nil {
 		t.Error("expected error for malformed JSON response")
 	}
@@ -1143,7 +1143,7 @@ func TestOAuth2StateNotConsumedOnError(t *testing.T) {
 	// Verify state is valid before callback
 	// (but don't consume it - just check it exists in the map)
 	auth.mu.Lock()
-	exists := auth.states[state]
+	_, exists := auth.states[state]
 	auth.mu.Unlock()
 	if !exists {
 		t.Fatal("state should exist before callback")
@@ -1152,13 +1152,13 @@ func TestOAuth2StateNotConsumedOnError(t *testing.T) {
 	// Callback fails (token exchange error) - state is NOT consumed by HandleCallback
 	// Note: ValidateState is called separately in the handler, not in HandleCallback
 	ctx := context.Background()
-	_, err := auth.HandleCallback(ctx, "bad-code")
+	_, err := auth.HandleCallback(ctx, "bad-code", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
 	// State should still be valid (not consumed by HandleCallback)
-	if !auth.ValidateState(state) {
+	if _, ok := auth.ConsumeState(state); !ok {
 		t.Error("state should still be valid after failed callback")
 	}
 }
