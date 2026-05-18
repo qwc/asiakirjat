@@ -20,12 +20,12 @@ A project in Asiakirjat represents a single documentation set. Each project can 
    - **Slug**: A URL-friendly identifier (e.g., `my-api-docs`). With the **Auto slug** checkbox enabled (default), the slug is automatically derived from the name. Uncheck it to enter a custom slug.
    - **Description**: Optional Markdown description
    - **Visibility**: Choose access level:
-     - **Public** — anyone can view without logging in
+     - **Public** — anyone can view without logging in (admin only)
      - **Private** — authenticated users in the global access list can view
      - **Custom** — only users with explicit per-project access can view
 4. Click **Create**
 
-When an editor creates a non-public project, they are automatically granted editor access to it.
+Editors can create private and custom projects, but not public ones — public visibility bypasses all access checks, so reserving it for admins keeps editors from accidentally publishing internal docs to the open internet. When an editor creates a non-public project, they are automatically granted editor access to it.
 
 ## Project URL Structure
 
