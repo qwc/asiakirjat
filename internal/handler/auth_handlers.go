@@ -77,11 +77,12 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate CSRF state
+	// Validate CSRF state and pull the matching PKCE verifier.
 	state := r.URL.Query().Get("state")
-	if !h.oauth2Auth.ValidateState(state) {
+	codeVerifier, ok := h.oauth2Auth.ConsumeState(state)
+	if !ok {
 		h.render(w, r, "login", map[string]any{
-			"Error":         "Invalid OAuth2 state (CSRF check failed)",
+			"Error":         "Invalid or expired OAuth2 state (CSRF check failed)",
 			"OAuth2Enabled": true,
 		})
 		return
@@ -97,7 +98,7 @@ func (h *Handler) handleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.oauth2Auth.HandleCallback(r.Context(), code)
+	user, err := h.oauth2Auth.HandleCallback(r.Context(), code, codeVerifier)
 	if err != nil {
 		h.logger.Error("OAuth2 callback failed", "error", err)
 		h.render(w, r, "login", map[string]any{
