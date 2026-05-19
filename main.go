@@ -225,6 +225,7 @@ func main() {
 
 	// Wrap with middleware
 	var httpHandler http.Handler = mux
+	httpHandler = handler.SecurityHeadersMiddleware(cfg.RoutePrefix(), httpHandler)
 	httpHandler = handler.LoggingMiddleware(logger, httpHandler)
 	httpHandler = handler.RecoveryMiddleware(logger, httpHandler)
 
