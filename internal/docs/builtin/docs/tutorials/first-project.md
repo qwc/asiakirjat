@@ -21,11 +21,11 @@ A project in Asiakirjat represents a single documentation set. Each project can 
    - **Description**: Optional Markdown description
    - **Visibility**: Choose access level:
      - **Public** — anyone can view without logging in (admin only)
-     - **Private** — authenticated users in the global access list can view
-     - **Custom** — only users with explicit per-project access can view
+     - **Private** — users in the global access list can view, plus anyone with an explicit per-project grant
+     - **Custom** — only users with explicit per-project access can view (no org-wide path)
 4. Click **Create**
 
-Editors can create private and custom projects, but not public ones — public visibility bypasses all access checks, so reserving it for admins keeps editors from accidentally publishing internal docs to the open internet. When an editor creates a non-public project, they are automatically granted editor access to it.
+Editors can create private and custom projects, but not public ones — public visibility bypasses all access checks, so reserving it for admins keeps editors from accidentally publishing internal docs to the open internet. When an editor creates a non-public project, they are automatically granted editor access to it, which lets them view *and* upload to their new project even without an org-wide global access grant.
 
 ## Project URL Structure
 
@@ -56,7 +56,7 @@ For custom-visibility projects, you need to grant access to users individually:
    - Choose a role (viewer or editor)
    - Click **Grant**
 
-For private-visibility projects, access is controlled via the global access list. See [Manage Global Access](../how-to/manage-global-access.md).
+For private-visibility projects, access is normally controlled via the global access list (see [Manage Global Access](../how-to/manage-global-access.md)). You can additionally grant access to specific users from the project's edit page — useful for letting one external collaborator see a single private project without putting them on the org-wide list.
 
 ### Roles
 

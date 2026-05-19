@@ -45,14 +45,16 @@ Projects have three visibility levels:
 
 ### Private
 
-- Visible to authenticated users who appear in the global access list
+- Visible to authenticated users who appear in the global access list, **or** to any user with an explicit per-project access grant
 - The global access list is configured in `config.yaml` under `access.private` or managed via the admin panel
 - LDAP/OAuth2 group membership is resolved into access grants at login
+- Per-project grants on a `private` project are additive — useful for letting a single outside collaborator into one project without adding them to the org-wide list
 
 ### Custom
 
-- Visible only to users with explicit per-project access grants
+- Visible only to users with explicit per-project access grants — no org-wide path
 - Access is managed per-project in **Admin > Projects > Edit**
+- Strictly more restrictive than `private`: use this when even users on the global access list should be excluded by default
 
 ## Project Roles
 
@@ -77,7 +79,8 @@ A user's effective access is determined by:
 1. **Public visibility** — Anyone can view public projects
 2. **Global admin role** — Full access to everything
 3. **Private visibility + global access grant** — Access via global access list (config or LDAP/OAuth2 groups)
-4. **Custom visibility + project grant** — Access via per-project grant (manual, LDAP, or OAuth2 group mapping)
+4. **Private visibility + per-project grant** — Access via an explicit per-project grant (manual, LDAP, or OAuth2 group mapping). This is also what lets a non-admin editor see a project they just created.
+5. **Custom visibility + project grant** — Access via per-project grant (manual, LDAP, or OAuth2 group mapping)
 
 ## Global Access (Private Projects)
 
@@ -86,7 +89,7 @@ Global access controls who can view and upload to **private**-visibility project
 1. **Config file** — via the `access.private` section in `config.yaml` (see [Configuration Reference](configuration.md))
 2. **Admin UI** — via **Admin > Global Access**, where admins can add rules for individual users, LDAP groups, or OAuth2 groups
 
-Global access rules grant either viewer or editor access to **all** private projects. For finer-grained control over individual projects, use **custom** visibility with per-project access grants instead.
+Global access rules grant either viewer or editor access to **all** private projects. To *add* access to a specific private project for a user who isn't on the global access list, grant them per-project access from the project's edit page. To *restrict* a project so even users on the global access list need an explicit grant, switch its visibility to **custom**.
 
 See [Manage Global Access](../how-to/manage-global-access.md) for a step-by-step guide.
 
@@ -114,6 +117,7 @@ Group mappings can also be managed in **Admin > Group Mappings**.
 |--------|-------|--------|--------|
 | View public projects | Yes | Yes | Yes |
 | View private projects (with global access) | Yes | Yes | Yes |
+| View private projects (with per-project grant) | Yes | Yes | Yes |
 | View custom projects (with project grant) | Yes | Yes | Yes |
 | Upload to project (with grant) | Yes | Yes | No |
 | Delete version (with grant) | Yes | Yes | No |
