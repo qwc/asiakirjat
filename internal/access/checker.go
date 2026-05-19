@@ -37,13 +37,17 @@ func NewChecker(a store.ProjectAccessStore, g store.GlobalAccessStore, l *slog.L
 
 // CanView reports whether user is allowed to view project.
 //
-// Rules (current behavior — preserved by this refactor):
+// Rules:
 //   - VisibilityPublic: always true.
 //   - Anonymous (user == nil) on non-public: false.
 //   - Global role admin: true.
-//   - VisibilityPrivate: true iff a GlobalAccessGrant exists for user.
+//   - VisibilityPrivate: true if a GlobalAccessGrant exists for user, OR
+//     a per-project ProjectAccess grant exists. The latter is what makes
+//     the Service.Create auto-grant rule actually work for the default
+//     `private` visibility (audit M-14).
 //   - VisibilityCustom: true iff ProjectAccess.GetEffectiveRole returns
-//     a non-empty role for (project, user).
+//     a non-empty role for (project, user). No global-access fast path,
+//     so custom is strictly more restrictive than private.
 func (c *Checker) CanView(ctx context.Context, user *database.User, project *database.Project) bool {
 	username := "<anonymous>"
 	if user != nil {
@@ -67,8 +71,16 @@ func (c *Checker) CanView(ctx context.Context, user *database.User, project *dat
 				c.logger.Debug("access granted: global access grant", "username", username, "project", project.Slug, "grant_role", grant.Role, "grant_source", grant.Source)
 				return true
 			}
-			c.logger.Debug("access denied: no global access grant for private project", "username", username, "project", project.Slug, "user_id", user.ID)
 		}
+		// Fall through to per-project grant. Same store call as the
+		// custom branch below; kept separate so the debug log identifies
+		// which gate let the user in.
+		effectiveRole, err := c.access.GetEffectiveRole(ctx, project.ID, user.ID)
+		if err == nil && effectiveRole != "" {
+			c.logger.Debug("access granted: per-project grant on private", "username", username, "project", project.Slug, "effective_role", effectiveRole)
+			return true
+		}
+		c.logger.Debug("access denied: no global or per-project grant for private project", "username", username, "project", project.Slug, "user_id", user.ID)
 		return false
 	}
 	// VisibilityCustom: per-project access (manual + LDAP + OAuth2 sources).
@@ -149,7 +161,8 @@ func (c *Checker) FilterAccessible(ctx context.Context, user *database.User, all
 		case database.VisibilityPublic:
 			filtered = append(filtered, p)
 		case database.VisibilityPrivate:
-			if hasGlobalAccess {
+			// Mirrors CanView: org-wide global grant OR per-project grant.
+			if hasGlobalAccess || accessMap[p.ID] {
 				filtered = append(filtered, p)
 			}
 		case database.VisibilityCustom:

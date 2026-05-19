@@ -69,9 +69,15 @@ func TestCanView(t *testing.T) {
 	priv := mkProject(t, f, "priv", database.VisibilityPrivate)
 	cust := mkProject(t, f, "cust", database.VisibilityCustom)
 
-	// grantedViewer has per-project access on cust
+	// grantedViewer has per-project access on cust and priv. The latter
+	// covers M-14: per-project grant should grant view on private too.
 	if err := f.access.Grant(ctx, &database.ProjectAccess{
 		ProjectID: cust.ID, UserID: grantedViewer.ID, Role: "viewer",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: priv.ID, UserID: grantedViewer.ID, Role: "viewer",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -102,10 +108,10 @@ func TestCanView(t *testing.T) {
 		{"plain viewer + custom (no grants)", viewer, cust, false},
 
 		{"viewer w/ per-project grant + custom", grantedViewer, cust, true},
-		// Pre-refactor: per-project grant does NOT help on private visibility.
-		// This is exactly the behavior PR #95 wants to change; keep the test
-		// pinning current behavior — when #95 lands, this expectation flips.
-		{"viewer w/ per-project grant + private (current behavior)", grantedViewer, priv, false},
+		// Per-project grant now opens private too (audit M-14). This is what
+		// makes the Service.Create auto-grant rule meaningful for the default
+		// `private` visibility.
+		{"viewer w/ per-project grant + private", grantedViewer, priv, true},
 
 		{"viewer w/ global grant + private", globalViewer, priv, true},
 		{"viewer w/ global grant + custom (no per-project)", globalViewer, cust, false},
@@ -198,6 +204,7 @@ func TestFilterAccessible(t *testing.T) {
 
 	pub := mkProject(t, f, "fa-pub", database.VisibilityPublic)
 	priv := mkProject(t, f, "fa-priv", database.VisibilityPrivate)
+	privGranted := mkProject(t, f, "fa-priv-granted", database.VisibilityPrivate)
 	custAccessible := mkProject(t, f, "fa-cust-ok", database.VisibilityCustom)
 	custHidden := mkProject(t, f, "fa-cust-hidden", database.VisibilityCustom)
 
@@ -206,17 +213,25 @@ func TestFilterAccessible(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Per-project grant on a private project (M-14: this is what the
+	// Service.Create auto-grant produces for an editor's own project).
+	if err := f.access.Grant(ctx, &database.ProjectAccess{
+		ProjectID: privGranted.ID, UserID: editor.ID, Role: "editor",
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	all := []database.Project{*pub, *priv, *custAccessible, *custHidden}
+	all := []database.Project{*pub, *priv, *privGranted, *custAccessible, *custHidden}
 	got := f.checker.FilterAccessible(ctx, editor, all)
 
-	// Editor without a global grant sees: pub (visibility) + custAccessible (grant).
-	// They do NOT see priv (no global grant) or custHidden (no grant).
+	// Editor without a global grant sees: pub (visibility) + privGranted
+	// (per-project grant on private) + custAccessible (per-project grant on
+	// custom). They do NOT see priv (no grants) or custHidden (no grant).
 	gotSlugs := make(map[string]bool, len(got))
 	for _, p := range got {
 		gotSlugs[p.Slug] = true
 	}
-	wantSlugs := map[string]bool{"fa-pub": true, "fa-cust-ok": true}
+	wantSlugs := map[string]bool{"fa-pub": true, "fa-priv-granted": true, "fa-cust-ok": true}
 	if len(gotSlugs) != len(wantSlugs) {
 		t.Fatalf("FilterAccessible returned %d projects, want %d: %v", len(gotSlugs), len(wantSlugs), gotSlugs)
 	}
