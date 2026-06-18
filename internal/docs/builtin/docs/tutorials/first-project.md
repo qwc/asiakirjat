@@ -61,7 +61,8 @@ in place, not redirected to a version number), so links you follow within the
 docs keep tracking latest. When a newer version is uploaded, the same link
 automatically serves it. If a version is [pinned](../how-to/pin-versions.md),
 the permalink serves the pinned version. The project page has a **Copy** button
-for this link. (`latest` is therefore a reserved URL segment — a version tag
+for this link, and the **Latest** button on the home-page project cards links
+to it. (`latest` is therefore a reserved URL segment — a version tag
 named `latest` is reached through this resolver rather than directly.)
 
 ## Assigning Access

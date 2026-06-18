@@ -224,6 +224,34 @@ func TestFrontpageShowsPublicProjects(t *testing.T) {
 	}
 }
 
+// The frontpage card's "Latest" button must point at the rolling /latest/
+// permalink (shareable), not a concrete version URL.
+func TestFrontpageCardLinksToLatestPermalink(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+	project := seedProject(t, app, "docs", "Docs", true)
+	if err := app.handler.versions.Create(ctx, &database.Version{
+		ProjectID: project.ID, Tag: "v2.0.0", StoragePath: "/tmp/x", ContentType: "archive",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(app.server.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	body := string(bodyBytes)
+
+	if !strings.Contains(body, `/project/docs/latest/`) {
+		t.Error("expected card Latest button to link to the /latest/ permalink")
+	}
+	if strings.Contains(body, `/project/docs/v2.0.0/`) {
+		t.Error("card should link to /latest/, not the concrete version")
+	}
+}
+
 func TestLoginLogout(t *testing.T) {
 	app := setupTestApp(t)
 	seedAdmin(t, app)
