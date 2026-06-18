@@ -58,11 +58,18 @@ func TestLatestServesNewestInPlace(t *testing.T) {
 		t.Errorf("expected URL to stay at /latest/, got %q", resp.Request.URL.Path)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body),"NEW CONTENT") {
+	if !strings.Contains(string(body), "NEW CONTENT") {
 		t.Errorf("expected newest version content, got: %s", body)
 	}
 	if cc := resp.Header.Get("Cache-Control"); cc != "no-cache" {
 		t.Errorf("expected Cache-Control no-cache, got %q", cc)
+	}
+	// The injected overlay must carry the resolved concrete tag (not the
+	// literal "latest") in data-current. The version-switch and compare JS
+	// read data-current to know which concrete version is on screen; if it
+	// said "latest", the comparison/switch URLs would be malformed.
+	if !strings.Contains(string(body), `data-current="v2.0.0"`) {
+		t.Errorf("expected overlay data-current to be resolved tag v2.0.0")
 	}
 }
 
@@ -88,7 +95,7 @@ func TestLatestRespectsPin(t *testing.T) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body),"OLD CONTENT") {
+	if !strings.Contains(string(body), "OLD CONTENT") {
 		t.Errorf("expected pinned version content, got: %s", body)
 	}
 }

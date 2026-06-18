@@ -16,6 +16,24 @@
     var slug = versionSelect.getAttribute("data-slug");
     var current = versionSelect.getAttribute("data-current");
 
+    // The version segment actually present in the URL path. When the page is
+    // served through the rolling /latest/ permalink this is the literal
+    // "latest", which differs from `current` — the resolved concrete tag
+    // (e.g. v1.5) the server put in data-current. All path math below
+    // (extracting the in-doc suffix, matching internal links) must strip what
+    // is really in the URL, so it uses urlVersion; `current` is used only
+    // where the concrete tag matters (dropdown selection, download link, and
+    // the version we diff against).
+    var urlVersion = current;
+    (function() {
+        var pathRoot = basePath + "/project/" + slug + "/";
+        if (window.location.pathname.indexOf(pathRoot) === 0) {
+            var rest = window.location.pathname.substring(pathRoot.length);
+            var slash = rest.indexOf("/");
+            urlVersion = slash === -1 ? rest : rest.substring(0, slash);
+        }
+    })();
+
     // Fetch versions from API
     fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
         .then(function(resp) { return resp.json(); })
@@ -43,7 +61,7 @@
 
         // Preserve the current path within the doc
         var path = window.location.pathname;
-        var prefix = basePath + "/project/" + slug + "/" + current;
+        var prefix = basePath + "/project/" + slug + "/" + urlVersion;
         var suffix = path.substring(prefix.length);
 
         window.location.href = basePath + "/project/" + slug + "/" + newVersion + suffix;
@@ -632,7 +650,7 @@
             if (resolved.origin !== window.location.origin) return;
 
             // Only intercept links within the same project/version
-            var projectPrefix = basePath + "/project/" + slug + "/" + current;
+            var projectPrefix = basePath + "/project/" + slug + "/" + urlVersion;
             if (resolved.pathname.indexOf(projectPrefix) !== 0) return;
 
             // Get current compare version
