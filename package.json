@@ -1,0 +1,12 @@
+{
+  "name": "asiakirjat-frontend-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browserless DOM tests for the documentation overlay (static/js). Run with `npm ci && npm test`; uses Node's built-in test runner + jsdom, so no real browser is required.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}

@@ -453,6 +453,10 @@
             var fromVersion = document.getElementById("asiakirjat-diff-from-version");
             if (indicator && fromVersion) {
                 fromVersion.innerHTML = '<span style="color: #dc2626;">' + message + '</span>';
+                // Position below the main overlay, same as showDiffIndicator —
+                // otherwise the bar defaults to top:auto and renders behind the
+                // overlay, showing only a background sliver.
+                indicator.style.top = overlay.offsetHeight + "px";
                 indicator.style.display = "flex";
                 document.body.style.marginTop = (overlay.offsetHeight + indicator.offsetHeight) + "px";
             }
@@ -509,9 +513,11 @@
                 originalContentHtml = contentContainer.innerHTML;
             }
 
-            // Get current document path
+            // Get current document path. Strip the version segment actually in
+            // the URL (urlVersion — "latest" when served via the permalink),
+            // not the resolved tag, so the suffix is correct in both cases.
             var path = window.location.pathname;
-            var prefix = basePath + "/project/" + slug + "/" + current;
+            var prefix = basePath + "/project/" + slug + "/" + urlVersion;
             var suffix = path.substring(prefix.length);
 
             // Build URL for target version
