@@ -117,8 +117,9 @@
                 <th>Slug</th>
                 <th>Name</th>
                 <th>Visibility</th>
+                <th>Created by</th>
                 <th>Created</th>
-                {{if .IsAdmin}}<th>Actions</th>{{end}}
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -127,20 +128,21 @@
                 <td><a href="{{url "/project/"}}{{.Slug}}">{{.Slug}}</a></td>
                 <td>{{.Name}}</td>
                 <td>{{.Visibility}}</td>
+                <td>{{if .CreatedByName}}{{.CreatedByName}}{{else}}&mdash;{{end}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02"}}</td>
-                {{if $.IsAdmin}}
                 <td>
+                    {{if .CanManage}}
                     <a href="{{url "/admin/projects/"}}{{.Slug}}/edit" class="btn btn-small btn-secondary">Edit</a>
                     <form method="POST" action="{{url "/admin/projects/"}}{{.Slug}}/delete" class="inline-form"
                         onsubmit="return confirm('Delete project {{.Name}}?')">
                         {{template "csrf_field" $.CSRFToken}}
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>
+                    {{end}}
                 </td>
-                {{end}}
             </tr>
             {{else}}
-            <tr><td colspan="5">No projects yet.</td></tr>
+            <tr><td colspan="6">No projects yet.</td></tr>
             {{end}}
         </tbody>
     </table>
@@ -152,7 +154,7 @@
         var rows = tbody.querySelectorAll("tr");
         var noMatch = document.createElement("tr");
         noMatch.className = "filter-hidden";
-        noMatch.innerHTML = '<td colspan="{{if .IsAdmin}}5{{else}}4{{end}}" style="color:var(--color-text-muted);text-align:center;">No matching projects.</td>';
+        noMatch.innerHTML = '<td colspan="6" style="color:var(--color-text-muted);text-align:center;">No matching projects.</td>';
         tbody.appendChild(noMatch);
 
         input.addEventListener("input", function() {

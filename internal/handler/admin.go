@@ -34,11 +34,42 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		projects = h.filterAccessibleProjects(ctx, user, allProjects)
 	}
 
+	// Resolve creator IDs to usernames for the "Created by" column. Build the
+	// lookup from the full user list once.
+	userMap := make(map[int64]string)
+	if allUsers, err := h.users.List(ctx); err == nil {
+		for _, u := range allUsers {
+			userMap[u.ID] = u.Username
+		}
+	}
+
+	// projectView decorates a project with its creator name and whether the
+	// current user may manage it (so the template can show Edit/Delete only on
+	// the rows that allow it — admins on all, editors on their own creations).
+	type projectView struct {
+		database.Project
+		CreatedByName string
+		CanManage     bool
+	}
+	projectViews := make([]projectView, 0, len(projects))
+	for i := range projects {
+		p := projects[i]
+		name := ""
+		if p.CreatedBy != nil {
+			name = userMap[*p.CreatedBy]
+		}
+		projectViews = append(projectViews, projectView{
+			Project:       p,
+			CreatedByName: name,
+			CanManage:     h.checker.CanManage(user, &p),
+		})
+	}
+
 	reindexRunning, reindexProgress := h.reindex.snapshot()
 	data := map[string]any{
 		"User":            user,
 		"IsAdmin":         isAdmin,
-		"Projects":        projects,
+		"Projects":        projectViews,
 		"ReindexRunning":  reindexRunning,
 		"ReindexProgress": reindexProgress,
 	}
@@ -122,6 +153,11 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !h.checker.CanManage(user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	accessList, _ := h.access.ListByProject(ctx, project.ID)
 	users, _ := h.users.List(ctx)
 
@@ -143,6 +179,11 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		})
 	}
 
+	createdByName := ""
+	if project.CreatedBy != nil {
+		createdByName = userMap[*project.CreatedBy]
+	}
+
 	// Build retention display info
 	globalDefault := h.config.Retention.NonSemverDays
 	retentionDisplay := ""
@@ -155,22 +196,30 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.render(w, r, "admin_project_edit", map[string]any{
-		"User":                  user,
-		"Project":               project,
-		"AccessList":            accessViews,
-		"Users":                 users,
-		"RetentionDisplay":      retentionDisplay,
+		"User":                   user,
+		"IsAdmin":                user != nil && user.Role == "admin",
+		"Project":                project,
+		"CreatedByName":          createdByName,
+		"AccessList":             accessViews,
+		"Users":                  users,
+		"RetentionDisplay":       retentionDisplay,
 		"GlobalRetentionDefault": globalRetentionLabel,
 	})
 }
 
 func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
 		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.checker.CanManage(user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -186,6 +235,13 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	visibility := r.FormValue("visibility")
 	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
 		visibility = database.VisibilityCustom
+	}
+	// Only admins may publish a project (mirrors projects.Service.Create:
+	// ErrPublicRequiresAdmin). A non-admin creator editing their own project
+	// cannot promote it to public.
+	if visibility == database.VisibilityPublic && (user == nil || user.Role != "admin") {
+		http.Error(w, "Forbidden: only admins can make projects public", http.StatusForbidden)
+		return
 	}
 	project.Visibility = visibility
 
@@ -216,11 +272,17 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 
 func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
 		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.checker.CanManage(user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -250,11 +312,17 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 
 func (h *Handler) handleAdminGrantAccess(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
 		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.checker.CanManage(user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -286,11 +354,17 @@ func (h *Handler) handleAdminGrantAccess(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
 		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	if !h.checker.CanManage(user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 

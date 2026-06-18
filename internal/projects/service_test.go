@@ -78,9 +78,21 @@ func TestCreatePublicByEditorRejected(t *testing.T) {
 }
 
 func TestCreatePublicByAdminAllowed(t *testing.T) {
-	svc, _, _ := newServiceForTest(t)
-	admin := &database.User{ID: 1, Username: "ad", Role: "admin"}
-	p, err := svc.Create(context.Background(), CreateOptions{
+	db := testutil.NewTestDB(t)
+	pstore := sqlstore.NewProjectStore(db)
+	astore := sqlstore.NewProjectAccessStore(db)
+	ustore := sqlstore.NewUserStore(db)
+	storage := docs.NewFilesystemStorage(t.TempDir())
+	svc := NewService(pstore, astore, storage, testutil.TestLogger())
+
+	ctx := context.Background()
+	// created_by is a real FK now, so the creator must exist as a user row.
+	admin := &database.User{Username: "ad", AuthSource: "builtin", Role: "admin"}
+	if err := ustore.Create(ctx, admin); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := svc.Create(ctx, CreateOptions{
 		Slug:       "ad-pub",
 		Visibility: database.VisibilityPublic,
 		Creator:    admin,
@@ -90,6 +102,14 @@ func TestCreatePublicByAdminAllowed(t *testing.T) {
 	}
 	if p.Visibility != database.VisibilityPublic {
 		t.Errorf("expected visibility=public, got %q", p.Visibility)
+	}
+	if p.CreatedBy == nil || *p.CreatedBy != admin.ID {
+		t.Errorf("expected CreatedBy=%d, got %v", admin.ID, p.CreatedBy)
+	}
+	// Round-trip: created_by persists.
+	stored, _ := pstore.GetBySlug(ctx, "ad-pub")
+	if stored.CreatedBy == nil || *stored.CreatedBy != admin.ID {
+		t.Errorf("expected stored CreatedBy=%d, got %v", admin.ID, stored.CreatedBy)
 	}
 }
 

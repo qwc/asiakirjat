@@ -39,8 +39,13 @@ type Project struct {
 	RetentionDays *int      `db:"retention_days"`
 	PinnedVersion *string   `db:"pinned_version"`
 	PinPermanent  bool      `db:"pin_permanent"`
-	CreatedAt     time.Time `db:"created_at"`
-	UpdatedAt     time.Time `db:"updated_at"`
+	// CreatedBy is the user who created the project. Nil for projects created
+	// before this was tracked, or whose creator has since been deleted
+	// (the column has ON DELETE SET NULL). The creator may manage their own
+	// project without being a global admin.
+	CreatedBy *int64    `db:"created_by"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 type Version struct {

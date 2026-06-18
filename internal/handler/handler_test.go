@@ -1097,6 +1097,149 @@ func TestAdminDeleteProject(t *testing.T) {
 	}
 }
 
+// seedEditor creates a builtin editor user with a known password.
+func seedEditor(t *testing.T, app *testApp, username string) *database.User {
+	t.Helper()
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("editor123")
+	user := &database.User{
+		Username:   username,
+		Email:      username + "@example.com",
+		Password:   &hash,
+		AuthSource: "builtin",
+		Role:       "editor",
+	}
+	if err := app.handler.users.Create(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	return user
+}
+
+// An editor who created a project may edit it even though they are not an admin.
+func TestEditorCanEditOwnProject(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+	editor := seedEditor(t, app, "owner")
+
+	project := &database.Project{
+		Slug:       "owned-proj",
+		Name:       "Original",
+		Visibility: database.VisibilityCustom,
+		CreatedBy:  &editor.ID,
+	}
+	if err := app.handler.projects.Create(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	cookies := loginUser(t, app, "owner", "editor123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	form := url.Values{}
+	form.Set("slug", "owned-proj")
+	form.Set("name", "Renamed")
+	form.Set("description", "")
+	form.Set("visibility", "custom")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/owned-proj/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("expected 303 for creator editing own project, got %d", resp.StatusCode)
+	}
+	updated, _ := app.handler.projects.GetBySlug(ctx, "owned-proj")
+	if updated.Name != "Renamed" {
+		t.Errorf("expected name 'Renamed', got %q", updated.Name)
+	}
+}
+
+// An editor who did NOT create the project is forbidden from editing it,
+// even if they can otherwise upload to it.
+func TestEditorCannotEditOthersProject(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+	owner := seedEditor(t, app, "owner")
+	seedEditor(t, app, "intruder")
+
+	project := &database.Project{
+		Slug:       "not-yours",
+		Name:       "Not Yours",
+		Visibility: database.VisibilityCustom,
+		CreatedBy:  &owner.ID,
+	}
+	if err := app.handler.projects.Create(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	cookies := loginUser(t, app, "intruder", "editor123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	req, _ := http.NewRequest("GET", app.server.URL+"/admin/projects/not-yours/edit", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-creator editor, got %d", resp.StatusCode)
+	}
+}
+
+// A non-admin creator cannot promote their project to public visibility.
+func TestEditorCannotMakeOwnProjectPublic(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+	editor := seedEditor(t, app, "owner")
+
+	project := &database.Project{
+		Slug:       "stay-private",
+		Name:       "Stay Private",
+		Visibility: database.VisibilityCustom,
+		CreatedBy:  &editor.ID,
+	}
+	if err := app.handler.projects.Create(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	cookies := loginUser(t, app, "owner", "editor123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	form := url.Values{}
+	form.Set("slug", "stay-private")
+	form.Set("name", "Stay Private")
+	form.Set("visibility", "public")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/stay-private/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 when non-admin sets public visibility, got %d", resp.StatusCode)
+	}
+	unchanged, _ := app.handler.projects.GetBySlug(ctx, "stay-private")
+	if unchanged.Visibility != database.VisibilityCustom {
+		t.Errorf("expected visibility to stay custom, got %q", unchanged.Visibility)
+	}
+}
+
 func TestAdminCreateUser(t *testing.T) {
 	app := setupTestApp(t)
 	seedAdmin(t, app)
