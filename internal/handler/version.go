@@ -82,6 +82,54 @@ func (h *Handler) handleServeDoc(w http.ResponseWriter, r *http.Request) {
 	docs.ServeDoc(w, r, storagePath, filePath)
 }
 
+// handleServeLatest resolves a project's current newest version and redirects
+// to it, giving a stable shareable URL — /project/{slug}/latest/{path...} —
+// that always tracks the latest version instead of pinning a version number.
+//
+// "Latest" is resolved with the same rule used for the project page's "Latest"
+// badge and the frontpage (latestVersionTag): a pinned version if set,
+// otherwise the highest semver tag. The redirect is a temporary 302 and marked
+// non-cacheable, because its target changes whenever a newer version lands.
+func (h *Handler) handleServeLatest(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+	filePath := r.PathValue("path")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	// Same access gate as handleServeDoc — the redirect must not leak the
+	// existence of versions on a project the user can't see.
+	if !h.canViewProject(ctx, user, project) {
+		if user == nil {
+			h.redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	versions, err := h.versions.ListByProject(ctx, project.ID)
+	if err != nil {
+		h.logger.Error("listing versions", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	tag := latestVersionTag(versions, project.PinnedVersion)
+	if tag == "" {
+		http.Error(w, "No versions available", http.StatusNotFound)
+		return
+	}
+
+	// Don't let a cache pin the rolling pointer to a specific version.
+	w.Header().Set("Cache-Control", "no-store")
+	h.redirect(w, r, "/project/"+slug+"/"+tag+"/"+filePath, http.StatusFound)
+}
+
 func (h *Handler) servePDFViewer(w http.ResponseWriter, r *http.Request, slug, projectName, version, storagePath string) {
 	overlayHTML, err := h.templates.RenderOverlay(templates.OverlayData{
 		Slug:        slug,

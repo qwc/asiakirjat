@@ -28,6 +28,40 @@
     </details>
     {{end}}
 
+    {{if .Versions}}
+    <div class="latest-permalink" style="margin:1rem 0;padding:0.75rem 1rem;background:var(--color-bg-muted,#f6f8fa);border:1px solid var(--color-border,#d0d7de);border-radius:6px;">
+        <label for="latest-url" style="display:block;font-weight:600;margin-bottom:0.35rem;">Latest version permalink</label>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="latest-url" readonly onclick="this.select();"
+                   value="{{.BaseURL}}{{url "/project/"}}{{.Project.Slug}}/latest/"
+                   style="flex:1;min-width:240px;font-family:monospace;padding:0.35rem 0.5rem;">
+            <button type="button" class="btn btn-small btn-secondary" id="copy-latest-url">Copy</button>
+        </div>
+        <small style="color:var(--color-text-muted);">Always resolves to the newest version{{if .EffectiveLatest}} (currently {{.EffectiveLatest}}){{end}}. Share this instead of a version-specific link.</small>
+    </div>
+    <script>
+    (function(){
+        var btn = document.getElementById("copy-latest-url");
+        var input = document.getElementById("latest-url");
+        if (!btn || !input) return;
+        btn.addEventListener("click", function(){
+            input.select();
+            var done = function(){
+                var old = btn.textContent;
+                btn.textContent = "Copied!";
+                setTimeout(function(){ btn.textContent = old; }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value).then(done, function(){ document.execCommand("copy"); done(); });
+            } else {
+                document.execCommand("copy");
+                done();
+            }
+        });
+    })();
+    </script>
+    {{end}}
+
     <h2>Versions</h2>
     {{template "version_list" .}}
 
