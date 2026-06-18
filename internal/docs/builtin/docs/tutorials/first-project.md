@@ -45,6 +45,25 @@ Documentation versions are served at:
 
 For example: `/project/my-api-docs/v1.0/index.html`
 
+### Linking to the latest version
+
+To share a link that always points to the **newest** version — without baking a
+version number into the URL — use the `latest` permalink:
+
+```
+/project/{slug}/latest/{path}
+```
+
+For example, `/project/my-api-docs/latest/` always serves the current latest
+version's home page, and `/project/my-api-docs/latest/guide.html` serves that
+page in the latest version. The URL stays at `/latest/` (the content is served
+in place, not redirected to a version number), so links you follow within the
+docs keep tracking latest. When a newer version is uploaded, the same link
+automatically serves it. If a version is [pinned](../how-to/pin-versions.md),
+the permalink serves the pinned version. The project page has a **Copy** button
+for this link. (`latest` is therefore a reserved URL segment — a version tag
+named `latest` is reached through this resolver rather than directly.)
+
 ## Assigning Access
 
 For custom-visibility projects, you need to grant access to users individually:

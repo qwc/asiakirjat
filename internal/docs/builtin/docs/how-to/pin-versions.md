@@ -38,6 +38,7 @@ When a version is pinned:
 - The **frontpage** shows the pinned version as the latest for that project
 - **Search** defaults to searching the pinned version (instead of the semver-sorted latest)
 - The pinned version gets a badge in the version list
+- The **latest permalink** (`/project/{slug}/latest/`) serves the pinned version
 
 ## Upload Log
 
