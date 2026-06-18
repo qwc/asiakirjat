@@ -13,12 +13,15 @@ jobs:
       image: golang:1.25-alpine
     steps:
       - name: Install deps
-        run: apk add --no-cache git nodejs
+        run: apk add --no-cache git nodejs npm
 
       - uses: actions/checkout@v4
 
       - name: Run tests
         run: go test -mod=vendor -count=1 ./...
+
+      - name: Frontend overlay tests
+        run: npm ci && npm test
 
   build:
     runs-on: docker

@@ -8,3 +8,4 @@ config.yaml
 *.db-shm
 CLAUDE.local.md
 .mcp.json
+node_modules/
