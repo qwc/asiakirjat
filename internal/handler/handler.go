@@ -121,7 +121,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// docs so the URL can be shared/linked without pinning a version. The
 	// literal "latest" segment is more specific than {version}, so these win
 	// over the generic doc route below for that path.
-	mux.HandleFunc("GET "+bp+"/project/{slug}/latest", h.withSession(h.handleServeLatest))
+	mux.HandleFunc("GET "+bp+"/project/{slug}/latest", h.withSession(h.handleLatestSlashRedirect))
 	mux.HandleFunc("GET "+bp+"/project/{slug}/latest/{path...}", h.withSession(h.handleServeLatest))
 	mux.HandleFunc("GET "+bp+"/project/{slug}/{version}/{path...}", h.withSession(h.handleServeDoc))
 	mux.HandleFunc("GET "+bp+"/project/{slug}/upload", h.withSession(h.requireAuth(h.handleUploadForm)))

@@ -54,13 +54,15 @@ version number into the URL — use the `latest` permalink:
 /project/{slug}/latest/{path}
 ```
 
-For example, `/project/my-api-docs/latest/` always redirects to the current
-latest version's home page, and `/project/my-api-docs/latest/guide.html`
-redirects to that page in the latest version. When a newer version is uploaded,
-the same link automatically points to it. If a version is [pinned](../how-to/pin-versions.md),
-the permalink resolves to the pinned version. The project page has a **Copy**
-button for this link. (`latest` is therefore a reserved URL segment — a version
-tag named `latest` is reached through this resolver rather than directly.)
+For example, `/project/my-api-docs/latest/` always serves the current latest
+version's home page, and `/project/my-api-docs/latest/guide.html` serves that
+page in the latest version. The URL stays at `/latest/` (the content is served
+in place, not redirected to a version number), so links you follow within the
+docs keep tracking latest. When a newer version is uploaded, the same link
+automatically serves it. If a version is [pinned](../how-to/pin-versions.md),
+the permalink serves the pinned version. The project page has a **Copy** button
+for this link. (`latest` is therefore a reserved URL segment — a version tag
+named `latest` is reached through this resolver rather than directly.)
 
 ## Assigning Access
 

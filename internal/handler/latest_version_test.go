@@ -2,73 +2,76 @@ package handler
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/qwc/asiakirjat/internal/database"
 )
 
 // noRedirectClient returns an http.Client that does not follow redirects, so
-// tests can inspect the 3xx Location header directly.
+// tests can inspect 3xx Location headers directly.
 func noRedirectClient() *http.Client {
 	return &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
 
-func seedTwoVersions(t *testing.T, app *testApp, project *database.Project) {
+// seedVersionWithIndex creates a version both in the DB and on disk, writing an
+// index.html whose body is the given marker so tests can tell versions apart.
+func seedVersionWithIndex(t *testing.T, app *testApp, project *database.Project, tag, marker string) {
 	t.Helper()
 	ctx := context.Background()
-	for _, tag := range []string{"v1.0.0", "v2.0.0"} {
-		if err := app.handler.versions.Create(ctx, &database.Version{
-			ProjectID: project.ID, Tag: tag, StoragePath: "/tmp/test", ContentType: "archive",
-		}); err != nil {
-			t.Fatal(err)
-		}
+	storage := app.handler.storage
+	if err := storage.EnsureVersionDir(project.Slug, tag); err != nil {
+		t.Fatal(err)
+	}
+	versionPath := storage.VersionPath(project.Slug, tag)
+	if err := os.WriteFile(filepath.Join(versionPath, "index.html"), []byte("<html>"+marker+"</html>"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.handler.versions.Create(ctx, &database.Version{
+		ProjectID: project.ID, Tag: tag, StoragePath: versionPath, ContentType: "archive",
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestLatestPermalinkRedirectsToNewest(t *testing.T) {
+func TestLatestServesNewestInPlace(t *testing.T) {
 	app := setupTestApp(t)
 	project := seedProject(t, app, "docs", "Documentation", true) // public
-	seedTwoVersions(t, app, project)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "OLD CONTENT")
+	seedVersionWithIndex(t, app, project, "v2.0.0", "NEW CONTENT")
 
-	resp, err := noRedirectClient().Get(app.server.URL + "/project/docs/latest/")
+	resp, err := http.Get(app.server.URL + "/project/docs/latest/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("expected 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 served in place, got %d", resp.StatusCode)
 	}
-	if got := resp.Header.Get("Location"); got != "/project/docs/v2.0.0/" {
-		t.Errorf("expected redirect to /project/docs/v2.0.0/, got %q", got)
+	// Served at /latest/ — not redirected to a versioned URL.
+	if resp.Request.URL.Path != "/project/docs/latest/" {
+		t.Errorf("expected URL to stay at /latest/, got %q", resp.Request.URL.Path)
 	}
-	if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
-		t.Errorf("expected Cache-Control no-store, got %q", cc)
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body),"NEW CONTENT") {
+		t.Errorf("expected newest version content, got: %s", body)
 	}
-}
-
-func TestLatestPermalinkPreservesPath(t *testing.T) {
-	app := setupTestApp(t)
-	project := seedProject(t, app, "docs", "Documentation", true)
-	seedTwoVersions(t, app, project)
-
-	resp, err := noRedirectClient().Get(app.server.URL + "/project/docs/latest/guide/index.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if got := resp.Header.Get("Location"); got != "/project/docs/v2.0.0/guide/index.html" {
-		t.Errorf("expected path preserved in redirect, got %q", got)
+	if cc := resp.Header.Get("Cache-Control"); cc != "no-cache" {
+		t.Errorf("expected Cache-Control no-cache, got %q", cc)
 	}
 }
 
-func TestLatestPermalinkRespectsPin(t *testing.T) {
+func TestLatestRespectsPin(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 	project := seedProject(t, app, "docs", "Documentation", true)
-	seedTwoVersions(t, app, project)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "OLD CONTENT")
+	seedVersionWithIndex(t, app, project, "v2.0.0", "NEW CONTENT")
 
 	// Pin the older version; latest must follow the pin, not the semver max.
 	pinned := "v1.0.0"
@@ -78,18 +81,38 @@ func TestLatestPermalinkRespectsPin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := noRedirectClient().Get(app.server.URL + "/project/docs/latest/")
+	resp, err := http.Get(app.server.URL + "/project/docs/latest/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
 
-	if got := resp.Header.Get("Location"); got != "/project/docs/v1.0.0/" {
-		t.Errorf("expected redirect to pinned v1.0.0, got %q", got)
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body),"OLD CONTENT") {
+		t.Errorf("expected pinned version content, got: %s", body)
 	}
 }
 
-func TestLatestPermalinkNoVersions(t *testing.T) {
+func TestLatestBareRedirectsToSlash(t *testing.T) {
+	app := setupTestApp(t)
+	project := seedProject(t, app, "docs", "Documentation", true)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "CONTENT")
+
+	resp, err := noRedirectClient().Get(app.server.URL + "/project/docs/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 to add trailing slash, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/project/docs/latest/" {
+		t.Errorf("expected redirect to /project/docs/latest/, got %q", got)
+	}
+}
+
+func TestLatestNoVersions(t *testing.T) {
 	app := setupTestApp(t)
 	seedProject(t, app, "empty", "Empty", true)
 
@@ -104,10 +127,10 @@ func TestLatestPermalinkNoVersions(t *testing.T) {
 	}
 }
 
-func TestLatestPermalinkAnonymousOnPrivateRedirectsLogin(t *testing.T) {
+func TestLatestAnonymousOnPrivateRedirectsLogin(t *testing.T) {
 	app := setupTestApp(t)
 	project := seedProject(t, app, "secret", "Secret", false) // custom/non-public
-	seedTwoVersions(t, app, project)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "SECRET")
 
 	resp, err := noRedirectClient().Get(app.server.URL + "/project/secret/latest/")
 	if err != nil {
