@@ -8,7 +8,7 @@
     <div class="project-card-actions">
         <a href="{{url "/project/"}}{{.Slug}}" class="btn btn-secondary">Details</a>
         {{if .LatestVersion}}
-        <a href="{{url "/project/"}}{{.Slug}}/{{.LatestVersion}}/" class="btn btn-primary">Latest</a>
+        <a href="{{url "/project/"}}{{.Slug}}/latest/" class="btn btn-primary">Latest</a>
         {{end}}
     </div>
 </div>
