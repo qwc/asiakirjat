@@ -4,6 +4,10 @@
 <div class="admin-page">
     <h1>Edit Project: {{.Project.Name}}</h1>
 
+    {{if .CreatedByName}}
+    <p style="color: var(--color-text-muted); margin-top: -0.5rem;">Created by {{.CreatedByName}}</p>
+    {{end}}
+
     <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/edit">
         {{template "csrf_field" $.CSRFToken}}
         <div class="form-group">
@@ -22,10 +26,13 @@
         <div class="form-group">
             <label for="visibility">Visibility</label>
             <select id="visibility" name="visibility">
+                {{if or .IsAdmin (eq .Project.Visibility "public")}}
                 <option value="public" {{if eq .Project.Visibility "public"}}selected{{end}}>Public — anyone can view</option>
+                {{end}}
                 <option value="private" {{if eq .Project.Visibility "private"}}selected{{end}}>Private — global access list</option>
                 <option value="custom" {{if eq .Project.Visibility "custom"}}selected{{end}}>Custom — per-project access only</option>
             </select>
+            {{if not .IsAdmin}}<small>Only admins can make a project public.</small>{{end}}
         </div>
 
         <div class="form-group">

@@ -22,11 +22,17 @@ Full system access:
 
 Limited management, broad access:
 - Create projects (auto-granted editor access to non-public projects they create)
+- **Edit and delete projects they created** (settings, slug, description, retention, visibility)
+- **Manage per-project access** on projects they created (grant/revoke viewer/editor to other users)
 - Access admin project list (filtered to only projects they have access to)
 - View public projects
 - View private projects they have access to
 - Upload to projects where they have editor access
 - Create project-scoped API tokens for their projects
+
+Editors can only manage projects they **created** — not every project they can
+view or upload to. They cannot make a project **public** (admin-only), and they
+cannot manage users, robot users, group mappings, or global access.
 
 ### Viewer
 
@@ -53,7 +59,7 @@ Projects have three visibility levels:
 ### Custom
 
 - Visible only to users with explicit per-project access grants — no org-wide path
-- Access is managed per-project in **Admin > Projects > Edit**
+- Access is managed per-project in **Admin > Projects > Edit** (by an admin or by the editor who created the project)
 - Strictly more restrictive than `private`: use this when even users on the global access list should be excluded by default
 
 ## Project Roles
@@ -125,7 +131,9 @@ Group mappings can also be managed in **Admin > Group Mappings**.
 | Access admin panel (full) | Yes | No | No |
 | Access admin project list (filtered) | Yes | Yes | No |
 | Create projects | Yes | Yes | No |
-| Edit/delete projects | Yes | No | No |
+| Edit/delete projects | All | Own only | No |
+| Grant/revoke per-project access | All | Own only | No |
+| Make a project public | Yes | No | No |
 | Create/edit users | Yes | No | No |
 | Manage robot users | Yes | No | No |
 | Manage group mappings | Yes | No | No |
@@ -143,6 +151,11 @@ Robot users are special accounts for API access:
 ## Admin UI Features
 
 The admin panel includes live filter inputs on the **Projects** and **Users** tables. Type to instantly filter rows by name, slug, visibility, username, email, role, or auth source. This is especially useful in larger environments with many entries.
+
+The **Projects** table shows a **Created by** column identifying each project's
+creator. Edit and Delete actions appear only on the rows you are allowed to
+manage (admins see them on every project; editors see them on the projects they
+created).
 
 ## Best Practices
 

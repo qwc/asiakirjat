@@ -195,6 +195,44 @@ func TestCanUpload(t *testing.T) {
 	}
 }
 
+// CanManage is pure (no store lookups): admins manage everything, everyone
+// else only the projects they created.
+func TestCanManage(t *testing.T) {
+	f := newFixture(t)
+
+	creatorID := int64(7)
+	otherID := int64(8)
+	admin := &database.User{ID: 1, Role: "admin"}
+	creator := &database.User{ID: creatorID, Role: "editor"}
+	other := &database.User{ID: otherID, Role: "editor"}
+
+	owned := &database.Project{Slug: "owned", Visibility: database.VisibilityCustom, CreatedBy: &creatorID}
+	orphan := &database.Project{Slug: "orphan", Visibility: database.VisibilityCustom} // CreatedBy nil
+
+	cases := []struct {
+		name string
+		user *database.User
+		proj *database.Project
+		want bool
+	}{
+		{"anonymous", nil, owned, false},
+		{"admin manages owned", admin, owned, true},
+		{"admin manages orphan (nil creator)", admin, orphan, true},
+		{"creator manages own project", creator, owned, true},
+		{"non-creator editor cannot manage", other, owned, false},
+		{"editor cannot manage orphan", other, orphan, false},
+		{"creator cannot manage someone else's", creator, &database.Project{CreatedBy: &otherID}, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.checker.CanManage(tc.user, tc.proj); got != tc.want {
+				t.Errorf("CanManage = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // FilterAccessible: combines the rules from CanView in a batch form.
 func TestFilterAccessible(t *testing.T) {
 	f := newFixture(t)

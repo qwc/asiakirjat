@@ -87,6 +87,12 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 		Visibility:    opts.Visibility,
 		RetentionDays: opts.RetentionDays,
 	}
+	// Record provenance for all creators (admin and non-admin alike) so the
+	// manage-projects view can show "created by" and CanManage can grant the
+	// creator authority over their own project.
+	if opts.Creator != nil {
+		project.CreatedBy = &opts.Creator.ID
+	}
 
 	if err := s.projects.Create(ctx, project); err != nil {
 		// Unique-violation error strings differ by dialect; match the two we

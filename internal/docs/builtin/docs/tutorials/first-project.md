@@ -63,7 +63,7 @@ For private-visibility projects, access is normally controlled via the global ac
 - **Viewer**: Can read documentation
 - **Editor**: Can read and upload new versions
 
-> **Note for editors:** The admin project list is filtered to show only projects you have access to. Admins see all projects.
+> **Note for editors:** The admin project list is filtered to show only projects you have access to (admins see all projects). You can **Edit** and manage access for the projects you created — including the "Grant Access" steps above — without being an admin. You still can't make a project public; that's admin-only.
 
 ## What's Next?
 

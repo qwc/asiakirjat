@@ -135,6 +135,27 @@ func (c *Checker) CanUpload(ctx context.Context, user *database.User, project *d
 	return allowed
 }
 
+// CanManage reports whether user may administer project: edit its settings
+// and grant/revoke per-project access. This is deliberately narrower than
+// CanUpload — a global editor can upload to many projects, but only the
+// project's creator (or a global admin) may manage it.
+//
+//   - Anonymous: false.
+//   - Global role admin: true (admins manage everything).
+//   - Otherwise: true iff the user is the recorded creator (project.CreatedBy).
+//
+// Note this needs no store lookups — it decides purely from the user role and
+// the project's created_by column — so it takes no context.
+func (c *Checker) CanManage(user *database.User, project *database.Project) bool {
+	if user == nil {
+		return false
+	}
+	if user.Role == "admin" {
+		return true
+	}
+	return project.CreatedBy != nil && *project.CreatedBy == user.ID
+}
+
 // FilterAccessible returns the subset of `all` that user can view.
 // The membership rule is intentionally the same as CanView, just expressed
 // in a way that minimizes DB round-trips for large project lists (one

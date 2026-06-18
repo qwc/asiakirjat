@@ -148,11 +148,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Admin routes (project list + create accessible to editors)
 	mux.HandleFunc("GET "+bp+"/admin/projects", h.withSession(h.requireEditorOrAdmin(h.handleAdminProjects)))
 	mux.HandleFunc("POST "+bp+"/admin/projects", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminCreateProject))))
-	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.handleAdminEditProject)))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminUpdateProject))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteProject))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/grant", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGrantAccess))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeAccess))))
+	// Edit / delete / access management are open to editors but each handler
+	// gates on access.Checker.CanManage so a non-admin can only touch projects
+	// they created (not every project they can merely see or upload to).
+	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.handleAdminEditProject)))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminUpdateProject))))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminDeleteProject))))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/grant", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminGrantAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/revoke", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminRevokeAccess))))
 	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateUser))))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteUser))))
