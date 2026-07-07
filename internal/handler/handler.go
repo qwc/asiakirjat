@@ -41,6 +41,10 @@ type Handler struct {
 	checker        *access.Checker
 	logger         *slog.Logger
 
+	// Serializes storage-mutating work (archive extraction vs. rename) per
+	// project — see internal/handler/locks.go.
+	projectLocks *keyedMutex
+
 	// Synchronized state — see internal/handler/state.go.
 	latestTags latestTagsCache
 	reindex    reindexState
@@ -92,9 +96,10 @@ func New(deps Deps) *Handler {
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
-		projectService: projects.NewService(deps.Projects, deps.Access, deps.Storage, deps.Logger),
+		projectService: projects.NewService(deps.Projects, deps.Versions, deps.Access, deps.Storage, deps.Logger),
 		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.Logger),
 		jobs:           newJobs(),
+		projectLocks:   newKeyedMutex(),
 		logger:         deps.Logger,
 	}
 }

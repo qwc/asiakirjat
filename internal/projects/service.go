@@ -39,6 +39,7 @@ type CreateOptions struct {
 // Service performs project lifecycle operations. Construct via NewService.
 type Service struct {
 	projects store.ProjectStore
+	versions store.VersionStore
 	access   store.ProjectAccessStore
 	storage  docs.Storage
 	logger   *slog.Logger
@@ -46,11 +47,11 @@ type Service struct {
 
 // NewService wires the dependencies. logger may be nil; in that case slog's
 // default logger is used.
-func NewService(p store.ProjectStore, a store.ProjectAccessStore, s docs.Storage, l *slog.Logger) *Service {
+func NewService(p store.ProjectStore, v store.VersionStore, a store.ProjectAccessStore, s docs.Storage, l *slog.Logger) *Service {
 	if l == nil {
 		l = slog.Default()
 	}
-	return &Service{projects: p, access: a, storage: s, logger: l}
+	return &Service{projects: p, versions: v, access: a, storage: s, logger: l}
 }
 
 // Create validates the input, persists the project, ensures its storage
@@ -95,10 +96,7 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 	}
 
 	if err := s.projects.Create(ctx, project); err != nil {
-		// Unique-violation error strings differ by dialect; match the two we
-		// see (SQLite "UNIQUE", postgres/mysql "duplicate").
-		msg := err.Error()
-		if strings.Contains(msg, "UNIQUE") || strings.Contains(msg, "duplicate") {
+		if isSlugConflict(err) {
 			return nil, ErrSlugConflict
 		}
 		return nil, fmt.Errorf("creating project: %w", err)
@@ -122,4 +120,82 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 	}
 
 	return project, nil
+}
+
+// Update persists edits to an existing project and, when the slug changed,
+// migrates its deployed documentation so URLs keep resolving. The caller is
+// responsible for having already applied field changes to project and for
+// passing the project's previous slug as oldSlug.
+//
+// Storage and the search index are keyed on the slug, so a bare DB update
+// leaves the files stranded at the old-slug path (the rename bug). Here we:
+//  1. persist the row (mapping a slug collision to ErrSlugConflict);
+//  2. os.Rename the on-disk project directory to the new slug;
+//  3. rewrite each version's stored path to match.
+//
+// If the storage move fails we roll the slug back in the DB so the project
+// stays reachable at its old URL rather than pointing at files that never
+// moved. The search index is refreshed by the caller (it walks files and is
+// best-effort/async), not here.
+//
+// Callers must serialize Update against concurrent uploads for the same
+// project (both mutate the project directory) — the handler holds a
+// per-project lock around this call and around archive extraction.
+func (s *Service) Update(ctx context.Context, project *database.Project, oldSlug string) error {
+	if err := s.projects.Update(ctx, project); err != nil {
+		if isSlugConflict(err) {
+			return ErrSlugConflict
+		}
+		return fmt.Errorf("updating project: %w", err)
+	}
+
+	if project.Slug == oldSlug {
+		return nil
+	}
+
+	if err := s.storage.MoveProject(oldSlug, project.Slug); err != nil {
+		// Roll the slug back so the project keeps resolving to its existing
+		// files instead of a path that was never populated.
+		project.Slug = oldSlug
+		if rbErr := s.projects.Update(ctx, project); rbErr != nil {
+			s.logger.Error("rolling back slug after failed storage move",
+				"project", project.ID, "error", rbErr)
+		}
+		return fmt.Errorf("moving project storage: %w", err)
+	}
+
+	// Point version records at the new location. Serving recomputes the path
+	// from the slug and doesn't consult StoragePath, so a failure here only
+	// affects reindexing — log and carry on rather than fail the rename.
+	if err := s.rewriteVersionPaths(ctx, project); err != nil {
+		s.logger.Error("rewriting version storage paths after rename",
+			"project", project.ID, "slug", project.Slug, "error", err)
+	}
+
+	return nil
+}
+
+// rewriteVersionPaths updates every version's StoragePath to reflect the
+// project's current slug after a rename.
+func (s *Service) rewriteVersionPaths(ctx context.Context, project *database.Project) error {
+	versions, err := s.versions.ListByProject(ctx, project.ID)
+	if err != nil {
+		return fmt.Errorf("listing versions: %w", err)
+	}
+	for i := range versions {
+		v := &versions[i]
+		v.StoragePath = s.storage.VersionPath(project.Slug, v.Tag)
+		if err := s.versions.Update(ctx, v); err != nil {
+			return fmt.Errorf("updating version %d: %w", v.ID, err)
+		}
+	}
+	return nil
+}
+
+// isSlugConflict reports whether err is a unique-constraint violation on the
+// slug column. Error strings differ by dialect; match the two we see
+// (SQLite "UNIQUE", postgres/mysql "duplicate").
+func isSlugConflict(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE") || strings.Contains(msg, "duplicate")
 }

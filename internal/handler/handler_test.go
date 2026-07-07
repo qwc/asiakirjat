@@ -1088,6 +1088,135 @@ func TestAdminUpdateProject(t *testing.T) {
 	}
 }
 
+// deployVersion writes a doc file to storage and records a matching version
+// row, simulating a project that already has documentation deployed.
+func deployVersion(t *testing.T, app *testApp, project *database.Project, tag, body string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := app.handler.storage.EnsureVersionDir(project.Slug, tag); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(app.handler.storage.VersionPath(project.Slug, tag), "index.html")
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ver := &database.Version{
+		ProjectID:   project.ID,
+		Tag:         tag,
+		StoragePath: app.handler.storage.VersionPath(project.Slug, tag),
+		ContentType: "archive",
+	}
+	if err := app.handler.versions.Create(ctx, ver); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Regression for issue #122: renaming a project must migrate its deployed
+// docs so they stay reachable at the new slug (and 404 at the old one).
+func TestAdminRenameProjectKeepsDocsReachable(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "old-slug", "Renamable", true)
+	deployVersion(t, app, project, "v1.0", "<html>hello docs</html>")
+
+	cookies := loginUser(t, app, "admin", "admin123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	form := url.Values{}
+	form.Set("slug", "new-slug")
+	form.Set("name", "Renamable")
+	form.Set("description", "")
+	form.Set("visibility", "public")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/old-slug/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	// Docs reachable at the new slug...
+	newResp, err := http.Get(app.server.URL + "/project/new-slug/v1.0/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer newResp.Body.Close()
+	if newResp.StatusCode != http.StatusOK {
+		t.Errorf("docs at new slug: expected 200, got %d", newResp.StatusCode)
+	}
+	bodyBytes, _ := io.ReadAll(newResp.Body)
+	if !strings.Contains(string(bodyBytes), "hello docs") {
+		t.Errorf("expected moved doc content, got %q", string(bodyBytes))
+	}
+
+	// ...and gone from the old slug.
+	oldResp, err := http.Get(app.server.URL + "/project/old-slug/v1.0/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldResp.Body.Close()
+	if oldResp.StatusCode == http.StatusOK {
+		t.Errorf("docs at old slug should no longer resolve, got 200")
+	}
+
+	// Version storage path was rewritten to the new location.
+	ctx := context.Background()
+	renamed, _ := app.handler.projects.GetBySlug(ctx, "new-slug")
+	versions, _ := app.handler.versions.ListByProject(ctx, renamed.ID)
+	if len(versions) != 1 {
+		t.Fatalf("expected 1 version, got %d", len(versions))
+	}
+	want := app.handler.storage.VersionPath("new-slug", "v1.0")
+	if versions[0].StoragePath != want {
+		t.Errorf("version StoragePath = %q, want %q", versions[0].StoragePath, want)
+	}
+}
+
+// Renaming a project onto a slug another project already owns must fail with
+// 409 Conflict and leave both projects untouched.
+func TestAdminRenameProjectSlugConflict(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "keep", "Keep", false)
+	seedProject(t, app, "taken", "Taken", false)
+
+	cookies := loginUser(t, app, "admin", "admin123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	form := url.Values{}
+	form.Set("slug", "taken")
+	form.Set("name", "Keep")
+	form.Set("description", "")
+	form.Set("visibility", "custom")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/keep/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("expected 409 Conflict, got %d", resp.StatusCode)
+	}
+
+	// Original project still lives at its own slug.
+	ctx := context.Background()
+	if _, err := app.handler.projects.GetBySlug(ctx, "keep"); err != nil {
+		t.Errorf("project 'keep' should still exist under its slug: %v", err)
+	}
+}
+
 func TestAdminDeleteProject(t *testing.T) {
 	app := setupTestApp(t)
 	seedAdmin(t, app)

@@ -113,6 +113,12 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	isPDF := strings.HasSuffix(strings.ToLower(header.Filename), ".pdf")
 
+	// Serialize against a concurrent rename of this project: both write to the
+	// project's on-disk directory, and a rename (os.Rename) racing this extract
+	// would strand or corrupt the deployment. Keyed on the immutable project ID.
+	unlock := h.projectLocks.Lock(project.ID)
+	defer unlock()
+
 	// Prepare storage directory
 	if err := h.storage.EnsureVersionDir(slug, versionTag); err != nil {
 		h.logger.Error("creating version directory", "error", err)

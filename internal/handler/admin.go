@@ -254,10 +254,27 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		project.RetentionDays = nil
 	}
 
-	if err := h.projects.Update(ctx, project); err != nil {
+	// Persist under the per-project lock so a rename (which moves the on-disk
+	// directory) can't race an in-flight archive extraction for the same
+	// project. Keyed on the immutable ID; the slug is what's changing.
+	unlock := h.projectLocks.Lock(project.ID)
+	err = h.projectService.Update(ctx, project, slug)
+	unlock()
+	if err != nil {
+		if errors.Is(err, projects.ErrSlugConflict) {
+			http.Error(w, "A project with that slug already exists", http.StatusConflict)
+			return
+		}
 		h.logger.Error("updating project", "error", err)
 		http.Error(w, "Failed to update project", http.StatusInternalServerError)
 		return
+	}
+
+	// When the slug changed, the deployed docs were moved to the new path but
+	// the search index still points at the old slug. Refresh it asynchronously
+	// (it walks files) so search results link to the new URL.
+	if project.Slug != slug {
+		h.reindexProjectAsync(project)
 	}
 
 	// Flag visibility transitions away from public so the admin sees the
