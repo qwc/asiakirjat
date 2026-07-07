@@ -18,6 +18,13 @@ func NewTestDB(t *testing.T) *sqlx.DB {
 		t.Fatalf("opening test db: %v", err)
 	}
 
+	// A ":memory:" SQLite database is private to a single connection, but
+	// sqlx.DB is a pool: a second connection would see a fresh, unmigrated
+	// database. Pin the pool to one connection so concurrent access (e.g. a
+	// background job querying while a request is in flight) shares the same
+	// in-memory database rather than racing onto an empty one.
+	db.SetMaxOpenConns(1)
+
 	db.MustExec("PRAGMA foreign_keys=ON")
 
 	if err := database.RunMigrations(db, database.DialectSQLite); err != nil {
