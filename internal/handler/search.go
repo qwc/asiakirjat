@@ -225,6 +225,33 @@ func (h *Handler) handleAdminReindex(w http.ResponseWriter, r *http.Request) {
 	h.redirect(w, r, "/admin/projects?msg=reindex_started", http.StatusSeeOther)
 }
 
+// reindexProjectAsync refreshes the search index for a single project's
+// versions in the background. It is used after a rename: the indexed
+// project_slug and result URLs still carry the old slug, so each version is
+// dropped and re-indexed under the new slug and moved storage path. Doc IDs
+// are keyed on project/version ID, so this fully replaces the stale entries.
+func (h *Handler) reindexProjectAsync(project *database.Project) {
+	if h.searchIndex == nil {
+		return
+	}
+	h.runJob(func(ctx context.Context) {
+		versions, err := h.versions.ListByProject(ctx, project.ID)
+		if err != nil {
+			h.logger.Error("listing versions for rename reindex", "project", project.Slug, "error", err)
+			return
+		}
+		for _, v := range versions {
+			if err := ctx.Err(); err != nil {
+				return
+			}
+			h.searchIndex.DeleteVersion(project.ID, v.ID)
+			if err := h.searchIndex.IndexVersion(project.ID, v.ID, project.Slug, project.Name, v.Tag, v.StoragePath); err != nil {
+				h.logger.Error("reindexing version after rename", "project", project.Slug, "version", v.Tag, "error", err)
+			}
+		}
+	})
+}
+
 // getLatestVersionTags returns a map of projectSlug -> latest version tag.
 // Results are cached to avoid per-query DB lookups; the cache is guarded
 // by an internal mutex (see latestTagsCache).

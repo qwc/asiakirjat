@@ -14,6 +14,7 @@ type Storage interface {
 	EnsureVersionDir(slug, tag string) error
 	VersionExists(slug, tag string) bool
 	DeleteVersion(slug, tag string) error
+	MoveProject(oldSlug, newSlug string) error
 }
 
 type FilesystemStorage struct {
@@ -62,6 +63,35 @@ func (s *FilesystemStorage) DeleteVersion(slug, tag string) error {
 	path := s.VersionPath(slug, tag)
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("deleting version directory: %w", err)
+	}
+	return nil
+}
+
+// MoveProject relocates a project's deployed documentation from oldSlug to
+// newSlug when the project is renamed. Storage is keyed on slug, so without
+// this the files would be orphaned at the old path and every doc URL would
+// 404 (see the rename bug). It is a no-op if the old directory does not exist
+// yet (a project can be renamed before anything is deployed). It refuses to
+// overwrite an existing destination so a rename can never clobber another
+// project's docs.
+func (s *FilesystemStorage) MoveProject(oldSlug, newSlug string) error {
+	if oldSlug == newSlug {
+		return nil
+	}
+	oldPath := s.ProjectPath(oldSlug)
+	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("checking project directory: %w", err)
+	}
+	newPath := s.ProjectPath(newSlug)
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("destination project directory already exists: %s", newSlug)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("checking destination directory: %w", err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("moving project directory: %w", err)
 	}
 	return nil
 }

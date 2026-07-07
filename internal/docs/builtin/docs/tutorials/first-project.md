@@ -65,6 +65,16 @@ for this link, and the **Latest** button on the home-page project cards links
 to it. (`latest` is therefore a reserved URL segment — a version tag
 named `latest` is reached through this resolver rather than directly.)
 
+### Renaming a project
+
+You can change a project's slug from **Admin > Projects > Edit**. The slug is
+part of every documentation URL, so renaming it changes those URLs: docs
+previously at `/project/old-slug/...` move to `/project/new-slug/...`. Already
+deployed versions are migrated automatically — their files are relocated and
+the search index is refreshed — so no re-upload is needed. Any external links
+or bookmarks that used the old slug will need updating. The rename is rejected
+if the new slug is already taken by another project.
+
 ## Assigning Access
 
 For custom-visibility projects, you need to grant access to users individually:

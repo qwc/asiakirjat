@@ -3,6 +3,8 @@ package projects
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/qwc/asiakirjat/internal/database"
@@ -18,9 +20,10 @@ func newServiceForTest(t *testing.T) (*Service, *sqlstore.ProjectStore, *sqlstor
 	t.Helper()
 	db := testutil.NewTestDB(t)
 	pstore := sqlstore.NewProjectStore(db)
+	vstore := sqlstore.NewVersionStore(db)
 	astore := sqlstore.NewProjectAccessStore(db)
 	storage := docs.NewFilesystemStorage(t.TempDir())
-	svc := NewService(pstore, astore, storage, testutil.TestLogger())
+	svc := NewService(pstore, vstore, astore, storage, testutil.TestLogger())
 	return svc, pstore, astore
 }
 
@@ -80,10 +83,11 @@ func TestCreatePublicByEditorRejected(t *testing.T) {
 func TestCreatePublicByAdminAllowed(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	pstore := sqlstore.NewProjectStore(db)
+	vstore := sqlstore.NewVersionStore(db)
 	astore := sqlstore.NewProjectAccessStore(db)
 	ustore := sqlstore.NewUserStore(db)
 	storage := docs.NewFilesystemStorage(t.TempDir())
-	svc := NewService(pstore, astore, storage, testutil.TestLogger())
+	svc := NewService(pstore, vstore, astore, storage, testutil.TestLogger())
 
 	ctx := context.Background()
 	// created_by is a real FK now, so the creator must exist as a user row.
@@ -120,10 +124,11 @@ func TestCreatePublicByAdminAllowed(t *testing.T) {
 func TestCreateGrantsCreatorEditorAccess(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	pstore := sqlstore.NewProjectStore(db)
+	vstore := sqlstore.NewVersionStore(db)
 	astore := sqlstore.NewProjectAccessStore(db)
 	ustore := sqlstore.NewUserStore(db)
 	storage := docs.NewFilesystemStorage(t.TempDir())
-	svc := NewService(pstore, astore, storage, testutil.TestLogger())
+	svc := NewService(pstore, vstore, astore, storage, testutil.TestLogger())
 
 	ctx := context.Background()
 	editor := &database.User{Username: "creator", AuthSource: "builtin", Role: "editor"}
@@ -154,10 +159,11 @@ func TestCreateGrantsCreatorEditorAccess(t *testing.T) {
 func TestCreateAdminGetsNoAutoGrant(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	pstore := sqlstore.NewProjectStore(db)
+	vstore := sqlstore.NewVersionStore(db)
 	astore := sqlstore.NewProjectAccessStore(db)
 	ustore := sqlstore.NewUserStore(db)
 	storage := docs.NewFilesystemStorage(t.TempDir())
-	svc := NewService(pstore, astore, storage, testutil.TestLogger())
+	svc := NewService(pstore, vstore, astore, storage, testutil.TestLogger())
 
 	ctx := context.Background()
 	admin := &database.User{Username: "ad-creator", AuthSource: "builtin", Role: "admin"}
@@ -179,6 +185,121 @@ func TestCreateAdminGetsNoAutoGrant(t *testing.T) {
 	}
 	if len(grants) != 0 {
 		t.Errorf("expected no project_access rows for admin-created project, got %d", len(grants))
+	}
+}
+
+// buildRenameFixture creates a project with one deployed version (DB row +
+// on-disk files) and returns everything a rename test needs to verify state.
+func buildRenameFixture(t *testing.T, slug string) (*Service, *sqlstore.ProjectStore, *sqlstore.VersionStore, *docs.FilesystemStorage, *database.Project) {
+	t.Helper()
+	db := testutil.NewTestDB(t)
+	pstore := sqlstore.NewProjectStore(db)
+	vstore := sqlstore.NewVersionStore(db)
+	astore := sqlstore.NewProjectAccessStore(db)
+	storage := docs.NewFilesystemStorage(t.TempDir())
+	svc := NewService(pstore, vstore, astore, storage, testutil.TestLogger())
+
+	ctx := context.Background()
+	p, err := svc.Create(ctx, CreateOptions{Slug: slug, Visibility: database.VisibilityCustom})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := storage.EnsureVersionDir(slug, "v1.0"); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(storage.VersionPath(slug, "v1.0"), "index.html")
+	if err := os.WriteFile(marker, []byte("<html>doc</html>"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ver := &database.Version{
+		ProjectID:   p.ID,
+		Tag:         "v1.0",
+		StoragePath: storage.VersionPath(slug, "v1.0"),
+		ContentType: "archive",
+	}
+	if err := vstore.Create(ctx, ver); err != nil {
+		t.Fatal(err)
+	}
+	return svc, pstore, vstore, storage, p
+}
+
+func TestUpdateRenameMigratesStorage(t *testing.T) {
+	svc, pstore, vstore, storage, p := buildRenameFixture(t, "old-name")
+	ctx := context.Background()
+
+	p.Slug = "new-name"
+	if err := svc.Update(ctx, p, "old-name"); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	// DB row carries the new slug.
+	stored, _ := pstore.GetBySlug(ctx, "new-name")
+	if stored == nil {
+		t.Fatal("project not found under new slug")
+	}
+
+	// Files moved to the new path; old path is gone.
+	if _, err := os.Stat(storage.ProjectPath("old-name")); !os.IsNotExist(err) {
+		t.Errorf("old storage dir should be gone, err = %v", err)
+	}
+	moved := filepath.Join(storage.VersionPath("new-name", "v1.0"), "index.html")
+	if _, err := os.Stat(moved); err != nil {
+		t.Errorf("doc should have moved to new path: %v", err)
+	}
+
+	// Version StoragePath rewritten so reindex finds the files.
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	if len(versions) != 1 {
+		t.Fatalf("expected 1 version, got %d", len(versions))
+	}
+	want := storage.VersionPath("new-name", "v1.0")
+	if versions[0].StoragePath != want {
+		t.Errorf("version StoragePath = %q, want %q", versions[0].StoragePath, want)
+	}
+}
+
+func TestUpdateRenameRollsBackOnStorageFailure(t *testing.T) {
+	svc, pstore, _, storage, p := buildRenameFixture(t, "orig")
+	ctx := context.Background()
+
+	// Pre-create an orphan directory at the destination so MoveProject refuses
+	// to overwrite it — the DB has no project there, so the row update itself
+	// succeeds and we exercise the rollback path.
+	if err := storage.EnsureProjectDir("blocked"); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "blocked"
+	if err := svc.Update(ctx, p, "orig"); err == nil {
+		t.Fatal("expected error when storage move fails")
+	}
+
+	// Slug must be rolled back in the DB so the project stays reachable.
+	if stored, _ := pstore.GetBySlug(ctx, "orig"); stored == nil {
+		t.Error("project should remain reachable under its original slug")
+	}
+	if p.Slug != "orig" {
+		t.Errorf("in-memory slug should be rolled back to orig, got %q", p.Slug)
+	}
+	// Original files untouched.
+	if _, err := os.Stat(storage.VersionPath("orig", "v1.0")); err != nil {
+		t.Errorf("original files should be intact: %v", err)
+	}
+}
+
+func TestUpdateRenameSlugConflict(t *testing.T) {
+	svc, _, _, _, p := buildRenameFixture(t, "keep")
+	ctx := context.Background()
+
+	// A second project occupies the target slug.
+	if _, err := svc.Create(ctx, CreateOptions{Slug: "taken", Visibility: database.VisibilityCustom}); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "taken"
+	if err := svc.Update(ctx, p, "keep"); !errors.Is(err, ErrSlugConflict) {
+		t.Errorf("expected ErrSlugConflict, got %v", err)
 	}
 }
 
