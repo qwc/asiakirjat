@@ -16,11 +16,14 @@ Backends for user management shall be:
 
 Documentation blobs can be uploaded as archives (whatever format), versioned with version tags for multiple projects.
 
-A stretch-goal is that you can search through all documentations stored, not only by title, but in the content.
+You can search through all documentation stored — not only by title, but in the content itself (full-text search).
 
 ## Features
 
 - **Multi-project hosting** with slug-based URLs and per-project versioning
+- **Stable `/latest/` permalink** per project, with an optional pinned version
+- **Version comparison** with an inline diff view between versions
+- **Inline PDF viewer** for PDF documents
 - **Three-tier visibility**: public (anonymous), private (global access list), custom (per-project grants)
 - **Authentication**: built-in (bcrypt), LDAP, OAuth2/OIDC — used simultaneously
 - **Role-based access**: admin, editor, viewer at global and per-project level
@@ -34,6 +37,28 @@ A stretch-goal is that you can search through all documentations stored, not onl
 - **Branding**: custom app name, logo, CSS
 - **Self-documenting**: deployable built-in documentation
 - **Single binary**, Docker-ready
+
+## Building and Running
+
+```bash
+# Build
+CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w -X main.version=dev" -o asiakirjat .
+
+# Run
+./asiakirjat -config config.yaml
+```
+
+Copy `config.yaml.example` to `config.yaml` and adjust it. Every setting can be
+overridden with environment variables prefixed `ASIAKIRJAT_` (e.g.
+`ASIAKIRJAT_DB_DRIVER`). SQLite is the default database; PostgreSQL and MySQL are
+also supported, with migrations applied automatically on startup.
+
+## License
+
+Licensed under the [GNU Affero General Public License v3.0 or later](LICENSE)
+(AGPL-3.0-or-later). Asiakirjat is meant to be run as a network service, so the
+AGPL applies: if you offer a modified version to users over a network, you must
+make the modified source available to them.
 
 # AI Policy
 
