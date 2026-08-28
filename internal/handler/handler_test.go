@@ -4435,3 +4435,52 @@ func TestAdminDeleteRobotRequiresAdmin(t *testing.T) {
 
 // Ensure the interface is satisfied
 var _ fs.FS = (fs.FS)(nil)
+
+// Regression for #129: renaming a project whose documentation directory has
+// gone missing must be refused outright rather than committed. Committing it
+// left the project resolving at the new slug with every document 404ing, and
+// nothing at the old slug either.
+func TestAdminRenameRefusedWhenStorageMissing(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	project := seedProject(t, app, "gone-slug", "Gone", true)
+	deployVersion(t, app, project, "v1.0", "<html>hello docs</html>")
+
+	// Simulate the divorced state a pre-#122 rename left behind.
+	base := app.handler.storage.BasePath()
+	if err := os.Rename(filepath.Join(base, "gone-slug"), filepath.Join(base, "stale-dir")); err != nil {
+		t.Fatal(err)
+	}
+
+	cookies := loginUser(t, app, "admin", "admin123")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	form := url.Values{}
+	form.Set("slug", "fresh-slug")
+	form.Set("name", "Gone")
+	form.Set("description", "")
+	form.Set("visibility", "public")
+	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/gone-slug/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("expected 409 Conflict for a missing storage dir, got %d", resp.StatusCode)
+	}
+
+	// The project must still be at its original slug, not stranded.
+	ctx := context.Background()
+	if _, err := app.handler.projects.GetBySlug(ctx, "gone-slug"); err != nil {
+		t.Errorf("project should remain at its original slug: %v", err)
+	}
+	if _, err := app.handler.projects.GetBySlug(ctx, "fresh-slug"); err == nil {
+		t.Error("rename must not have been committed")
+	}
+}

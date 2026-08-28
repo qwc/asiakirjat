@@ -265,6 +265,12 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 			http.Error(w, "A project with that slug already exists", http.StatusConflict)
 			return
 		}
+		if errors.Is(err, projects.ErrStorageMissing) {
+			http.Error(w, "Cannot rename: this project's documentation directory is missing on disk. "+
+				"The rename was not applied. Restart the server to run storage repair, or contact an administrator.",
+				http.StatusConflict)
+			return
+		}
 		h.logger.Error("updating project", "error", err)
 		http.Error(w, "Failed to update project", http.StatusInternalServerError)
 		return

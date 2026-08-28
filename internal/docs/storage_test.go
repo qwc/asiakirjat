@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,11 +83,14 @@ func TestMoveProject(t *testing.T) {
 	}
 }
 
-func TestMoveProjectNoSourceIsNoOp(t *testing.T) {
+func TestMoveProjectNoSourceReportsErrNoSourceDir(t *testing.T) {
 	storage := NewFilesystemStorage(t.TempDir())
-	// Renaming a project that has never had a deployment must not error.
-	if err := storage.MoveProject("never-deployed", "renamed"); err != nil {
-		t.Errorf("expected no-op, got %v", err)
+	// A missing source directory must be reported, not swallowed: callers
+	// decide whether it is benign. Reporting success here let a rename
+	// commit in the database while the files stayed behind (issue #129).
+	err := storage.MoveProject("never-deployed", "renamed")
+	if !errors.Is(err, ErrNoSourceDir) {
+		t.Errorf("expected ErrNoSourceDir, got %v", err)
 	}
 	if _, err := os.Stat(storage.ProjectPath("renamed")); !os.IsNotExist(err) {
 		t.Error("no directory should have been created")

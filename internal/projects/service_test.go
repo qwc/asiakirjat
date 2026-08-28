@@ -317,3 +317,68 @@ func TestCreateSlugConflict(t *testing.T) {
 	}
 }
 
+
+// A project with deployed versions whose storage directory has gone missing
+// must not have its rename committed: doing so leaves the docs unreachable at
+// both the old and the new slug (issue #129).
+func TestUpdateRenameRefusedWhenStorageMissing(t *testing.T) {
+	svc, pstore, vstore, storage, p := buildRenameFixture(t, "divorced")
+	ctx := context.Background()
+
+	// Move the directory out from under the app, as a rename predating the
+	// issue #122 fix would have left it.
+	base := storage.BasePath()
+	if err := os.Rename(filepath.Join(base, "divorced"), filepath.Join(base, "stale")); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "renamed"
+	err := svc.Update(ctx, p, "divorced")
+	if !errors.Is(err, ErrStorageMissing) {
+		t.Fatalf("Update err = %v, want ErrStorageMissing", err)
+	}
+
+	// The rename must have been rolled back, not committed.
+	if stored, _ := pstore.GetBySlug(ctx, "renamed"); stored != nil {
+		t.Error("rename should not have been committed under the new slug")
+	}
+	if stored, _ := pstore.GetBySlug(ctx, "divorced"); stored == nil {
+		t.Error("project should still resolve under its original slug")
+	}
+	if p.Slug != "divorced" {
+		t.Errorf("in-memory slug = %q, want rollback to divorced", p.Slug)
+	}
+
+	// Version rows untouched, so ReconcileStorage can still find the files.
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	if len(versions) != 1 || versions[0].StoragePath != storage.VersionPath("divorced", "v1.0") {
+		t.Error("version StoragePath should be left as the recovery breadcrumb")
+	}
+}
+
+// A project that was never deployed has no directory to move, so renaming it
+// must still succeed.
+func TestUpdateRenameNeverDeployedSucceeds(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	pstore := sqlstore.NewProjectStore(db)
+	storage := docs.NewFilesystemStorage(t.TempDir())
+	svc := NewService(pstore, sqlstore.NewVersionStore(db), sqlstore.NewProjectAccessStore(db), storage, testutil.TestLogger())
+	ctx := context.Background()
+
+	p, err := svc.Create(ctx, CreateOptions{Slug: "empty", Visibility: database.VisibilityCustom})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Create() eagerly makes the project dir; drop it so there is nothing at all.
+	if err := os.RemoveAll(storage.ProjectPath("empty")); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "still-empty"
+	if err := svc.Update(ctx, p, "empty"); err != nil {
+		t.Fatalf("renaming a never-deployed project should succeed, got %v", err)
+	}
+	if stored, _ := pstore.GetBySlug(ctx, "still-empty"); stored == nil {
+		t.Error("project should have been renamed")
+	}
+}
