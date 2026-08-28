@@ -19,6 +19,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/docs"
 	"github.com/qwc/asiakirjat/internal/docs/builtin"
 	"github.com/qwc/asiakirjat/internal/handler"
+	"github.com/qwc/asiakirjat/internal/projects"
 	"github.com/qwc/asiakirjat/internal/store"
 	sqlstore "github.com/qwc/asiakirjat/internal/store/sql"
 	"github.com/qwc/asiakirjat/internal/templates"
@@ -100,6 +101,16 @@ func main() {
 
 	// Ensure storage directory exists
 	os.MkdirAll(cfg.Storage.BasePath, 0755)
+
+	// Repair projects whose documentation directory no longer matches their
+	// slug, left behind by renames that predate the fix for issue #122. This
+	// is a no-op on healthy installations.
+	if repaired, err := projects.NewService(projectStore, versionStore, accessStore, storage, logger).
+		ReconcileStorage(context.Background()); err != nil {
+		logger.Error("reconciling project storage", "error", err)
+	} else if repaired > 0 {
+		logger.Info("repaired project storage directories", "count", repaired)
+	}
 
 	// Initialize search index
 	searchIndex, err := docs.NewSearchIndex(cfg.Storage.BasePath)
