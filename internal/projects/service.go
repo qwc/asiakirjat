@@ -23,6 +23,13 @@ var (
 	ErrInvalidVisibility   = errors.New("invalid visibility")
 	ErrPublicRequiresAdmin = errors.New("only admins can create public projects")
 	ErrSlugConflict        = errors.New("project slug already exists")
+
+	// ErrStorageMissing reports that a rename was refused because the
+	// project has deployed versions but no directory at its current storage
+	// path. Committing the rename would leave the documentation unreachable
+	// (issue #129), so Update rolls back instead. Recovering the files is
+	// ReconcileStorage's job.
+	ErrStorageMissing = errors.New("project storage directory is missing")
 )
 
 // CreateOptions is the input to Service.Create. Name defaults to Slug when
@@ -154,12 +161,27 @@ func (s *Service) Update(ctx context.Context, project *database.Project, oldSlug
 	}
 
 	if err := s.storage.MoveProject(oldSlug, project.Slug); err != nil {
+		// A missing source directory is only benign when the project has
+		// nothing deployed; then there is genuinely nothing to move and the
+		// rename is safe to keep. With versions on record the files should
+		// have been there, so treat it as corruption rather than success —
+		// silently committing here is what produced issue #129.
+		if errors.Is(err, docs.ErrNoSourceDir) && !s.hasVersions(ctx, project.ID) {
+			return nil
+		}
+
 		// Roll the slug back so the project keeps resolving to its existing
 		// files instead of a path that was never populated.
 		project.Slug = oldSlug
 		if rbErr := s.projects.Update(ctx, project); rbErr != nil {
 			s.logger.Error("rolling back slug after failed storage move",
 				"project", project.ID, "error", rbErr)
+		}
+		if errors.Is(err, docs.ErrNoSourceDir) {
+			s.logger.Error("refusing rename: project has versions but no storage directory",
+				"project", project.ID, "slug", oldSlug,
+				"expected_path", s.storage.ProjectPath(oldSlug))
+			return fmt.Errorf("%w: %s", ErrStorageMissing, oldSlug)
 		}
 		return fmt.Errorf("moving project storage: %w", err)
 	}
@@ -173,6 +195,19 @@ func (s *Service) Update(ctx context.Context, project *database.Project, oldSlug
 	}
 
 	return nil
+}
+
+// hasVersions reports whether the project has any version rows. A store
+// failure is reported as "has versions" so an unreadable database makes
+// Update refuse the rename rather than commit a possibly-breaking one.
+func (s *Service) hasVersions(ctx context.Context, projectID int64) bool {
+	versions, err := s.versions.ListByProject(ctx, projectID)
+	if err != nil {
+		s.logger.Error("listing versions while checking storage",
+			"project", projectID, "error", err)
+		return true
+	}
+	return len(versions) > 0
 }
 
 // rewriteVersionPaths updates every version's StoragePath to reflect the

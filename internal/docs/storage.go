@@ -1,10 +1,19 @@
 package docs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 )
+
+// ErrNoSourceDir reports that MoveProject found nothing to move: the source
+// project directory does not exist. Callers must decide whether that is
+// benign (a project that was never deployed) or a corruption signal (the
+// project has deployed versions, so its files should have been there).
+// Returning success here is what let a rename commit in the database while
+// the documentation stayed behind at its old path — see issue #129.
+var ErrNoSourceDir = errors.New("source project directory does not exist")
 
 type Storage interface {
 	BasePath() string
@@ -80,7 +89,7 @@ func (s *FilesystemStorage) MoveProject(oldSlug, newSlug string) error {
 	}
 	oldPath := s.ProjectPath(oldSlug)
 	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
-		return nil
+		return fmt.Errorf("moving project %q: %w", oldSlug, ErrNoSourceDir)
 	} else if err != nil {
 		return fmt.Errorf("checking project directory: %w", err)
 	}

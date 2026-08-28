@@ -317,3 +317,150 @@ func TestCreateSlugConflict(t *testing.T) {
 	}
 }
 
+
+// A project with deployed versions whose storage directory has gone missing
+// must not have its rename committed: doing so leaves the docs unreachable at
+// both the old and the new slug (issue #129).
+func TestUpdateRenameRefusedWhenStorageMissing(t *testing.T) {
+	svc, pstore, vstore, storage, p := buildRenameFixture(t, "divorced")
+	ctx := context.Background()
+
+	// Move the directory out from under the app, as a rename predating the
+	// issue #122 fix would have left it.
+	base := storage.BasePath()
+	if err := os.Rename(filepath.Join(base, "divorced"), filepath.Join(base, "stale")); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "renamed"
+	err := svc.Update(ctx, p, "divorced")
+	if !errors.Is(err, ErrStorageMissing) {
+		t.Fatalf("Update err = %v, want ErrStorageMissing", err)
+	}
+
+	// The rename must have been rolled back, not committed.
+	if stored, _ := pstore.GetBySlug(ctx, "renamed"); stored != nil {
+		t.Error("rename should not have been committed under the new slug")
+	}
+	if stored, _ := pstore.GetBySlug(ctx, "divorced"); stored == nil {
+		t.Error("project should still resolve under its original slug")
+	}
+	if p.Slug != "divorced" {
+		t.Errorf("in-memory slug = %q, want rollback to divorced", p.Slug)
+	}
+
+	// Version rows untouched, so ReconcileStorage can still find the files.
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	if len(versions) != 1 || versions[0].StoragePath != storage.VersionPath("divorced", "v1.0") {
+		t.Error("version StoragePath should be left as the recovery breadcrumb")
+	}
+}
+
+// A project that was never deployed has no directory to move, so renaming it
+// must still succeed.
+func TestUpdateRenameNeverDeployedSucceeds(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	pstore := sqlstore.NewProjectStore(db)
+	storage := docs.NewFilesystemStorage(t.TempDir())
+	svc := NewService(pstore, sqlstore.NewVersionStore(db), sqlstore.NewProjectAccessStore(db), storage, testutil.TestLogger())
+	ctx := context.Background()
+
+	p, err := svc.Create(ctx, CreateOptions{Slug: "empty", Visibility: database.VisibilityCustom})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Create() eagerly makes the project dir; drop it so there is nothing at all.
+	if err := os.RemoveAll(storage.ProjectPath("empty")); err != nil {
+		t.Fatal(err)
+	}
+
+	p.Slug = "still-empty"
+	if err := svc.Update(ctx, p, "empty"); err != nil {
+		t.Fatalf("renaming a never-deployed project should succeed, got %v", err)
+	}
+	if stored, _ := pstore.GetBySlug(ctx, "still-empty"); stored == nil {
+		t.Error("project should have been renamed")
+	}
+}
+
+// ReconcileStorage moves a divorced project's files back under its slug and
+// rewrites the version paths.
+func TestReconcileStorageRepairsDivorcedProject(t *testing.T) {
+	svc, _, vstore, storage, p := buildRenameFixture(t, "realdir")
+	ctx := context.Background()
+
+	// Simulate the pre-#122 state: DB slug changed, files left behind. The
+	// version StoragePath still points at the real location.
+	p.Slug = "newslug"
+	if err := svc.projects.Update(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := svc.ReconcileStorage(ctx)
+	if err != nil {
+		t.Fatalf("ReconcileStorage: %v", err)
+	}
+	if repaired != 1 {
+		t.Fatalf("repaired = %d, want 1", repaired)
+	}
+
+	// Files now live under the current slug.
+	doc := filepath.Join(storage.VersionPath("newslug", "v1.0"), "index.html")
+	if _, err := os.Stat(doc); err != nil {
+		t.Errorf("docs should be reachable under the current slug: %v", err)
+	}
+	if _, err := os.Stat(storage.ProjectPath("realdir")); !os.IsNotExist(err) {
+		t.Error("stale directory should be gone")
+	}
+
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	if want := storage.VersionPath("newslug", "v1.0"); versions[0].StoragePath != want {
+		t.Errorf("StoragePath = %q, want %q", versions[0].StoragePath, want)
+	}
+}
+
+// Healthy installations must come through reconciliation untouched.
+func TestReconcileStorageLeavesHealthyProjectsAlone(t *testing.T) {
+	svc, _, vstore, storage, p := buildRenameFixture(t, "healthy")
+	ctx := context.Background()
+
+	repaired, err := svc.ReconcileStorage(ctx)
+	if err != nil {
+		t.Fatalf("ReconcileStorage: %v", err)
+	}
+	if repaired != 0 {
+		t.Errorf("repaired = %d, want 0 on a healthy install", repaired)
+	}
+	if _, err := os.Stat(storage.VersionPath("healthy", "v1.0")); err != nil {
+		t.Errorf("files should be untouched: %v", err)
+	}
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	if want := storage.VersionPath("healthy", "v1.0"); versions[0].StoragePath != want {
+		t.Errorf("StoragePath = %q, want %q", versions[0].StoragePath, want)
+	}
+}
+
+// A breadcrumb pointing outside the storage root must never be followed.
+func TestReconcileStorageIgnoresPathOutsideRoot(t *testing.T) {
+	svc, _, vstore, storage, p := buildRenameFixture(t, "escape")
+	ctx := context.Background()
+
+	outside := t.TempDir()
+	versions, _ := vstore.ListByProject(ctx, p.ID)
+	versions[0].StoragePath = filepath.Join(outside, "elsewhere", "v1.0")
+	if err := vstore.Update(ctx, &versions[0]); err != nil {
+		t.Fatal(err)
+	}
+	// Remove the real dir so the project looks divorced.
+	if err := os.RemoveAll(storage.ProjectPath("escape")); err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := svc.ReconcileStorage(ctx)
+	if err != nil {
+		t.Fatalf("ReconcileStorage: %v", err)
+	}
+	if repaired != 0 {
+		t.Errorf("repaired = %d, want 0 for a path outside the storage root", repaired)
+	}
+}

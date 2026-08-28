@@ -126,6 +126,24 @@ Documentation files are stored on the filesystem:
 
 PDF uploads are stored as a single `document.pdf` file in the version directory, rather than extracted from an archive.
 
+#### Slugs and storage paths
+
+A project's directory is named after its slug, and documents are served by
+recomputing the path from the slug on every request. Renaming a project
+therefore has to move its directory to match the new slug, which Asiakirjat
+does as part of the rename.
+
+If the directory is missing when you rename a project, the rename is
+**refused** with an error rather than applied. Committing it would leave the
+project resolving under its new slug with every document returning 404, and
+nothing at the old slug either.
+
+On startup Asiakirjat checks for projects whose directory does not match their
+slug and repairs them automatically, using the storage path recorded on each
+version to locate the files. Every repair is logged. This only affects
+installations upgraded from a version whose renames did not move files; a
+healthy instance is left untouched.
+
 ### Search Index
 
 Full-text search uses Bleve, stored at `{base_path}/.search-index/`:
