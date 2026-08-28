@@ -9,3 +9,4 @@ config.yaml
 CLAUDE.local.md
 .mcp.json
 node_modules/
+AUDIT.md
