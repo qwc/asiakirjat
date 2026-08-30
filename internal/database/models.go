@@ -28,7 +28,32 @@ const (
 	VisibilityPublic  = "public"  // Anyone, including anonymous users
 	VisibilityPrivate = "private" // Any authenticated user with global access
 	VisibilityCustom  = "custom"  // Only explicitly assigned users/groups
+	VisibilityList    = "list"    // Members of the named access list in AccessListID
 )
+
+// Subject types shared by global_access rules and access_list_members: the
+// kinds of thing an access rule can name.
+const (
+	SubjectTypeUser        = "user"
+	SubjectTypeLDAPGroup   = "ldap_group"
+	SubjectTypeOAuth2Group = "oauth2_group"
+)
+
+// ValidSubjectType reports whether s is a subject kind access rules may name.
+func ValidSubjectType(s string) bool {
+	switch s {
+	case SubjectTypeUser, SubjectTypeLDAPGroup, SubjectTypeOAuth2Group:
+		return true
+	}
+	return false
+}
+
+// ValidAccessRole reports whether role is one an access rule may confer.
+// Deliberately narrower than User.Role: access rules grant read or write on
+// projects, never administration.
+func ValidAccessRole(role string) bool {
+	return role == "viewer" || role == "editor"
+}
 
 type Project struct {
 	ID            int64     `db:"id"`
@@ -39,6 +64,10 @@ type Project struct {
 	RetentionDays *int      `db:"retention_days"`
 	PinnedVersion *string   `db:"pinned_version"`
 	PinPermanent  bool      `db:"pin_permanent"`
+	// AccessListID names the access list that governs this project, and is
+	// set only when Visibility is VisibilityList. The FK is ON DELETE
+	// RESTRICT: a list a project still points at cannot be deleted.
+	AccessListID *int64 `db:"access_list_id"`
 	// CreatedBy is the user who created the project. Nil for projects created
 	// before this was tracked, or whose creator has since been deleted
 	// (the column has ON DELETE SET NULL). The creator may manage their own
@@ -127,6 +156,26 @@ type UploadLog struct {
 	IsReupload bool      `db:"is_reupload"`
 	Filename   string    `db:"filename"`
 	CreatedAt  time.Time `db:"created_at"`
+}
+
+// AccessList is a named, reusable set of subjects that projects can point at
+// via Visibility = VisibilityList (issue #125). A list may hold a single LDAP
+// group, or a group plus individually named users.
+type AccessList struct {
+	ID          int64     `db:"id"`
+	Name        string    `db:"name"`
+	Description string    `db:"description"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
+// AccessListMember is one subject in an AccessList. The shape deliberately
+// mirrors GlobalAccess so both can be resolved the same way.
+type AccessListMember struct {
+	ID                int64  `db:"id"`
+	ListID            int64  `db:"list_id"`
+	SubjectType       string `db:"subject_type"`       // See SubjectType* constants
+	SubjectIdentifier string `db:"subject_identifier"` // username, LDAP DN, OAuth2 group name
+	Role              string `db:"role"`               // 'viewer' or 'editor'
 }
 
 // GlobalAccessGrant is a resolved per-user grant for private project access.
