@@ -101,8 +101,8 @@ func TestRevokeRemovesAccessRegardlessOfSource(t *testing.T) {
 // The stronger case — one user holding a manual *and* a synced grant on
 // the same project — cannot be set up on SQLite today: migration 002
 // never managed to drop the original UNIQUE(project_id, user_id) table
-// constraint, so only one row per (project, user) fits. See the
-// follow-up issue on that migration.
+// constraint, so only one row per (project, user) fits. Blocked on
+// issue #133.
 func TestRevokeTargetsTheClickedSource(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
