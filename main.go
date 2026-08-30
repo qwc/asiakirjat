@@ -146,7 +146,7 @@ func main() {
 			os.Exit(1)
 		}
 		ldapAuth = auth.NewLDAPAuthenticator(cfg.Auth.LDAP, userStore, logger)
-		ldapAuth.SetStores(accessStore, groupMappingStore, globalAccessStore)
+		ldapAuth.SetStores(accessStore, groupMappingStore, globalAccessStore, accessListStore)
 		authenticators = append(authenticators, ldapAuth)
 		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
 
@@ -166,7 +166,7 @@ func main() {
 			os.Exit(1)
 		}
 		oauth2Auth = auth.NewOAuth2Authenticator(cfg.Auth.OAuth2, userStore, logger)
-		oauth2Auth.SetStores(accessStore, groupMappingStore, globalAccessStore)
+		oauth2Auth.SetStores(accessStore, groupMappingStore, globalAccessStore, accessListStore)
 		authenticators = append(authenticators, oauth2Auth)
 		logger.Info("OAuth2 authentication enabled")
 

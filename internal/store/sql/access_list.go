@@ -225,3 +225,36 @@ func accessRoleRank(role string) int {
 		return 0
 	}
 }
+
+// ListMembersBySubjectType returns every member of that kind across all lists.
+// The login sync uses it to match a user's groups against all lists in one
+// query rather than walking list by list.
+func (s *AccessListStore) ListMembersBySubjectType(ctx context.Context, subjectType string) ([]database.AccessListMember, error) {
+	var members []database.AccessListMember
+	query := `SELECT * FROM access_list_members WHERE subject_type = ?`
+	if err := s.db.SelectContext(ctx, &members, s.db.Rebind(query), subjectType); err != nil {
+		return nil, fmt.Errorf("listing access list members by subject type: %w", err)
+	}
+	return members, nil
+}
+
+// ListGrantsByUserAndSource returns the grants one source currently holds for
+// a user, so the sync can reconcile against what the user's groups now say
+// instead of deleting everything and re-granting.
+func (s *AccessListStore) ListGrantsByUserAndSource(ctx context.Context, userID int64, source string) ([]database.AccessListGrant, error) {
+	var grants []database.AccessListGrant
+	query := `SELECT * FROM access_list_grants WHERE user_id = ? AND source = ?`
+	if err := s.db.SelectContext(ctx, &grants, s.db.Rebind(query), userID, source); err != nil {
+		return nil, fmt.Errorf("listing access list grants: %w", err)
+	}
+	return grants, nil
+}
+
+// DeleteGrant removes one source's grant for a user on a single list.
+func (s *AccessListStore) DeleteGrant(ctx context.Context, listID, userID int64, source string) error {
+	query := `DELETE FROM access_list_grants WHERE list_id = ? AND user_id = ? AND source = ?`
+	if _, err := s.db.ExecContext(ctx, s.db.Rebind(query), listID, userID, source); err != nil {
+		return fmt.Errorf("deleting access list grant: %w", err)
+	}
+	return nil
+}
