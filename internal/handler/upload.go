@@ -132,21 +132,23 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 	if isPDF {
 		contentType = "pdf"
 		if err := storePDF(file, destPath); err != nil {
+			h.logger.Error("storing PDF", "error", err, "project", slug, "version", versionTag)
 			h.storage.DeleteVersion(slug, versionTag)
 			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
-				"Error":   "Failed to store PDF: " + err.Error(),
+				"Error":   "Failed to store PDF.",
 			})
 			return
 		}
 	} else {
 		if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
+			h.logger.Error("extracting archive", "error", err, "project", slug, "version", versionTag)
 			h.storage.DeleteVersion(slug, versionTag)
 			h.render(w, r, "upload", map[string]any{
 				"User":    user,
 				"Project": project,
-				"Error":   "Failed to extract archive: " + err.Error(),
+				"Error":   "Failed to extract archive — check that it is a supported format, within the size limits, and contains no absolute or parent paths.",
 			})
 			return
 		}
