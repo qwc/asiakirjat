@@ -17,6 +17,7 @@ type checkerFixture struct {
 	projs   *sqlstore.ProjectStore
 	access  *sqlstore.ProjectAccessStore
 	global  *sqlstore.GlobalAccessStore
+	lists   *sqlstore.AccessListStore
 }
 
 func newFixture(t *testing.T) *checkerFixture {
@@ -26,12 +27,14 @@ func newFixture(t *testing.T) *checkerFixture {
 	projs := sqlstore.NewProjectStore(db)
 	access := sqlstore.NewProjectAccessStore(db)
 	global := sqlstore.NewGlobalAccessStore(db)
+	lists := sqlstore.NewAccessListStore(db)
 	return &checkerFixture{
-		checker: NewChecker(access, global, testutil.TestLogger()),
+		checker: NewChecker(access, global, lists, testutil.TestLogger()),
 		users:   users,
 		projs:   projs,
 		access:  access,
 		global:  global,
+		lists:   lists,
 	}
 }
 

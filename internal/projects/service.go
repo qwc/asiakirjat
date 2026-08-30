@@ -21,6 +21,7 @@ import (
 var (
 	ErrInvalidSlug         = errors.New("invalid slug")
 	ErrInvalidVisibility   = errors.New("invalid visibility")
+	ErrListRequired        = errors.New("list visibility requires an access list")
 	ErrPublicRequiresAdmin = errors.New("only admins can create public projects")
 	ErrSlugConflict        = errors.New("project slug already exists")
 
@@ -40,7 +41,33 @@ type CreateOptions struct {
 	Description   string
 	Visibility    string
 	RetentionDays *int
+	AccessListID  *int64
 	Creator       *database.User
+}
+
+// ValidateVisibility checks a visibility value together with the fields it
+// depends on. Kept exported and separate so the HTTP layer applies the same
+// rule as Create rather than re-deriving it.
+//
+//   - Unknown values are rejected.
+//   - VisibilityPublic is admin-only.
+//   - VisibilityList needs the access list it points at; without one the
+//     project would name no admitted subjects at all.
+func ValidateVisibility(visibility string, accessListID *int64, creator *database.User) error {
+	switch visibility {
+	case database.VisibilityPublic:
+		if creator == nil || creator.Role != "admin" {
+			return ErrPublicRequiresAdmin
+		}
+	case database.VisibilityPrivate, database.VisibilityCustom:
+	case database.VisibilityList:
+		if accessListID == nil {
+			return ErrListRequired
+		}
+	default:
+		return ErrInvalidVisibility
+	}
+	return nil
 }
 
 // Service performs project lifecycle operations. Construct via NewService.
@@ -78,14 +105,8 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 	if opts.Visibility == "" {
 		opts.Visibility = database.VisibilityPrivate
 	}
-	if opts.Visibility != database.VisibilityPublic &&
-		opts.Visibility != database.VisibilityPrivate &&
-		opts.Visibility != database.VisibilityCustom {
-		return nil, ErrInvalidVisibility
-	}
-	if opts.Visibility == database.VisibilityPublic &&
-		(opts.Creator == nil || opts.Creator.Role != "admin") {
-		return nil, ErrPublicRequiresAdmin
+	if err := ValidateVisibility(opts.Visibility, opts.AccessListID, opts.Creator); err != nil {
+		return nil, err
 	}
 
 	project := &database.Project{
@@ -94,6 +115,7 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 		Description:   opts.Description,
 		Visibility:    opts.Visibility,
 		RetentionDays: opts.RetentionDays,
+		AccessListID:  opts.AccessListID,
 	}
 	// Record provenance for all creators (admin and non-admin alike) so the
 	// manage-projects view can show "created by" and CanManage can grant the

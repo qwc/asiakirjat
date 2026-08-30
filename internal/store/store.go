@@ -96,6 +96,10 @@ type AccessListStore interface {
 	ListMembers(ctx context.Context, listID int64) ([]database.AccessListMember, error)
 	AddMember(ctx context.Context, m *database.AccessListMember) error
 	RemoveMember(ctx context.Context, memberID int64) error
+
+	UpsertGrant(ctx context.Context, g *database.AccessListGrant) error
+	DeleteGrantsBySource(ctx context.Context, userID int64, source string) error
+	RolesForUser(ctx context.Context, userID int64, username string) (map[int64]string, error)
 }
 
 type GlobalAccessStore interface {

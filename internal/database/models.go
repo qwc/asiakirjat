@@ -178,6 +178,18 @@ type AccessListMember struct {
 	Role              string `db:"role"`               // 'viewer' or 'editor'
 }
 
+// AccessListGrant is a resolved per-user grant for a named access list,
+// written by the LDAP/OAuth2 login sync when a user matches one of the list's
+// group members. Members that name a user directly need no grant — the
+// checker matches those by username — mirroring how GlobalAccess resolves.
+type AccessListGrant struct {
+	ID     int64  `db:"id"`
+	ListID int64  `db:"list_id"`
+	UserID int64  `db:"user_id"`
+	Role   string `db:"role"`   // 'viewer' or 'editor'
+	Source string `db:"source"` // 'ldap' or 'oauth2'
+}
+
 // GlobalAccessGrant is a resolved per-user grant for private project access.
 // Created from GlobalAccess rules at login time (for LDAP/OAuth2) or manually.
 type GlobalAccessGrant struct {
