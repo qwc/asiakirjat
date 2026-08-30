@@ -70,6 +70,7 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		"User":            user,
 		"IsAdmin":         isAdmin,
 		"Projects":        projectViews,
+		"AccessLists":     h.availableAccessLists(ctx),
 		"ReindexRunning":  reindexRunning,
 		"ReindexProgress": reindexProgress,
 	}
@@ -112,12 +113,14 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	visibility := r.FormValue("visibility")
 	_, err := h.projectService.Create(ctx, projects.CreateOptions{
 		Slug:          r.FormValue("slug"),
 		Name:          r.FormValue("name"),
 		Description:   r.FormValue("description"),
-		Visibility:    r.FormValue("visibility"),
+		Visibility:    visibility,
 		RetentionDays: retentionDays,
+		AccessListID:  accessListIDFromForm(r, visibility),
 		Creator:       auth.UserFromContext(ctx),
 	})
 	switch {
@@ -125,7 +128,10 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrInvalidVisibility):
-		http.Error(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		http.Error(w, "Invalid visibility: must be public, private, custom, or list", http.StatusBadRequest)
+		return
+	case errors.Is(err, projects.ErrListRequired):
+		http.Error(w, "Choose an access list for list visibility", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
@@ -203,6 +209,8 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 
 	h.render(w, r, "admin_project_edit", map[string]any{
 		"User":                   user,
+		"AccessLists":            h.availableAccessLists(ctx),
+		"CurrentAccessListID":    currentAccessListID(project),
 		"IsAdmin":                user != nil && user.Role == "admin",
 		"Project":                project,
 		"CreatedByName":          createdByName,
@@ -239,18 +247,24 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	project.Slug = newSlug
 	project.Name = r.FormValue("name")
 	project.Description = r.FormValue("description")
+	// One rule for both paths: projects.ValidateVisibility is what
+	// Service.Create applies, including that only admins may publish and
+	// that list visibility needs the list it points at.
 	visibility := r.FormValue("visibility")
-	if visibility != database.VisibilityPublic && visibility != database.VisibilityPrivate && visibility != database.VisibilityCustom {
-		visibility = database.VisibilityCustom
-	}
-	// Only admins may publish a project (mirrors projects.Service.Create:
-	// ErrPublicRequiresAdmin). A non-admin creator editing their own project
-	// cannot promote it to public.
-	if visibility == database.VisibilityPublic && (user == nil || user.Role != "admin") {
+	accessListID := accessListIDFromForm(r, visibility)
+	switch err := projects.ValidateVisibility(visibility, accessListID, user); {
+	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		http.Error(w, "Forbidden: only admins can make projects public", http.StatusForbidden)
+		return
+	case errors.Is(err, projects.ErrListRequired):
+		http.Error(w, "Choose an access list for list visibility", http.StatusBadRequest)
+		return
+	case err != nil:
+		http.Error(w, "Invalid visibility", http.StatusBadRequest)
 		return
 	}
 	project.Visibility = visibility
+	project.AccessListID = accessListID
 
 	// Parse retention_days: empty = NULL (use global default), "0" = unlimited, positive = override
 	if rd := r.FormValue("retention_days"); rd == "" {

@@ -17,6 +17,7 @@ Step-by-step guides for common tasks:
 - [Configure LDAP Authentication](how-to/configure-ldap.md)
 - [Configure OAuth2 Authentication](how-to/configure-oauth2.md)
 - [Manage Global Access](how-to/manage-global-access.md)
+- [Manage Access Lists](how-to/manage-access-lists.md)
 - [Use API Tokens](how-to/api-tokens.md)
 - [Pin a Version as Latest](how-to/pin-versions.md)
 - [CI/CD Integration](how-to/ci-cd-integration.md)
@@ -46,5 +47,6 @@ Background information and concepts:
 - **PDF Support** - Upload PDF documents with full-text search indexing
 - **Multiple Auth Methods** - Built-in users, LDAP, OAuth2/OIDC
 - **Role-Based Access** - Admin, editor, and viewer roles with project-level permissions
+- **Named Access Lists** - Reusable sets of users and groups that any number of projects can share
 - **Archive Support** - Upload .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z, or .pdf
 - **API Access** - REST API with token authentication for CI/CD integration

@@ -42,7 +42,7 @@ Read-only access:
 
 ## Project Visibility
 
-Projects have three visibility levels:
+Projects have four visibility levels:
 
 ### Public
 
@@ -61,6 +61,15 @@ Projects have three visibility levels:
 - Visible only to users with explicit per-project access grants — no org-wide path
 - Access is managed per-project in **Admin > Projects > Edit** (by an admin or by the editor who created the project)
 - Strictly more restrictive than `private`: use this when even users on the global access list should be excluded by default
+
+### Access List
+
+- Visible to the members of one **named access list** — a reusable set of users and groups
+- Choose the list in **Admin > Projects > Edit**; manage lists in **Admin > Access Lists**
+- Use this when several projects share the same audience: describe it once, point every project at it, and changing the list changes them all
+- Per-project grants still apply on top, as with `private`
+
+See [Manage Access Lists](../how-to/manage-access-lists.md).
 
 ## Project Roles
 
@@ -153,6 +162,7 @@ the underlying group mapping is removed or changed under
 | Create/edit users | Yes | No | No |
 | Manage robot users | Yes | No | No |
 | Manage group mappings | Yes | No | No |
+| Manage access lists | Yes | No | No |
 | Rebuild search index | Yes | No | No |
 
 ## Robot Users
