@@ -882,7 +882,7 @@ func TestOAuth2ProjectAccessSync(t *testing.T) {
 	auth := NewOAuth2Authenticator(config.OAuth2Config{
 		GroupsClaim: "groups",
 	}, userStore, logger)
-	auth.SetStores(accessStore, groupMappingStore, nil)
+	auth.SetStores(accessStore, groupMappingStore, nil, nil)
 	auth.oauthConfig = &oauth2.Config{
 		ClientID:     "test-client",
 		ClientSecret: "test-secret",
@@ -976,7 +976,7 @@ func TestOAuth2ProjectAccessSyncRevocation(t *testing.T) {
 	auth := NewOAuth2Authenticator(config.OAuth2Config{
 		GroupsClaim: "groups",
 	}, userStore, logger)
-	auth.SetStores(accessStore, groupMappingStore, nil)
+	auth.SetStores(accessStore, groupMappingStore, nil, nil)
 	auth.oauthConfig = &oauth2.Config{
 		ClientID:     "test-client",
 		ClientSecret: "test-secret",
@@ -1049,7 +1049,7 @@ func TestOAuth2ProjectAccessSyncHighestRoleWins(t *testing.T) {
 	auth := NewOAuth2Authenticator(config.OAuth2Config{
 		GroupsClaim: "groups",
 	}, userStore, logger)
-	auth.SetStores(accessStore, groupMappingStore, nil)
+	auth.SetStores(accessStore, groupMappingStore, nil, nil)
 	auth.oauthConfig = &oauth2.Config{
 		ClientID:     "test-client",
 		ClientSecret: "test-secret",

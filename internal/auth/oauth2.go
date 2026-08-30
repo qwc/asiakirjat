@@ -41,6 +41,7 @@ type OAuth2Authenticator struct {
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
 	globalAccess  store.GlobalAccessStore
+	accessLists   store.AccessListStore
 	logger        *slog.Logger
 
 	// In-flight auth attempts, keyed by the state token sent to the IdP.
@@ -73,7 +74,7 @@ func NewOAuth2Authenticator(cfg config.OAuth2Config, users store.UserStore, logg
 
 // SetStores sets the access, group mapping, and global access stores.
 // This is called after authenticator creation to avoid circular dependencies.
-func (a *OAuth2Authenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore) {
+func (a *OAuth2Authenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore, accessLists store.AccessListStore) {
 	a.access = access
 	a.groupMappings = groupMappings
 	a.globalAccess = globalAccess
@@ -197,6 +198,13 @@ func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code, codeVeri
 	if a.globalAccess != nil {
 		if err := a.syncGlobalAccess(ctx, user, groups); err != nil {
 			a.logger.Warn("syncing OAuth2 global access", "username", username, "error", err)
+		}
+	}
+
+	// Sync named access list membership for the user's groups
+	if a.accessLists != nil {
+		if err := syncAccessListGrants(ctx, a.accessLists, a.logger, user, groups, database.SubjectTypeOAuth2Group, "oauth2"); err != nil {
+			a.logger.Warn("syncing OAuth2 access lists", "username", username, "error", err)
 		}
 	}
 

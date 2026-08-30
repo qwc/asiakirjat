@@ -832,7 +832,7 @@ func TestLDAPProjectAccessSync(t *testing.T) {
 
 	dialer := &mockLDAPDialer{conn: mockConn}
 	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
-	auth.SetStores(accessStore, mappingStore, nil)
+	auth.SetStores(accessStore, mappingStore, nil, nil)
 
 	// Authenticate - should sync project access
 	user, err := auth.Authenticate(ctx, "developer", "password")
@@ -922,7 +922,7 @@ func TestLDAPProjectAccessSyncRevokesRemovedGroups(t *testing.T) {
 
 	dialer := &mockLDAPDialer{conn: mockConn}
 	auth := NewLDAPAuthenticatorWithDialer(cfg, userStore, testLogger(), dialer)
-	auth.SetStores(accessStore, mappingStore, nil)
+	auth.SetStores(accessStore, mappingStore, nil, nil)
 
 	// Authenticate - should revoke access
 	_, err := auth.Authenticate(ctx, "ex-dev", "password")

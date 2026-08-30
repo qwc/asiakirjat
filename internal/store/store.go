@@ -97,7 +97,11 @@ type AccessListStore interface {
 	AddMember(ctx context.Context, m *database.AccessListMember) error
 	RemoveMember(ctx context.Context, memberID int64) error
 
+	ListMembersBySubjectType(ctx context.Context, subjectType string) ([]database.AccessListMember, error)
+
 	UpsertGrant(ctx context.Context, g *database.AccessListGrant) error
+	ListGrantsByUserAndSource(ctx context.Context, userID int64, source string) ([]database.AccessListGrant, error)
+	DeleteGrant(ctx context.Context, listID, userID int64, source string) error
 	DeleteGrantsBySource(ctx context.Context, userID int64, source string) error
 	RolesForUser(ctx context.Context, userID int64, username string) (map[int64]string, error)
 }

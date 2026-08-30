@@ -49,6 +49,7 @@ type LDAPAuthenticator struct {
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
 	globalAccess  store.GlobalAccessStore
+	accessLists   store.AccessListStore
 	logger        *slog.Logger
 	dialer        LDAPDialer
 }
@@ -75,10 +76,11 @@ func NewLDAPAuthenticatorWithDialer(cfg config.LDAPConfig, users store.UserStore
 
 // SetStores sets the access, group mapping, and global access stores.
 // This is called after authenticator creation to avoid circular dependencies.
-func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore) {
+func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMappings store.AuthGroupMappingStore, globalAccess store.GlobalAccessStore, accessLists store.AccessListStore) {
 	a.access = access
 	a.groupMappings = groupMappings
 	a.globalAccess = globalAccess
+	a.accessLists = accessLists
 }
 
 func (a *LDAPAuthenticator) Name() string {
@@ -171,6 +173,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 	if a.globalAccess != nil {
 		if err := a.syncGlobalAccess(ctx, user, memberOf); err != nil {
 			a.logger.Warn("syncing LDAP global access", "username", username, "error", err)
+		}
+	}
+
+	// Sync named access list membership for the user's groups
+	if a.accessLists != nil {
+		if err := syncAccessListGrants(ctx, a.accessLists, a.logger, user, memberOf, database.SubjectTypeLDAPGroup, "ldap"); err != nil {
+			a.logger.Warn("syncing LDAP access lists", "username", username, "error", err)
 		}
 	}
 
