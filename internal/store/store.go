@@ -86,6 +86,7 @@ type GlobalAccessStore interface {
 	// Rules (global_access table)
 	ListRules(ctx context.Context) ([]database.GlobalAccess, error)
 	CreateRule(ctx context.Context, rule *database.GlobalAccess) error
+	GetUserRule(ctx context.Context, username string) (*database.GlobalAccess, error)
 	DeleteRule(ctx context.Context, id int64) error
 	SyncFromConfig(ctx context.Context, rules []database.GlobalAccess) error
 

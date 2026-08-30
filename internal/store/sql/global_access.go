@@ -42,6 +42,24 @@ func (s *GlobalAccessStore) CreateRule(ctx context.Context, rule *database.Globa
 	return nil
 }
 
+// GetUserRule returns the rule naming this username directly (subject_type
+// 'user'), if one exists. Unlike group rules, which the LDAP/OAuth2 login
+// sync resolves into grants, user rules are matched at check time — nothing
+// else ever turned them into grants, which is what made them silently
+// ineffective. Matching is case-insensitive, like group matching in the
+// authenticators.
+func (s *GlobalAccessStore) GetUserRule(ctx context.Context, username string) (*database.GlobalAccess, error) {
+	var rule database.GlobalAccess
+	query := `SELECT * FROM global_access
+		WHERE subject_type = 'user' AND LOWER(subject_identifier) = LOWER(?)
+		ORDER BY CASE role WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END DESC
+		LIMIT 1`
+	if err := s.db.GetContext(ctx, &rule, s.db.Rebind(query), username); err != nil {
+		return nil, fmt.Errorf("getting global access user rule: %w", err)
+	}
+	return &rule, nil
+}
+
 func (s *GlobalAccessStore) DeleteRule(ctx context.Context, id int64) error {
 	query := `DELETE FROM global_access WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, s.db.Rebind(query), id)
