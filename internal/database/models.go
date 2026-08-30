@@ -60,12 +60,30 @@ type Version struct {
 	CreatedAt  time.Time `db:"created_at"`
 }
 
+// Project access source constants. A user may hold one row per source on
+// the same project, so the source identifies which grant a revoke targets.
+const (
+	AccessSourceManual = "manual" // Granted by an admin or project owner in the UI
+	AccessSourceLDAP   = "ldap"   // Synced from an LDAP group mapping at login
+	AccessSourceOAuth2 = "oauth2" // Synced from an OAuth2 group mapping at login
+)
+
+// ValidAccessSource reports whether s is a source the application records
+// on project_access rows.
+func ValidAccessSource(s string) bool {
+	switch s {
+	case AccessSourceManual, AccessSourceLDAP, AccessSourceOAuth2:
+		return true
+	}
+	return false
+}
+
 type ProjectAccess struct {
 	ID        int64  `db:"id"`
 	ProjectID int64  `db:"project_id"`
 	UserID    int64  `db:"user_id"`
 	Role      string `db:"role"`
-	Source    string `db:"source"` // 'manual', 'ldap', or 'oauth2'
+	Source    string `db:"source"` // See AccessSource* constants
 }
 
 type AuthGroupMapping struct {

@@ -117,6 +117,22 @@ auth:
 
 Group mappings can also be managed in **Admin > Group Mappings**.
 
+### Grant sources
+
+Every per-project grant records where it came from, shown in the **Source**
+column of the project edit page:
+
+| Source | Meaning |
+|--------|---------|
+| `manual` | Granted by an admin or the project's creator in the UI |
+| `ldap` (synced) | Applied from an LDAP group mapping when the user logs in |
+| `oauth2` (synced) | Applied from an OAuth2 group mapping when the user logs in |
+
+**Revoke** removes the grant on the row you clicked. Revoking a synced grant
+takes effect immediately, but the user regains it at their next login unless
+the underlying group mapping is removed or changed under
+**Admin > Group Mappings**. Deleting a mapping revokes every grant it made.
+
 ## Permission Matrix
 
 | Action | Admin | Editor | Viewer |

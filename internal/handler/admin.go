@@ -165,17 +165,23 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		UserID   int64
 		Username string
 		Role     string
+		Source   string
 	}
 	var accessViews []accessView
+	hasSyncedAccess := false
 	userMap := make(map[int64]string)
 	for _, u := range users {
 		userMap[u.ID] = u.Username
 	}
 	for _, a := range accessList {
+		if a.Source != database.AccessSourceManual {
+			hasSyncedAccess = true
+		}
 		accessViews = append(accessViews, accessView{
 			UserID:   a.UserID,
 			Username: userMap[a.UserID],
 			Role:     a.Role,
+			Source:   a.Source,
 		})
 	}
 
@@ -201,6 +207,7 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		"Project":                project,
 		"CreatedByName":          createdByName,
 		"AccessList":             accessViews,
+		"HasSyncedAccess":        hasSyncedAccess,
 		"Users":                  users,
 		"RetentionDisplay":       retentionDisplay,
 		"GlobalRetentionDefault": globalRetentionLabel,
@@ -397,8 +404,21 @@ func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.access.Revoke(ctx, project.ID, userID); err != nil {
-		h.logger.Error("revoking access", "error", err)
+	// The edit page lists grants from every source, so revoke the exact
+	// row that was clicked. Without this the button silently did nothing
+	// for LDAP- and OAuth2-synced grants (issue #126). An absent field
+	// keeps the previous manual-only behaviour.
+	source := r.FormValue("source")
+	if source == "" {
+		source = database.AccessSourceManual
+	}
+	if !database.ValidAccessSource(source) {
+		http.Error(w, "Invalid access source", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.access.RevokeBySource(ctx, project.ID, userID, source); err != nil {
+		h.logger.Error("revoking access", "error", err, "source", source)
 		http.Error(w, "Failed to revoke access", http.StatusInternalServerError)
 		return
 	}
