@@ -82,6 +82,22 @@ type UploadLogStore interface {
 	ListByProject(ctx context.Context, projectID int64) ([]database.UploadLog, error)
 }
 
+// AccessListStore manages named access lists: reusable sets of subjects that
+// a project can point at via Visibility = VisibilityList (issue #125).
+type AccessListStore interface {
+	List(ctx context.Context) ([]database.AccessList, error)
+	GetByID(ctx context.Context, id int64) (*database.AccessList, error)
+	GetByName(ctx context.Context, name string) (*database.AccessList, error)
+	Create(ctx context.Context, list *database.AccessList) error
+	Update(ctx context.Context, list *database.AccessList) error
+	Delete(ctx context.Context, id int64) error
+	CountProjectsUsing(ctx context.Context, id int64) (int, error)
+
+	ListMembers(ctx context.Context, listID int64) ([]database.AccessListMember, error)
+	AddMember(ctx context.Context, m *database.AccessListMember) error
+	RemoveMember(ctx context.Context, memberID int64) error
+}
+
 type GlobalAccessStore interface {
 	// Rules (global_access table)
 	ListRules(ctx context.Context) ([]database.GlobalAccess, error)
