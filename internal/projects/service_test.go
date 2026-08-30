@@ -317,7 +317,6 @@ func TestCreateSlugConflict(t *testing.T) {
 	}
 }
 
-
 // A project with deployed versions whose storage directory has gone missing
 // must not have its rename committed: doing so leaves the docs unreachable at
 // both the old and the new slug (issue #129).
@@ -462,5 +461,30 @@ func TestReconcileStorageIgnoresPathOutsideRoot(t *testing.T) {
 	}
 	if repaired != 0 {
 		t.Errorf("repaired = %d, want 0 for a path outside the storage root", repaired)
+	}
+}
+
+// TestListVisibilityRequiresAccessList pins the rule that a list-governed
+// project must name the list it is governed by: without one it would admit
+// nobody, which is a configuration mistake rather than a valid state.
+func TestListVisibilityRequiresAccessList(t *testing.T) {
+	admin := &database.User{ID: 1, Username: "admin", Role: "admin"}
+
+	if err := ValidateVisibility(database.VisibilityList, nil, admin); !errors.Is(err, ErrListRequired) {
+		t.Errorf("expected ErrListRequired without a list, got %v", err)
+	}
+
+	listID := int64(7)
+	if err := ValidateVisibility(database.VisibilityList, &listID, admin); err != nil {
+		t.Errorf("expected list visibility with a list to validate, got %v", err)
+	}
+
+	// The other rules are unchanged.
+	editor := &database.User{ID: 2, Username: "editor", Role: "editor"}
+	if err := ValidateVisibility(database.VisibilityPublic, nil, editor); !errors.Is(err, ErrPublicRequiresAdmin) {
+		t.Errorf("expected public to stay admin-only, got %v", err)
+	}
+	if err := ValidateVisibility("nonsense", nil, admin); !errors.Is(err, ErrInvalidVisibility) {
+		t.Errorf("expected an unknown visibility to be rejected, got %v", err)
 	}
 }

@@ -22,17 +22,18 @@ import (
 type Checker struct {
 	access       store.ProjectAccessStore
 	globalAccess store.GlobalAccessStore
+	accessLists  store.AccessListStore
 	logger       *slog.Logger
 }
 
 // NewChecker wires the stores. logger may be nil; slog's default is used.
-// globalAccess may be nil in tests / deployments without global access rules;
-// the checker treats a nil store as "no global grants" everywhere.
-func NewChecker(a store.ProjectAccessStore, g store.GlobalAccessStore, l *slog.Logger) *Checker {
+// globalAccess and accessLists may be nil in tests / deployments without
+// those features; the checker treats a nil store as "no grants" everywhere.
+func NewChecker(a store.ProjectAccessStore, g store.GlobalAccessStore, al store.AccessListStore, l *slog.Logger) *Checker {
 	if l == nil {
 		l = slog.Default()
 	}
-	return &Checker{access: a, globalAccess: g, logger: l}
+	return &Checker{access: a, globalAccess: g, accessLists: al, logger: l}
 }
 
 // globalRole returns the user's effective global-access role for
@@ -61,6 +62,22 @@ func (c *Checker) globalRole(ctx context.Context, user *database.User) string {
 		}
 	}
 	return role
+}
+
+// listRole returns the user's role in the named access list governing this
+// project, or "" if the list does not admit them. A project whose visibility
+// is VisibilityList but whose list pointer is missing admits nobody: the list
+// it named is the only thing that could let anyone in, so it fails closed.
+func (c *Checker) listRole(ctx context.Context, user *database.User, project *database.Project) string {
+	if c.accessLists == nil || user == nil || project.AccessListID == nil {
+		return ""
+	}
+	roles, err := c.accessLists.RolesForUser(ctx, user.ID, user.Username)
+	if err != nil {
+		c.logger.Debug("access list lookup failed", "username", user.Username, "project", project.Slug, "error", err)
+		return ""
+	}
+	return roles[*project.AccessListID]
 }
 
 // roleRank orders access roles so the strongest of several sources wins.
@@ -122,6 +139,22 @@ func (c *Checker) CanView(ctx context.Context, user *database.User, project *dat
 		c.logger.Debug("access denied: no global or per-project grant for private project", "username", username, "project", project.Slug, "user_id", user.ID)
 		return false
 	}
+	if project.Visibility == database.VisibilityList {
+		if role := c.listRole(ctx, user, project); role != "" {
+			c.logger.Debug("access granted: access list", "username", username, "project", project.Slug, "list_role", role)
+			return true
+		}
+		// A per-project grant still counts, matching the private branch:
+		// naming someone on the project itself is more specific than the
+		// list, never less.
+		effectiveRole, err := c.access.GetEffectiveRole(ctx, project.ID, user.ID)
+		if err == nil && effectiveRole != "" {
+			c.logger.Debug("access granted: per-project grant on list project", "username", username, "project", project.Slug, "effective_role", effectiveRole)
+			return true
+		}
+		c.logger.Debug("access denied: not in access list", "username", username, "project", project.Slug, "user_id", user.ID)
+		return false
+	}
 	// VisibilityCustom: per-project access (manual + LDAP + OAuth2 sources).
 	effectiveRole, err := c.access.GetEffectiveRole(ctx, project.ID, user.ID)
 	allowed := err == nil && effectiveRole != ""
@@ -156,6 +189,12 @@ func (c *Checker) CanUpload(ctx context.Context, user *database.User, project *d
 	if project.Visibility == database.VisibilityPrivate {
 		if role := c.globalRole(ctx, user); role == "editor" || role == "admin" {
 			c.logger.Debug("upload granted: global access", "username", user.Username, "project", project.Slug, "global_role", role)
+			return true
+		}
+	}
+	if project.Visibility == database.VisibilityList {
+		if role := c.listRole(ctx, user, project); role == "editor" {
+			c.logger.Debug("upload granted: access list", "username", user.Username, "project", project.Slug, "list_role", role)
 			return true
 		}
 	}
@@ -208,6 +247,14 @@ func (c *Checker) FilterAccessible(ctx context.Context, user *database.User, all
 
 	hasGlobalAccess := c.globalRole(ctx, user) != ""
 
+	// One lookup for every list the user is in, rather than one per project.
+	listRoles := map[int64]string{}
+	if c.accessLists != nil {
+		if roles, err := c.accessLists.RolesForUser(ctx, user.ID, user.Username); err == nil {
+			listRoles = roles
+		}
+	}
+
 	var filtered []database.Project
 	for _, p := range all {
 		switch p.Visibility {
@@ -216,6 +263,10 @@ func (c *Checker) FilterAccessible(ctx context.Context, user *database.User, all
 		case database.VisibilityPrivate:
 			// Mirrors CanView: org-wide global grant OR per-project grant.
 			if hasGlobalAccess || accessMap[p.ID] {
+				filtered = append(filtered, p)
+			}
+		case database.VisibilityList:
+			if p.AccessListID != nil && listRoles[*p.AccessListID] != "" || accessMap[p.ID] {
 				filtered = append(filtered, p)
 			}
 		case database.VisibilityCustom:

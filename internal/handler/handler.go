@@ -29,6 +29,7 @@ type Handler struct {
 	tokens         store.TokenStore
 	groupMappings  store.AuthGroupMappingStore
 	globalAccess   store.GlobalAccessStore
+	accessLists    store.AccessListStore
 	uploadLogs     store.UploadLogStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
@@ -66,6 +67,7 @@ type Deps struct {
 	Tokens         store.TokenStore
 	GroupMappings  store.AuthGroupMappingStore
 	GlobalAccess   store.GlobalAccessStore
+	AccessLists    store.AccessListStore
 	UploadLogs     store.UploadLogStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
@@ -88,6 +90,7 @@ func New(deps Deps) *Handler {
 		tokens:         deps.Tokens,
 		groupMappings:  deps.GroupMappings,
 		globalAccess:   deps.GlobalAccess,
+		accessLists:    deps.AccessLists,
 		uploadLogs:     deps.UploadLogs,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
@@ -97,7 +100,7 @@ func New(deps Deps) *Handler {
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
 		projectService: projects.NewService(deps.Projects, deps.Versions, deps.Access, deps.Storage, deps.Logger),
-		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.Logger),
+		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.AccessLists, deps.Logger),
 		jobs:           newJobs(),
 		projectLocks:   newKeyedMutex(),
 		logger:         deps.Logger,

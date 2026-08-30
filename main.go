@@ -94,6 +94,7 @@ func main() {
 	tokenStore := sqlstore.NewTokenStore(db)
 	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
 	globalAccessStore := sqlstore.NewGlobalAccessStore(db)
+	accessListStore := sqlstore.NewAccessListStore(db)
 	uploadLogStore := sqlstore.NewUploadLogStore(db)
 
 	// Initialize storage
@@ -218,6 +219,7 @@ func main() {
 		Tokens:         tokenStore,
 		GroupMappings:  groupMappingStore,
 		GlobalAccess:   globalAccessStore,
+		AccessLists:    accessListStore,
 		UploadLogs:     uploadLogStore,
 		Authenticators: authenticators,
 		OAuth2Auth:     oauth2Auth,
