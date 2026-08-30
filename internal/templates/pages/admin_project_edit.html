@@ -61,6 +61,7 @@
             <tr>
                 <th>User</th>
                 <th>Role</th>
+                <th>Source</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -69,19 +70,27 @@
             <tr>
                 <td>{{.Username}}</td>
                 <td>{{.Role}}</td>
+                <td>{{if eq .Source "manual"}}manual{{else}}{{.Source}} (synced){{end}}</td>
                 <td>
                     <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/access/revoke" class="inline-form">
                         {{template "csrf_field" $.CSRFToken}}
                         <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <input type="hidden" name="source" value="{{.Source}}">
                         <button type="submit" class="btn btn-small btn-danger">Revoke</button>
                     </form>
                 </td>
             </tr>
             {{else}}
-            <tr><td colspan="3">No specific access grants.</td></tr>
+            <tr><td colspan="4">No specific access grants.</td></tr>
             {{end}}
         </tbody>
     </table>
+
+    {{if .HasSyncedAccess}}
+    <p><small>Grants marked <em>synced</em> come from an LDAP or OAuth2 group mapping.
+    Revoking one takes effect immediately, but the user regains it at their next login
+    unless the group mapping is changed in <strong>Admin &gt; Group Mappings</strong>.</small></p>
+    {{end}}
 
     <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
         {{template "csrf_field" $.CSRFToken}}
