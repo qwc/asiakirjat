@@ -62,6 +62,18 @@ func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.
 
 	keep := h.versionKeeper(project)
 
+	// A permanent pin outranks the keep pattern (issue #141). Pinning says
+	// "this is the version people should land on", which is the same claim
+	// the pattern makes, so deleting a pinned version leaves the pin dangling
+	// and silently moves readers to a different version. Temporary pins are
+	// not protected: they are cleared by the next upload anyway, so treating
+	// them as permanent would keep a version the project already moved on
+	// from.
+	pinned := ""
+	if project.PinPermanent && project.PinnedVersion != nil {
+		pinned = *project.PinnedVersion
+	}
+
 	versions, err := h.versions.ListByProject(ctx, project.ID)
 	if err != nil {
 		h.logger.Error("retention: listing versions", "error", err, "project", project.Slug)
@@ -72,6 +84,11 @@ func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.
 
 	for _, v := range versions {
 		if keep(v.Tag) {
+			continue
+		}
+		if v.Tag == pinned {
+			h.logger.Debug("retention: keeping permanently pinned version",
+				"project", project.Slug, "version", v.Tag)
 			continue
 		}
 		if v.CreatedAt.After(cutoff) {
