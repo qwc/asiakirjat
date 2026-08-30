@@ -97,14 +97,18 @@ branding:
 
 ```yaml
 retention:
-  nonsemver_days: 0              # Days to keep non-semver versions (0 = unlimited)
+  nonsemver_days: 0                  # Days to keep non-matching versions (0 = unlimited)
+  keep_pattern: "^v?\d+\.\d+\.\d+$"  # Versions kept indefinitely
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `nonsemver_days` | `0` | Delete non-semver versions older than this many days. `0` means unlimited (no automatic deletion). |
+| `nonsemver_days` | `0` | Delete versions that do not match `keep_pattern`, once older than this many days. `0` means unlimited (no automatic deletion). |
+| `keep_pattern` | `^v?\d+\.\d+\.\d+$` | Regular expression naming the versions kept indefinitely. The default keeps release numbers — `v1.2.3`, `2.0.0` — and lets release candidates, dated builds and branch names expire. Widen it to `^v?\d+(\.\d+)*$` if you also tag `v1.2` or `v2`. |
 
-Retention can also be configured per-project in the admin UI.
+Retention can also be configured per-project in the admin UI, where a project can
+additionally name the versions it wants to keep with a regular expression — see
+[Version Retention](../how-to/version-retention.md).
 
 ## Project Settings
 

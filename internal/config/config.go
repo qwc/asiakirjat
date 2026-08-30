@@ -25,8 +25,19 @@ type ProjectsConfig struct {
 	AutoCreate bool `yaml:"auto_create" env:"ASIAKIRJAT_PROJECTS_AUTO_CREATE"`
 }
 
+// DefaultVersionKeepPattern is the instance-wide rule for which versions
+// retention keeps: a release number, optionally prefixed with "v" — v1.2.3,
+// 2.0.0. Anything else (release candidates, dated builds, branch names) is
+// subject to the retention period. A project can override it with its own
+// pattern in the admin UI (issue #127).
+const DefaultVersionKeepPattern = `^v?\d+\.\d+\.\d+$`
+
 type RetentionConfig struct {
 	NonSemverDays int `yaml:"nonsemver_days" env:"ASIAKIRJAT_RETENTION_NONSEMVER_DAYS"`
+	// KeepPattern is the default version keep pattern for projects that do
+	// not set their own. Empty means "keep anything version-shaped", the
+	// looser pre-#127 rule.
+	KeepPattern string `yaml:"keep_pattern" env:"ASIAKIRJAT_RETENTION_KEEP_PATTERN"`
 }
 
 type BrandingConfig struct {
@@ -155,6 +166,9 @@ func Defaults() Config {
 		},
 		Storage: StorageConfig{
 			BasePath: "data/projects",
+		},
+		Retention: RetentionConfig{
+			KeepPattern: DefaultVersionKeepPattern,
 		},
 	}
 }

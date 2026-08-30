@@ -20,6 +20,7 @@ Step-by-step guides for common tasks:
 - [Manage Access Lists](how-to/manage-access-lists.md)
 - [Use API Tokens](how-to/api-tokens.md)
 - [Pin a Version as Latest](how-to/pin-versions.md)
+- [Version Retention](how-to/version-retention.md)
 - [CI/CD Integration](how-to/ci-cd-integration.md)
 
 ## Reference

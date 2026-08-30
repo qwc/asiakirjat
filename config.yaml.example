@@ -98,9 +98,20 @@ storage:
   base_path: "data/projects"
 
 retention:
-  # nonsemver_days: Auto-delete non-semver versions older than N days (0 = unlimited)
+  # nonsemver_days: Auto-delete versions the keep pattern below does not match,
+  # once older than N days (0 = unlimited, the default: nothing is deleted).
   # Can be overridden per-project in the admin UI.
   # nonsemver_days: 14
+
+  # keep_pattern: which versions are kept indefinitely. The default keeps
+  # release numbers with an optional "v" prefix, so v1.2.3 and 2.0.0 stay while
+  # release candidates (v1.2.3-rc1), dated builds (2026-01-01) and branch names
+  # (main) expire once older than nonsemver_days.
+  #
+  # Widen it if you tag releases differently — "^v?\d+(\.\d+)*$" also keeps
+  # v1.2 and v2 — or set it per-project in the admin UI. Only matters when
+  # nonsemver_days is non-zero; with 0 nothing is ever deleted.
+  # keep_pattern: "^v?\d+\.\d+\.\d+$"
 
 branding:
   # app_name: Custom application name displayed in navbar (default: "asiakirjat")

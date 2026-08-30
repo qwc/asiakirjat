@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -218,6 +219,7 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		"HasSyncedAccess":        hasSyncedAccess,
 		"Users":                  users,
 		"RetentionDisplay":       retentionDisplay,
+		"VersionKeepPattern":     keepPatternDisplay(project),
 		"GlobalRetentionDefault": globalRetentionLabel,
 	})
 }
@@ -265,6 +267,19 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	}
 	project.Visibility = visibility
 	project.AccessListID = accessListID
+
+	// A version keep pattern is optional; empty clears it and restores the
+	// "keep semver tags" default.
+	keepPattern := strings.TrimSpace(r.FormValue("version_keep_pattern"))
+	if err := projects.ValidateVersionKeepPattern(keepPattern); err != nil {
+		http.Error(w, "Invalid version keep pattern: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if keepPattern == "" {
+		project.VersionKeepPattern = nil
+	} else {
+		project.VersionKeepPattern = &keepPattern
+	}
 
 	// Parse retention_days: empty = NULL (use global default), "0" = unlimited, positive = override
 	if rd := r.FormValue("retention_days"); rd == "" {
