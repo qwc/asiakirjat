@@ -35,6 +35,48 @@ func NewChecker(a store.ProjectAccessStore, g store.GlobalAccessStore, l *slog.L
 	return &Checker{access: a, globalAccess: g, logger: l}
 }
 
+// globalRole returns the user's effective global-access role for
+// private-visibility projects, or "" if they have none.
+//
+// Two things can confer it, and the stronger of the two wins:
+//
+//   - A resolved grant, written by the LDAP/OAuth2 login sync from a
+//     matching ldap_group / oauth2_group rule.
+//   - A rule naming the user directly (subject_type 'user'), matched here
+//     at check time. Nothing ever resolved those into grants — main.go's
+//     config sync had a loop over them whose body was `continue` — so
+//     naming a user in Admin > Global Access or access.private.*.users
+//     silently granted nothing.
+func (c *Checker) globalRole(ctx context.Context, user *database.User) string {
+	if c.globalAccess == nil || user == nil {
+		return ""
+	}
+	var role string
+	if grant, err := c.globalAccess.GetGrantByUser(ctx, user.ID); err == nil && grant != nil {
+		role = grant.Role
+	}
+	if rule, err := c.globalAccess.GetUserRule(ctx, user.Username); err == nil && rule != nil {
+		if roleRank(rule.Role) > roleRank(role) {
+			role = rule.Role
+		}
+	}
+	return role
+}
+
+// roleRank orders access roles so the strongest of several sources wins.
+func roleRank(role string) int {
+	switch role {
+	case "admin":
+		return 3
+	case "editor":
+		return 2
+	case "viewer":
+		return 1
+	default:
+		return 0
+	}
+}
+
 // CanView reports whether user is allowed to view project.
 //
 // Rules:
@@ -65,12 +107,9 @@ func (c *Checker) CanView(ctx context.Context, user *database.User, project *dat
 		return true
 	}
 	if project.Visibility == database.VisibilityPrivate {
-		if c.globalAccess != nil {
-			grant, err := c.globalAccess.GetGrantByUser(ctx, user.ID)
-			if err == nil && grant != nil {
-				c.logger.Debug("access granted: global access grant", "username", username, "project", project.Slug, "grant_role", grant.Role, "grant_source", grant.Source)
-				return true
-			}
+		if role := c.globalRole(ctx, user); role != "" {
+			c.logger.Debug("access granted: global access", "username", username, "project", project.Slug, "global_role", role)
+			return true
 		}
 		// Fall through to per-project grant. Same store call as the
 		// custom branch below; kept separate so the debug log identifies
@@ -114,10 +153,9 @@ func (c *Checker) CanUpload(ctx context.Context, user *database.User, project *d
 		c.logger.Debug("upload granted: global role", "username", user.Username, "project", project.Slug, "role", user.Role)
 		return true
 	}
-	if project.Visibility == database.VisibilityPrivate && c.globalAccess != nil {
-		grant, err := c.globalAccess.GetGrantByUser(ctx, user.ID)
-		if err == nil && grant != nil && (grant.Role == "editor" || grant.Role == "admin") {
-			c.logger.Debug("upload granted: global access grant", "username", user.Username, "project", project.Slug, "grant_role", grant.Role)
+	if project.Visibility == database.VisibilityPrivate {
+		if role := c.globalRole(ctx, user); role == "editor" || role == "admin" {
+			c.logger.Debug("upload granted: global access", "username", user.Username, "project", project.Slug, "global_role", role)
 			return true
 		}
 	}
@@ -168,13 +206,7 @@ func (c *Checker) FilterAccessible(ctx context.Context, user *database.User, all
 		accessMap[id] = true
 	}
 
-	var hasGlobalAccess bool
-	if c.globalAccess != nil {
-		grant, err := c.globalAccess.GetGrantByUser(ctx, user.ID)
-		if err == nil && grant != nil {
-			hasGlobalAccess = true
-		}
-	}
+	hasGlobalAccess := c.globalRole(ctx, user) != ""
 
 	var filtered []database.Project
 	for _, p := range all {

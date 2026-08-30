@@ -304,8 +304,7 @@ func syncConfigGroupMappings(ctx context.Context, logger *slog.Logger, projects 
 	return nil
 }
 
-// syncGlobalAccessConfig converts access.private config rules to database records
-// and resolves user-type rules into direct grants.
+// syncGlobalAccessConfig converts access.private config rules to database records.
 func syncGlobalAccessConfig(ctx context.Context, logger *slog.Logger, globalAccess store.GlobalAccessStore, cfg *config.Config) {
 	var rules []database.GlobalAccess
 
@@ -351,16 +350,10 @@ func syncGlobalAccessConfig(ctx context.Context, logger *slog.Logger, globalAcce
 		logger.Info("synced global access config", "rules", len(rules))
 	}
 
-	// Resolve user-type rules into direct grants
-	for _, rule := range rules {
-		if rule.SubjectType == "user" {
-			// Direct user rules create manual grants at startup
-			// (LDAP/OAuth2 group rules are resolved at login time)
-			// We need the user store for this, but we'll handle it via
-			// the admin UI and auth sync instead to keep startup simple.
-			continue
-		}
-	}
+	// User-type rules need no resolution step here: access.Checker matches
+	// them by username at check time, so they apply to users created after
+	// startup too. Group rules are resolved into grants by the LDAP/OAuth2
+	// login sync.
 }
 
 // minInitialAdminPasswordLen is the minimum acceptable length for the

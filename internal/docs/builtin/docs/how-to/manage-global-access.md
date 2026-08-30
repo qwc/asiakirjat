@@ -24,7 +24,10 @@ Use **private** visibility when you want all organization members (or a broad gr
    - **Role**: `viewer` (read-only) or `editor` (read + upload)
 4. Click **Create**
 
-Rules take effect immediately. LDAP and OAuth2 group rules are resolved into per-user grants at login time.
+Rules take effect immediately. A rule naming a user directly is matched by username
+whenever access is checked, so it also covers users who are created later. LDAP and
+OAuth2 group rules are resolved into per-user grants at login time, so a group rule
+reaches a user on their next sign-in.
 
 To remove a rule, click **Delete** next to it. Config-sourced rules (from `config.yaml`) cannot be deleted through the UI — remove them from the config file instead.
 
