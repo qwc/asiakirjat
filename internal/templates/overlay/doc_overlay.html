@@ -161,6 +161,22 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
+#asiakirjat-overlay .ao-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    user-select: none;
+}
+#asiakirjat-overlay .ao-checkbox input {
+    margin: 0;
+    cursor: pointer;
+}
 #asiakirjat-overlay .ao-select {
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
@@ -313,6 +329,11 @@ del.asiakirjat-current-change {
                     data-slug="{{.Slug}}" data-version="{{.Version}}">
                 <div class="ao-search-dropdown" id="asiakirjat-overlay-search-dropdown"></div>
             </div>
+            <label class="ao-checkbox" id="asiakirjat-version-filter"
+                title="Also list release candidates, prereleases and branch builds">
+                <input type="checkbox" id="asiakirjat-show-all-versions">
+                <span>All</span>
+            </label>
             <span class="ao-label">Version</span>
             <select id="asiakirjat-version-select" class="ao-select" data-slug="{{.Slug}}" data-current="{{.Version}}">
                 <option value="{{.Version}}" selected>{{.Version}}</option>

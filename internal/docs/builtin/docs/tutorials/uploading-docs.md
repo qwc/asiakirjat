@@ -66,6 +66,21 @@ Versions are sorted using semantic versioning (semver) rules:
 - `latest` and `main` are sorted to the top
 - Non-semver versions are sorted alphabetically
 
+## Which Versions Are Shown
+
+The version picker in the documentation top bar lists **stable releases** only:
+tags that are digits and dots after an optional `v`, such as `1.4`, `v2.0.0`.
+Release candidates and prereleases (`v2.0.0-rc1`, `v1.0-beta`) and branch builds
+(`main`, `feature-login`) are hidden, so a project that publishes a build per
+branch still has a readable picker.
+
+Tick **All** in the top bar to list everything; the choice is remembered as you
+move between pages. Two exceptions keep the picker honest: the version you are
+currently reading is always listed even if it is a prerelease, and a project
+with no stable releases at all shows every version and hides the checkbox.
+
+The **Compare** dropdown follows the same filter.
+
 ## Overwriting Versions
 
 Uploading the same version tag again will:

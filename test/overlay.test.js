@@ -33,6 +33,9 @@ const VERSIONS = [
 function markup(dataCurrent) {
   return `<!DOCTYPE html><html><body>
     <div id="asiakirjat-overlay">
+      <label id="asiakirjat-version-filter">
+        <input type="checkbox" id="asiakirjat-show-all-versions">
+      </label>
       <select id="asiakirjat-version-select" data-slug="docs" data-current="${dataCurrent}"></select>
       <select id="asiakirjat-compare-select" data-slug="docs" data-current="${dataCurrent}">
         <option value="">Select version...</option>
@@ -82,8 +85,35 @@ async function boot({ url, dataCurrent, fetchImpl }) {
   return window;
 }
 
-function versionsResponse() {
-  return Promise.resolve({ ok: true, json: () => Promise.resolve(VERSIONS) });
+function versionsResponse(list = VERSIONS) {
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(list) });
+}
+
+// A project that publishes releases, release candidates and branch builds —
+// the situation the version filter exists for (issue #128).
+const MIXED_VERSIONS = [
+  { tag: "v2.0.0", content_type: "archive" },
+  { tag: "v2.0.0-rc1", content_type: "archive" },
+  { tag: "v1.9", content_type: "archive" },
+  { tag: "main", content_type: "archive" },
+  { tag: "feature-login", content_type: "archive" },
+];
+
+function tagsIn(select) {
+  return Array.from(select.options)
+    .map((o) => o.value)
+    .filter((v) => v !== "");
+}
+
+async function bootWithVersions({ dataCurrent, list }) {
+  return boot({
+    url: `http://localhost/project/docs/${dataCurrent}/guide.html`,
+    dataCurrent,
+    fetchImpl: (u) => {
+      if (String(u).indexOf("/api/project/") !== -1) return versionsResponse(list);
+      return Promise.resolve({ ok: false, text: () => Promise.resolve("") });
+    },
+  });
 }
 
 // Drive a compare against `targetVersion`. The document fetch is forced to fail
@@ -147,4 +177,94 @@ test("error bar is shown positioned below the overlay (not hidden behind it)", a
   // The static header text and Exit button remain in the bar.
   assert.match(indicator.textContent, /Showing changes from version/);
   assert.ok(window.document.getElementById("asiakirjat-exit-diff"));
+});
+
+test("version picker hides prereleases and branch builds by default", async () => {
+  const window = await bootWithVersions({ dataCurrent: "v2.0.0", list: MIXED_VERSIONS });
+  const versionSelect = window.document.getElementById("asiakirjat-version-select");
+
+  assert.deepStrictEqual(
+    tagsIn(versionSelect),
+    ["v2.0.0", "v1.9"],
+    "only stable releases should be listed until 'All releases' is ticked"
+  );
+});
+
+test("ticking 'All releases' reveals prereleases and branch builds", async () => {
+  const window = await bootWithVersions({ dataCurrent: "v2.0.0", list: MIXED_VERSIONS });
+  const versionSelect = window.document.getElementById("asiakirjat-version-select");
+  const toggle = window.document.getElementById("asiakirjat-show-all-versions");
+
+  toggle.checked = true;
+  toggle.dispatchEvent(new window.Event("change"));
+  await flush(window);
+
+  assert.deepStrictEqual(
+    tagsIn(versionSelect),
+    MIXED_VERSIONS.map((v) => v.tag),
+    "every version should be listed once the filter is off"
+  );
+
+  // And the choice is remembered for the next page.
+  assert.strictEqual(window.localStorage.getItem("asiakirjat:show-all-versions"), "1");
+});
+
+test("the version being viewed is listed even when it is a prerelease", async () => {
+  const window = await bootWithVersions({ dataCurrent: "v2.0.0-rc1", list: MIXED_VERSIONS });
+  const versionSelect = window.document.getElementById("asiakirjat-version-select");
+
+  assert.ok(
+    tagsIn(versionSelect).includes("v2.0.0-rc1"),
+    "the picker must be able to show the version currently being read"
+  );
+  assert.strictEqual(
+    versionSelect.value,
+    "v2.0.0-rc1",
+    "and it must be the selected option"
+  );
+  assert.ok(
+    !tagsIn(versionSelect).includes("main"),
+    "other unstable versions stay hidden"
+  );
+});
+
+test("the filter is hidden when there is nothing to filter", async () => {
+  const window = await bootWithVersions({
+    dataCurrent: "main",
+    list: [
+      { tag: "main", content_type: "archive" },
+      { tag: "feature-login", content_type: "archive" },
+    ],
+  });
+  const versionSelect = window.document.getElementById("asiakirjat-version-select");
+  const wrap = window.document.getElementById("asiakirjat-version-filter");
+
+  assert.strictEqual(wrap.style.display, "none", "no stable releases: the checkbox is pointless");
+  assert.deepStrictEqual(
+    tagsIn(versionSelect),
+    ["main", "feature-login"],
+    "and every version stays listed rather than the picker going empty"
+  );
+});
+
+test("the compare dropdown follows the same filter", async () => {
+  const window = await bootWithVersions({ dataCurrent: "v2.0.0", list: MIXED_VERSIONS });
+  const compare = window.document.getElementById("asiakirjat-compare-select");
+
+  assert.deepStrictEqual(
+    tagsIn(compare),
+    ["v1.9"],
+    "compare lists stable releases other than the current one"
+  );
+
+  const toggle = window.document.getElementById("asiakirjat-show-all-versions");
+  toggle.checked = true;
+  toggle.dispatchEvent(new window.Event("change"));
+  await flush(window);
+
+  assert.deepStrictEqual(
+    tagsIn(compare),
+    ["v2.0.0-rc1", "v1.9", "main", "feature-login"],
+    "and everything but the current version once the filter is off"
+  );
 });
