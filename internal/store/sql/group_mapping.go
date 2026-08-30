@@ -44,6 +44,10 @@ func (s *AuthGroupMappingStore) GetByID(ctx context.Context, id int64) (*databas
 }
 
 func (s *AuthGroupMappingStore) Create(ctx context.Context, mapping *database.AuthGroupMapping) error {
+	if !database.ValidAccessRole(mapping.Role) {
+		return fmt.Errorf("creating group mapping: invalid role %q", mapping.Role)
+	}
+
 	query := `INSERT INTO auth_group_mappings (auth_source, group_identifier, project_id, role, from_config)
 		VALUES (?, ?, ?, ?, ?)`
 	result, err := s.db.ExecContext(ctx, s.db.Rebind(query),
@@ -60,6 +64,10 @@ func (s *AuthGroupMappingStore) Create(ctx context.Context, mapping *database.Au
 }
 
 func (s *AuthGroupMappingStore) Update(ctx context.Context, mapping *database.AuthGroupMapping) error {
+	if !database.ValidAccessRole(mapping.Role) {
+		return fmt.Errorf("updating group mapping: invalid role %q", mapping.Role)
+	}
+
 	query := `UPDATE auth_group_mappings SET auth_source = ?, group_identifier = ?, project_id = ?, role = ?, from_config = ?
 		WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, s.db.Rebind(query),
