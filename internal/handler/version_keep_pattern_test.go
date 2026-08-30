@@ -84,9 +84,11 @@ func TestKeepPatternDecidesWhatExpires(t *testing.T) {
 	}
 }
 
-// TestNoKeepPatternKeepsSemverRule: projects that never set a pattern behave
-// exactly as before.
-func TestNoKeepPatternKeepsSemverRule(t *testing.T) {
+// TestInstanceDefaultKeepsReleaseNumbers pins what a project with no pattern of
+// its own inherits: retention.keep_pattern, which keeps release numbers and
+// expires everything else — including two-component tags and release
+// candidates, which the older "looks like semver" rule kept.
+func TestInstanceDefaultKeepsReleaseNumbers(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 
@@ -97,14 +99,100 @@ func TestNoKeepPatternKeepsSemverRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	seedAgedVersion(t, app, project, "v2.0.0", 400)
+	seedAgedVersion(t, app, project, "v2.0.0", 400)     // release number: kept
+	seedAgedVersion(t, app, project, "3.1.4", 400)      // release number, no v: kept
+	seedAgedVersion(t, app, project, "v1.9", 400)       // two components: expires
+	seedAgedVersion(t, app, project, "v2.1.0-rc1", 400) // release candidate: expires
+	seedAgedVersion(t, app, project, "nightly", 400)    // branch build: expires
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	got := remainingTags(t, app, project.ID)
+	want := map[string]bool{"v2.0.0": true, "3.1.4": true}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for _, tag := range got {
+		if !want[tag] {
+			t.Errorf("did not expect %q to survive the default pattern", tag)
+		}
+	}
+}
+
+// TestInstanceDefaultCanBeWidened: an operator who tags v1.2 changes one
+// config value rather than editing every project.
+func TestInstanceDefaultCanBeWidened(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	app.handler.config.Retention.KeepPattern = `^v?\d+(\.\d+)*$`
+
+	project := seedProject(t, app, "widened", "Widened", true)
+	days := 30
+	project.RetentionDays = &days
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	seedAgedVersion(t, app, project, "v1.9", 400)
 	seedAgedVersion(t, app, project, "nightly", 400)
 
 	app.handler.enforceRetentionPolicy(ctx, project)
 
 	got := remainingTags(t, app, project.ID)
-	if len(got) != 1 || got[0] != "v2.0.0" {
-		t.Errorf("expected only the semver tag to survive, got %v", got)
+	if len(got) != 1 || got[0] != "v1.9" {
+		t.Errorf("expected the widened default to keep v1.9, got %v", got)
+	}
+}
+
+// TestProjectPatternOverridesInstanceDefault — the per-project field wins.
+func TestProjectPatternOverridesInstanceDefault(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	project := seedProject(t, app, "override", "Override", true)
+	pattern := `^nightly`
+	project.VersionKeepPattern = &pattern
+	days := 30
+	project.RetentionDays = &days
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	seedAgedVersion(t, app, project, "nightly-42", 400) // matches the project rule
+	seedAgedVersion(t, app, project, "v2.0.0", 400)     // release, but not what this project keeps
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	got := remainingTags(t, app, project.ID)
+	if len(got) != 1 || got[0] != "nightly-42" {
+		t.Errorf("expected the project pattern to win over the instance default, got %v", got)
+	}
+}
+
+// TestInvalidInstancePatternFallsBackToSemver: a broken config value must not
+// turn retention into a purge.
+func TestInvalidInstancePatternFallsBackToSemver(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	app.handler.config.Retention.KeepPattern = "^v(unclosed"
+
+	project := seedProject(t, app, "broken-config", "Broken Config", true)
+	days := 30
+	project.RetentionDays = &days
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	seedAgedVersion(t, app, project, "v3.0.0", 400)
+	seedAgedVersion(t, app, project, "scratch", 400)
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	got := remainingTags(t, app, project.ID)
+	if len(got) != 1 || got[0] != "v3.0.0" {
+		t.Errorf("expected the fallback to keep version-shaped tags, got %v", got)
 	}
 }
 

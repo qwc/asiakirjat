@@ -22,24 +22,31 @@ func (h *Handler) effectiveRetentionDays(project *database.Project) int {
 // versionKeeper reports, for one project, whether a version tag is worth
 // keeping indefinitely.
 //
-// A project may name the versions it cares about with a regular expression
-// (issue #127) — "^v\\d+\\.\\d+\\.\\d+$" to keep only releases, say, or
-// "^(v\\d|stable)" to keep a branch too. Without one, the original rule
-// applies: semver-looking tags are kept and everything else expires.
+// The rule comes from the project's own pattern when it has one, otherwise
+// from retention.keep_pattern, which defaults to keeping release numbers —
+// v1.2.3 and 2.0.0 — and expiring everything else (issue #127). A project
+// that tags differently sets its own pattern in the admin UI.
 //
-// An unparseable pattern falls back to the semver rule rather than matching
-// nothing. Retention deletes what it does not keep, so the safe direction on
-// a broken pattern is to keep more, not to wipe a project's history. The
-// admin UI rejects invalid patterns, so this only covers a value that got
-// into the database some other way.
+// An unparseable pattern falls back to keeping anything version-shaped
+// (docs.IsSemver) rather than matching nothing. Retention deletes what it
+// does not keep, so the safe direction on a broken pattern is to keep more,
+// not to wipe a project's history. The admin UI rejects invalid project
+// patterns, so this covers a bad value in config or one that reached the
+// database another way.
 func (h *Handler) versionKeeper(project *database.Project) func(tag string) bool {
-	if project.VersionKeepPattern == nil || *project.VersionKeepPattern == "" {
+	pattern := h.config.Retention.KeepPattern
+	source := "config"
+	if project.VersionKeepPattern != nil && *project.VersionKeepPattern != "" {
+		pattern = *project.VersionKeepPattern
+		source = "project"
+	}
+	if pattern == "" {
 		return docs.IsSemver
 	}
-	re, err := regexp.Compile(*project.VersionKeepPattern)
+	re, err := regexp.Compile(pattern)
 	if err != nil {
-		h.logger.Error("retention: invalid version keep pattern, falling back to semver",
-			"project", project.Slug, "pattern", *project.VersionKeepPattern, "error", err)
+		h.logger.Error("retention: invalid version keep pattern, falling back to keeping anything version-shaped",
+			"project", project.Slug, "pattern", pattern, "pattern_source", source, "error", err)
 		return docs.IsSemver
 	}
 	return re.MatchString

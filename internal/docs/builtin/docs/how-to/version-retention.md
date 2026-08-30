@@ -11,9 +11,18 @@ Two settings on **Admin > Projects > Edit** decide this together:
 
 ## The Default
 
-Leave the pattern empty and a project keeps anything that looks like a semver tag — `1.4.2`, `v2.0`, `v3.1.0-rc1` — and expires the rest. That is the historical behaviour, so projects that never touch these fields are unaffected.
+Leave the pattern empty and the project follows the instance-wide default from
+`retention.keep_pattern` in `config.yaml`, which keeps **release numbers with an
+optional `v` prefix**: `v1.2.3` and `2.0.0` stay indefinitely, while release
+candidates (`v1.2.3-rc1`), dated builds (`2026-01-01`) and branch names (`main`)
+expire once they pass the retention period.
 
-Leave the retention days empty and the project follows the instance default from `retention.nonsemver_days` in `config.yaml`. Set it to `0` for unlimited: nothing is ever deleted automatically.
+If your projects tag releases as `v1.2` or `v2`, widen the instance default to
+`^v?\d+(\.\d+)*$`, or give those projects their own pattern.
+
+Leave the retention days empty and the project follows `retention.nonsemver_days`.
+Set it to `0` — the shipped default — for unlimited: nothing is ever deleted
+automatically, whatever the pattern says.
 
 ## Naming What to Keep
 
