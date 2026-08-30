@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -20,10 +21,10 @@ import (
 // finding H-5). All four can be exceeded under reasonable use only with
 // a malicious or accidentally-pathological upload.
 const (
-	maxFileSize    = 100 << 20  // 100 MB per extracted file
-	maxArchiveSize = 1 << 30    // 1 GB input archive (after MaxBytesReader)
-	maxTotalSize   = 1 << 30    // 1 GB total extracted bytes per archive
-	maxEntries     = 10000      // entry-count cap per archive
+	maxFileSize    = 100 << 20 // 100 MB per extracted file
+	maxArchiveSize = 1 << 30   // 1 GB input archive (after MaxBytesReader)
+	maxTotalSize   = 1 << 30   // 1 GB total extracted bytes per archive
+	maxEntries     = 10000     // entry-count cap per archive
 )
 
 // extractStats tracks the running quotas during a single extraction.
@@ -353,8 +354,8 @@ func extractTar(r io.Reader, destDir string) error {
 			return fmt.Errorf("reading tar: %w", err)
 		}
 
-		name := stripSingleRootTar(header.Name)
-		if name == "" || name == "." {
+		name := path.Clean(header.Name)
+		if name == "" || name == "." || name == "/" {
 			continue
 		}
 
@@ -392,19 +393,61 @@ func extractTar(r io.Reader, destDir string) error {
 		}
 	}
 
-	return nil
+	return flattenSingleRoot(destDir)
 }
 
 // stripSingleRootTar is a simple heuristic: if the path starts with
 // a directory name followed by /, strip that prefix.
 // This handles the common case of tarballs with a single root directory.
-func stripSingleRootTar(name string) string {
-	// This is a simplified approach — strips first component if it looks like a single root
-	parts := strings.SplitN(name, "/", 2)
-	if len(parts) == 2 && parts[1] != "" {
-		return parts[1]
+// flattenSingleRoot unwraps an extracted archive that turned out to contain
+// exactly one top-level directory, so "docs/index.html" is served as
+// "index.html" — the same courtesy detectSingleRoot does for zip and 7z.
+//
+// Zip and 7z carry a directory that can be inspected before extracting; a tar
+// is a stream, and reading it twice would mean buffering the whole archive.
+// So the equivalent check happens after extraction, on the directory tree, and
+// costs a handful of renames.
+//
+// The old approach — stripping the first path component off every entry as it
+// was written — did not check for a single root at all. An archive whose files
+// were already at the top level silently lost a directory level, and one with
+// two top-level directories had their contents collide and overwrite each
+// other (audit L-2).
+func flattenSingleRoot(destDir string) error {
+	entries, err := os.ReadDir(destDir)
+	if err != nil {
+		return fmt.Errorf("reading extracted archive: %w", err)
 	}
-	return name
+	if len(entries) != 1 || !entries[0].IsDir() {
+		return nil
+	}
+
+	// Move the root aside first: without this, a child with the same name as
+	// its parent ("docs/docs/") could not be renamed up into place.
+	staging, err := os.MkdirTemp(destDir, ".unwrap-")
+	if err != nil {
+		return fmt.Errorf("preparing to unwrap archive root: %w", err)
+	}
+	root := filepath.Join(staging, entries[0].Name())
+	if err := os.Rename(filepath.Join(destDir, entries[0].Name()), root); err != nil {
+		os.Remove(staging)
+		return fmt.Errorf("unwrapping archive root: %w", err)
+	}
+
+	children, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("reading archive root: %w", err)
+	}
+	for _, child := range children {
+		if err := os.Rename(filepath.Join(root, child.Name()), filepath.Join(destDir, child.Name())); err != nil {
+			return fmt.Errorf("unwrapping archive root: %w", err)
+		}
+	}
+
+	if err := os.RemoveAll(staging); err != nil {
+		return fmt.Errorf("cleaning up archive root: %w", err)
+	}
+	return nil
 }
 
 // WriteZipFromDir walks srcDir and streams its contents as a zip archive to w.
