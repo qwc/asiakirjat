@@ -28,6 +28,13 @@ func (s *GlobalAccessStore) ListRules(ctx context.Context) ([]database.GlobalAcc
 }
 
 func (s *GlobalAccessStore) CreateRule(ctx context.Context, rule *database.GlobalAccess) error {
+	if !database.ValidSubjectType(rule.SubjectType) {
+		return fmt.Errorf("creating global access rule: invalid subject type %q", rule.SubjectType)
+	}
+	if !database.ValidAccessRole(rule.Role) {
+		return fmt.Errorf("creating global access rule: invalid role %q", rule.Role)
+	}
+
 	query := `INSERT INTO global_access (subject_type, subject_identifier, role, from_config) VALUES (?, ?, ?, ?)`
 	result, err := s.db.ExecContext(ctx, s.db.Rebind(query),
 		rule.SubjectType, rule.SubjectIdentifier, rule.Role, rule.FromConfig)
@@ -52,7 +59,7 @@ func (s *GlobalAccessStore) GetUserRule(ctx context.Context, username string) (*
 	var rule database.GlobalAccess
 	query := `SELECT * FROM global_access
 		WHERE subject_type = 'user' AND LOWER(subject_identifier) = LOWER(?)
-		ORDER BY CASE role WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END DESC
+		ORDER BY CASE role WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END DESC
 		LIMIT 1`
 	if err := s.db.GetContext(ctx, &rule, s.db.Rebind(query), username); err != nil {
 		return nil, fmt.Errorf("getting global access user rule: %w", err)
@@ -101,7 +108,7 @@ func (s *GlobalAccessStore) GetGrantByUser(ctx context.Context, userID int64) (*
 	var grant database.GlobalAccessGrant
 	// Return the highest-priority grant for this user (any source)
 	query := `SELECT * FROM global_access_grants WHERE user_id = ? ORDER BY
-		CASE role WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END DESC
+		CASE role WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END DESC
 		LIMIT 1`
 	if err := s.db.GetContext(ctx, &grant, s.db.Rebind(query), userID); err != nil {
 		return nil, fmt.Errorf("getting global access grant: %w", err)
@@ -110,6 +117,10 @@ func (s *GlobalAccessStore) GetGrantByUser(ctx context.Context, userID int64) (*
 }
 
 func (s *GlobalAccessStore) UpsertGrant(ctx context.Context, grant *database.GlobalAccessGrant) error {
+	if !database.ValidAccessRole(grant.Role) {
+		return fmt.Errorf("upserting global access grant: invalid role %q", grant.Role)
+	}
+
 	// Try insert, on conflict update role
 	query := `INSERT INTO global_access_grants (user_id, role, source) VALUES (?, ?, ?)
 		ON CONFLICT(user_id, source) DO UPDATE SET role = excluded.role`

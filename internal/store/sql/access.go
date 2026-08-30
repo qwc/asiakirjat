@@ -20,7 +20,17 @@ func (s *ProjectAccessStore) Grant(ctx context.Context, access *database.Project
 	// Default source to 'manual' if not specified
 	source := access.Source
 	if source == "" {
-		source = "manual"
+		source = database.AccessSourceManual
+	}
+	// Constrain both values here rather than trusting every caller and the
+	// column default (audit L-1 and L-7). A grant is the thing that decides
+	// who reaches a project, so a typo in a source or a role should fail
+	// loudly instead of writing a row nothing will ever match.
+	if !database.ValidAccessSource(source) {
+		return fmt.Errorf("granting project access: invalid source %q", source)
+	}
+	if !database.ValidAccessRole(access.Role) {
+		return fmt.Errorf("granting project access: invalid role %q", access.Role)
 	}
 
 	var query string
@@ -90,7 +100,7 @@ func (s *ProjectAccessStore) GetAccess(ctx context.Context, projectID, userID in
 	// Return the highest-role access record
 	var access database.ProjectAccess
 	query := `SELECT * FROM project_access WHERE project_id = ? AND user_id = ?
-		ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'editor' THEN 2 ELSE 3 END LIMIT 1`
+		ORDER BY CASE role WHEN 'editor' THEN 1 ELSE 2 END LIMIT 1`
 	if err := s.db.GetContext(ctx, &access, s.db.Rebind(query), projectID, userID); err != nil {
 		return nil, fmt.Errorf("getting project access: %w", err)
 	}
@@ -153,12 +163,7 @@ func (s *ProjectAccessStore) GetEffectiveRole(ctx context.Context, projectID, us
 		return "", nil
 	}
 
-	// Return highest role from all sources (admin > editor > viewer)
-	for _, a := range access {
-		if a.Role == "admin" {
-			return "admin", nil
-		}
-	}
+	// Return the highest role from all sources (editor > viewer).
 	for _, a := range access {
 		if a.Role == "editor" {
 			return "editor", nil

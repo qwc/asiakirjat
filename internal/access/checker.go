@@ -81,10 +81,10 @@ func (c *Checker) listRole(ctx context.Context, user *database.User, project *da
 }
 
 // roleRank orders access roles so the strongest of several sources wins.
+// Access rules confer viewer or editor only — "admin" describes a user, not a
+// grant, and the stores reject it (audit L-1).
 func roleRank(role string) int {
 	switch role {
-	case "admin":
-		return 3
 	case "editor":
 		return 2
 	case "viewer":
@@ -172,8 +172,8 @@ func (c *Checker) CanView(ctx context.Context, user *database.User, project *dat
 // Rules (current behavior — preserved):
 //   - Anonymous: false.
 //   - Global role admin or editor: true (regardless of visibility).
-//   - VisibilityPrivate: true if a GlobalAccessGrant with editor or admin role exists.
-//   - Otherwise: true iff ProjectAccess.GetEffectiveRole returns "editor" or "admin".
+//   - VisibilityPrivate: true if a GlobalAccessGrant with the editor role exists.
+//   - Otherwise: true iff ProjectAccess.GetEffectiveRole returns "editor".
 //
 // Note the asymmetry with CanView for the global-editor case: a global editor
 // can write to projects they can't read. The audit flagged this as M-2
@@ -187,7 +187,7 @@ func (c *Checker) CanUpload(ctx context.Context, user *database.User, project *d
 		return true
 	}
 	if project.Visibility == database.VisibilityPrivate {
-		if role := c.globalRole(ctx, user); role == "editor" || role == "admin" {
+		if role := c.globalRole(ctx, user); role == "editor" {
 			c.logger.Debug("upload granted: global access", "username", user.Username, "project", project.Slug, "global_role", role)
 			return true
 		}
@@ -203,7 +203,7 @@ func (c *Checker) CanUpload(ctx context.Context, user *database.User, project *d
 		c.logger.Debug("upload denied: error checking project access", "username", user.Username, "project", project.Slug, "error", err)
 		return false
 	}
-	allowed := effectiveRole == "editor" || effectiveRole == "admin"
+	allowed := effectiveRole == "editor"
 	if allowed {
 		c.logger.Debug("upload granted: project-level access", "username", user.Username, "project", project.Slug, "effective_role", effectiveRole)
 	} else {
