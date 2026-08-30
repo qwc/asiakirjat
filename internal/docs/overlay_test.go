@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -141,5 +142,104 @@ func TestInjectOverlay_PreservesStatusCode(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected 404 status, got %d", rec.Code)
+	}
+}
+
+// streamProbe records how a response reached the client: how many writes
+// arrived and how much they carried, so a test can tell streaming from
+// buffer-then-copy.
+type streamProbe struct {
+	header     http.Header
+	status     int
+	writes     int
+	total      int
+	statusSeen bool
+}
+
+func newStreamProbe() *streamProbe {
+	return &streamProbe{header: http.Header{}}
+}
+
+func (p *streamProbe) Header() http.Header { return p.header }
+func (p *streamProbe) WriteHeader(code int) {
+	if !p.statusSeen {
+		p.status = code
+		p.statusSeen = true
+	}
+}
+func (p *streamProbe) Write(b []byte) (int, error) {
+	p.writes++
+	p.total += len(b)
+	return len(b), nil
+}
+
+// TestInjectOverlayStreamsNonHTML covers audit L-5. A non-HTML response used
+// to be collected in memory in full before being copied out; it now reaches
+// the client as the handler writes it. This path also serves extension-less
+// URLs, which can be any file at all, so the buffer had no upper bound.
+func TestInjectOverlayStreamsNonHTML(t *testing.T) {
+	probe := newStreamProbe()
+	req := httptest.NewRequest("GET", "/project/docs/v1/download", nil)
+
+	InjectOverlay(probe, req, "<div>overlay</div>", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.WriteHeader(http.StatusOK)
+		for i := 0; i < 3; i++ {
+			if _, err := w.Write([]byte("chunk")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	if probe.writes != 3 {
+		t.Errorf("expected each chunk to pass straight through, got %d writes", probe.writes)
+	}
+	if probe.total != 15 {
+		t.Errorf("expected 15 bytes through, got %d", probe.total)
+	}
+	if probe.status != http.StatusOK {
+		t.Errorf("expected the status to reach the client, got %d", probe.status)
+	}
+}
+
+// TestInjectOverlaySkipsPartialContent: a 206 carries a byte range, so
+// inserting an overlay into it would corrupt the file even though the type
+// says HTML.
+func TestInjectOverlaySkipsPartialContent(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/project/docs/v1/big.html", nil)
+
+	InjectOverlay(rec, req, "<div>overlay</div>", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusPartialContent)
+		io.WriteString(w, "<html><body>middle of a file</body></html>")
+	})
+
+	if rec.Code != http.StatusPartialContent {
+		t.Errorf("expected 206 preserved, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "overlay") {
+		t.Error("a partial response must not have the overlay injected into it")
+	}
+}
+
+// TestInjectOverlayStillInjectsHTML — the buffering path is unchanged for the
+// case it exists for.
+func TestInjectOverlayStillInjectsHTML(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/project/docs/v1/guide.html", nil)
+
+	InjectOverlay(rec, req, "<div>overlay</div>", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Length", "41")
+		io.WriteString(w, "<html><body><p>docs</p></body></html>")
+	})
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "<div>overlay</div></body>") {
+		t.Errorf("expected the overlay before </body>, got %s", body)
+	}
+	if rec.Header().Get("Content-Length") != "" {
+		t.Error("the recorded Content-Length no longer matches the injected body and must be dropped")
 	}
 }
