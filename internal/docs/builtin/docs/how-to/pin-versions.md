@@ -14,6 +14,8 @@ There are two ways to pin a version:
 
 A **permanent pin** persists across new uploads. Even when a newer version is uploaded, the pinned version remains the "latest". Use this when you want to keep a stable version visible while uploading pre-release or experimental versions.
 
+A permanent pin also exempts the version from [retention](version-retention.md): it will not be auto-deleted even if it does not match the project's keep pattern.
+
 ### Temporary Pin
 
 A **temporary pin** is automatically cleared when a new version is uploaded (re-uploads of the same version do not clear it). Use this when you want to temporarily highlight a specific version but return to normal semver sorting after the next upload.

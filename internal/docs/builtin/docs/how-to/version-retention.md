@@ -43,6 +43,8 @@ Invalid patterns are refused when you save. If one somehow reaches the database 
 
 Retention runs at startup, then hourly, and again right after an upload of a version the project does not keep. Deletion removes the version's files, its database record, and its search index entries. It cannot be undone, so it is worth setting the pattern before the retention days on a project with history you care about.
 
-Pinning does **not** exempt a version from retention: the two features are
-independent, so make sure your pattern also matches anything you have pinned.
-See [Pin a Version as Latest](pin-versions.md).
+A **permanently pinned** version is never deleted by retention, whatever the
+pattern says — a permanent pin is a statement that this is the version people
+should land on. A **temporary** pin is not protected: it is cleared by the next
+upload anyway, so it does not claim the version is worth keeping. See
+[Pin a Version as Latest](pin-versions.md).

@@ -267,3 +267,58 @@ func TestEditFormSavesAndValidatesKeepPattern(t *testing.T) {
 		t.Errorf("expected clearing the field to restore the default, got %q", *project.VersionKeepPattern)
 	}
 }
+
+// TestPermanentPinSurvivesRetention covers issue #141: retention decided what
+// to delete purely from the keep rule and the version's age, so a pinned
+// version could be deleted out from under its pin — leaving the project
+// pointing at a version that no longer existed and quietly serving a
+// different one.
+func TestPermanentPinSurvivesRetention(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	project := seedProject(t, app, "pinned", "Pinned", true)
+	days := 30
+	project.RetentionDays = &days
+	pinned := "nightly-2026-01-01"
+	project.PinnedVersion = &pinned
+	project.PinPermanent = true
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	seedAgedVersion(t, app, project, pinned, 400)
+	seedAgedVersion(t, app, project, "nightly-2026-01-02", 400)
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	got := remainingTags(t, app, project.ID)
+	if len(got) != 1 || got[0] != pinned {
+		t.Errorf("expected the permanently pinned version to survive and the other to expire, got %v", got)
+	}
+}
+
+// TestTemporaryPinDoesNotSurviveRetention: a temporary pin is cleared by the
+// next upload, so it does not claim the version is worth keeping.
+func TestTemporaryPinDoesNotSurviveRetention(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	project := seedProject(t, app, "temp-pinned", "Temp Pinned", true)
+	days := 30
+	project.RetentionDays = &days
+	pinned := "nightly-2026-01-01"
+	project.PinnedVersion = &pinned
+	project.PinPermanent = false
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	seedAgedVersion(t, app, project, pinned, 400)
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	if got := remainingTags(t, app, project.ID); len(got) != 0 {
+		t.Errorf("expected a temporarily pinned version to expire like any other, got %v", got)
+	}
+}
