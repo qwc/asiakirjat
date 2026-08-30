@@ -11,6 +11,7 @@
         <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
         <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
         <a href="{{url "/admin/global-access"}}" class="admin-nav-link">Global Access</a>
+        <a href="{{url "/admin/access-lists"}}" class="admin-nav-link">Access Lists</a>
     </div>
     {{end}}
 
@@ -44,8 +45,19 @@
                         <option value="public">Public</option>
                         <option value="private" selected>Private</option>
                         <option value="custom">Custom</option>
+                        {{if .AccessLists}}<option value="list">Access list</option>{{end}}
                     </select>
                 </div>
+                {{if .AccessLists}}
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="access_list_id">Access List</label>
+                    <select id="access_list_id" name="access_list_id">
+                        {{range .AccessLists}}
+                        <option value="{{.ID}}">{{.Name}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                {{end}}
                 <button type="submit" class="btn btn-primary">Create</button>
             </div>
         </form>

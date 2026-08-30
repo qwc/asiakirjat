@@ -31,9 +31,24 @@
                 {{end}}
                 <option value="private" {{if eq .Project.Visibility "private"}}selected{{end}}>Private — global access list</option>
                 <option value="custom" {{if eq .Project.Visibility "custom"}}selected{{end}}>Custom — per-project access only</option>
+                {{if .AccessLists}}
+                <option value="list" {{if eq .Project.Visibility "list"}}selected{{end}}>Access list — a named set of users and groups</option>
+                {{end}}
             </select>
             {{if not .IsAdmin}}<small>Only admins can make a project public.</small>{{end}}
         </div>
+
+        {{if .AccessLists}}
+        <div class="form-group">
+            <label for="access_list_id">Access List</label>
+            <select id="access_list_id" name="access_list_id">
+                {{range .AccessLists}}
+                <option value="{{.ID}}" {{if eq .ID $.CurrentAccessListID}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <small>Used only when visibility is <strong>Access list</strong>. Manage lists under <a href="{{url "/admin/access-lists"}}">Admin &gt; Access Lists</a>.</small>
+        </div>
+        {{end}}
 
         <div class="form-group">
             <label for="retention_days">Non-Semver Retention (days)</label>

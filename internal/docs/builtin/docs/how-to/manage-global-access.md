@@ -4,13 +4,14 @@ This guide explains how to manage the global access list, which controls who can
 
 ## When to Use Global Access
 
-Asiakirjat has three project visibility levels. Global access applies only to **private** visibility:
+Asiakirjat has four project visibility levels. Global access applies only to **private** visibility:
 
 | Visibility | Access controlled by |
 |---|---|
 | **Public** | No restrictions — anyone can view |
 | **Private** | Global access list (this guide) |
 | **Custom** | Per-project access grants (see [Create Your First Project](../tutorials/first-project.md)) |
+| **Access list** | A named list of users and groups (see [Manage Access Lists](manage-access-lists.md)) |
 
 Use **private** visibility when you want all organization members (or a broad group) to see a project. Use **custom** visibility when you need fine-grained, per-project control.
 
