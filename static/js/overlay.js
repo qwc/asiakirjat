@@ -34,25 +34,104 @@
         }
     })();
 
+    // Version filtering (issue #128). A project that publishes a build per
+    // branch or per release candidate ends up with a dropdown where the
+    // actual releases are hard to find, so the picker shows stable releases
+    // by default and the "All releases" checkbox reveals the rest.
+    //
+    // Stable means digits and dots after an optional "v" — 1, 1.2, v1.2.3.
+    // Anything with a suffix (-rc1, -beta, .dev0) or a name (main,
+    // feature-login) is a prerelease or a branch build.
+    var STABLE_VERSION_RE = /^v?\d+(\.\d+)*$/;
+    function isStableRelease(tag) {
+        return STABLE_VERSION_RE.test(tag);
+    }
+
+    var SHOW_ALL_KEY = "asiakirjat:show-all-versions";
+    var showAllVersions = false;
+    try {
+        showAllVersions = window.localStorage.getItem(SHOW_ALL_KEY) === "1";
+    } catch (e) {
+        // Private mode or blocked storage: fall back to the default.
+    }
+
+    var showAllToggle = document.getElementById("asiakirjat-show-all-versions");
+    var loadedVersions = [];
+    // Assigned further down, once the compare dropdown is set up; the toggle
+    // handler below tolerates it being undefined until then.
+    var renderCompareOptions;
+
+    // Filtering only makes sense when the project has both kinds of tag. A
+    // project with nothing stable to fall back to would end up with a picker
+    // showing just the page you are on, so there the filter switches off
+    // entirely and its checkbox is hidden.
+    var filterEnabled = false;
+    function updateFilterEnabled() {
+        var stable = 0, unstable = 0;
+        loadedVersions.forEach(function(v) {
+            if (isStableRelease(v.tag)) stable++; else unstable++;
+        });
+        filterEnabled = stable > 0 && unstable > 0;
+    }
+
+    // The version being viewed is always listed, even when it is a
+    // prerelease — the picker has to be able to show what you are reading.
+    // The version being compared against stays listed for the same reason,
+    // so toggling the filter mid-diff doesn't empty the compare box.
+    function versionVisible(tag) {
+        if (!filterEnabled || showAllVersions || tag === current || isStableRelease(tag)) {
+            return true;
+        }
+        return compareSelect ? tag === compareSelect.value : false;
+    }
+
+    function renderVersionOptions() {
+        versionSelect.innerHTML = "";
+        loadedVersions.forEach(function(v) {
+            if (!versionVisible(v.tag)) return;
+            var opt = document.createElement("option");
+            opt.value = v.tag;
+            opt.textContent = v.tag;
+            if (v.tag === current) {
+                opt.selected = true;
+            }
+            versionSelect.appendChild(opt);
+        });
+    }
+
     // Fetch versions from API
     fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
         .then(function(resp) { return resp.json(); })
         .then(function(versions) {
-            // Clear and rebuild options
-            versionSelect.innerHTML = "";
-            versions.forEach(function(v) {
-                var opt = document.createElement("option");
-                opt.value = v.tag;
-                opt.textContent = v.tag;
-                if (v.tag === current) {
-                    opt.selected = true;
+            loadedVersions = versions;
+            updateFilterEnabled();
+            if (showAllToggle) {
+                showAllToggle.checked = showAllVersions;
+                var wrap = document.getElementById("asiakirjat-version-filter");
+                if (wrap && !filterEnabled) {
+                    wrap.style.display = "none";
                 }
-                versionSelect.appendChild(opt);
-            });
+            }
+            renderVersionOptions();
         })
         .catch(function(err) {
             console.error("Failed to load versions:", err);
         });
+
+    if (showAllToggle) {
+        showAllToggle.addEventListener("change", function() {
+            showAllVersions = showAllToggle.checked;
+            try {
+                window.localStorage.setItem(SHOW_ALL_KEY, showAllVersions ? "1" : "0");
+            } catch (e) {
+                // Not being able to remember the choice is not worth failing over.
+            }
+            renderVersionOptions();
+            if (typeof renderCompareOptions === "function") {
+                renderCompareOptions();
+            }
+        });
+    }
 
     // Handle version switch
     versionSelect.addEventListener("change", function() {
@@ -88,26 +167,46 @@
 
     var currentIsPdf = false;
 
+    var compareVersions = [];
+
+    // Declared as a var so the filter toggle above can call it once the
+    // compare list has loaded; before that it is undefined and skipped.
+    renderCompareOptions = function() {
+        if (!compareSelect) return;
+        var selected = compareSelect.value;
+        compareSelect.innerHTML = '<option value="">Select version...</option>';
+        compareVersions.forEach(function(v) {
+            if (v.tag === current) return;
+            if (!versionVisible(v.tag) && v.tag !== selected) return;
+            var opt = document.createElement("option");
+            opt.value = v.tag;
+            opt.textContent = v.tag;
+            if (v.content_type) {
+                opt.setAttribute("data-content-type", v.content_type);
+            }
+            compareSelect.appendChild(opt);
+        });
+        if (selected && compareSelect.querySelector('option[value="' + CSS.escape(selected) + '"]')) {
+            compareSelect.value = selected;
+        }
+    };
+
     if (compareSelect) {
         // Populate compare dropdown with versions (excluding current)
         fetch(basePath + "/api/project/" + encodeURIComponent(slug) + "/versions")
             .then(function(resp) { return resp.json(); })
             .then(function(versions) {
-                compareSelect.innerHTML = '<option value="">Select version...</option>';
+                compareVersions = versions;
+                if (!loadedVersions.length) {
+                    loadedVersions = versions;
+                    updateFilterEnabled();
+                }
                 versions.forEach(function(v) {
                     if (v.tag === current && v.content_type === "pdf") {
                         currentIsPdf = true;
                     }
-                    if (v.tag !== current) {
-                        var opt = document.createElement("option");
-                        opt.value = v.tag;
-                        opt.textContent = v.tag;
-                        if (v.content_type) {
-                            opt.setAttribute("data-content-type", v.content_type);
-                        }
-                        compareSelect.appendChild(opt);
-                    }
                 });
+                renderCompareOptions();
 
                 // Auto-trigger diff if ?compare= is in URL
                 var initParams = new URLSearchParams(window.location.search);
