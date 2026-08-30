@@ -217,13 +217,16 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 		contentType = "pdf"
 		if err := storePDF(file, destPath); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
-			h.jsonError(w, "Failed to store PDF: "+err.Error(), http.StatusBadRequest)
+			h.jsonUserError(w, http.StatusBadRequest,
+				"Failed to store PDF", err, "project", slug, "version", versionTag)
 			return
 		}
 	} else {
 		if err := docs.ExtractArchive(file, header.Filename, destPath); err != nil {
 			h.storage.DeleteVersion(slug, versionTag)
-			h.jsonError(w, "Failed to extract archive: "+err.Error(), http.StatusBadRequest)
+			h.jsonUserError(w, http.StatusBadRequest,
+				"Failed to extract archive — check that it is a supported format, within the size limits, and contains no absolute or parent paths",
+				err, "project", slug, "version", versionTag)
 			return
 		}
 	}

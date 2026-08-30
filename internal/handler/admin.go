@@ -272,6 +272,9 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	// "keep semver tags" default.
 	keepPattern := strings.TrimSpace(r.FormValue("version_keep_pattern"))
 	if err := projects.ValidateVersionKeepPattern(keepPattern); err != nil {
+		// Deliberately verbose: this error describes the regular expression
+		// the admin just typed ("missing closing )"), which is the whole
+		// point of showing it. Nothing internal is quoted.
 		http.Error(w, "Invalid version keep pattern: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -505,8 +508,9 @@ func (h *Handler) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.users.Create(ctx, user); err != nil {
-		h.logger.Error("creating user", "error", err)
-		http.Error(w, "Failed to create user: "+err.Error(), http.StatusBadRequest)
+		h.userError(w, http.StatusBadRequest,
+			"Failed to create user — the username or email may already be taken",
+			err, "username", username)
 		return
 	}
 
@@ -660,8 +664,9 @@ func (h *Handler) handleAdminCreateRobot(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.users.Create(ctx, user); err != nil {
-		h.logger.Error("creating robot", "error", err)
-		http.Error(w, "Failed to create robot: "+err.Error(), http.StatusBadRequest)
+		h.userError(w, http.StatusBadRequest,
+			"Failed to create robot user — the name may already be taken",
+			err, "username", username)
 		return
 	}
 
@@ -1156,8 +1161,9 @@ func (h *Handler) handleAdminDeployBuiltinDocs(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := deployer.Deploy(ctx, user.ID); err != nil {
-		h.logger.Error("deploying builtin docs", "error", err)
-		http.Error(w, "Failed to deploy documentation: "+err.Error(), http.StatusInternalServerError)
+		h.userError(w, http.StatusInternalServerError,
+			"Failed to deploy the built-in documentation — see the server log for the cause",
+			err)
 		return
 	}
 
