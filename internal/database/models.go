@@ -64,6 +64,11 @@ type Project struct {
 	RetentionDays *int      `db:"retention_days"`
 	PinnedVersion *string   `db:"pinned_version"`
 	PinPermanent  bool      `db:"pin_permanent"`
+	// VersionKeepPattern is a regular expression naming the versions worth
+	// keeping. Versions whose tag matches are exempt from retention; the rest
+	// expire after RetentionDays. Nil falls back to "keep semver tags"
+	// (issue #127).
+	VersionKeepPattern *string `db:"version_keep_pattern"`
 	// AccessListID names the access list that governs this project, and is
 	// set only when Visibility is VisibilityList. The FK is ON DELETE
 	// RESTRICT: a list a project still points at cannot be deleted.

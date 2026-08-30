@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/qwc/asiakirjat/internal/database"
@@ -22,6 +23,7 @@ var (
 	ErrInvalidSlug         = errors.New("invalid slug")
 	ErrInvalidVisibility   = errors.New("invalid visibility")
 	ErrListRequired        = errors.New("list visibility requires an access list")
+	ErrInvalidKeepPattern  = errors.New("invalid version keep pattern")
 	ErrPublicRequiresAdmin = errors.New("only admins can create public projects")
 	ErrSlugConflict        = errors.New("project slug already exists")
 
@@ -66,6 +68,28 @@ func ValidateVisibility(visibility string, accessListID *int64, creator *databas
 		}
 	default:
 		return ErrInvalidVisibility
+	}
+	return nil
+}
+
+// maxKeepPatternLen bounds the version keep pattern. Go's regexp is RE2, so a
+// pattern cannot backtrack catastrophically at match time; the limit is about
+// keeping the field a readable rule rather than an unbounded blob.
+const maxKeepPatternLen = 200
+
+// ValidateVersionKeepPattern checks a per-project version keep pattern
+// (issue #127). An empty pattern is valid and means "fall back to keeping
+// semver tags". Kept here beside ValidateVisibility so the HTTP layer and the
+// service agree on what a project may be saved with.
+func ValidateVersionKeepPattern(pattern string) error {
+	if pattern == "" {
+		return nil
+	}
+	if len(pattern) > maxKeepPatternLen {
+		return fmt.Errorf("%w: longer than %d characters", ErrInvalidKeepPattern, maxKeepPatternLen)
+	}
+	if _, err := regexp.Compile(pattern); err != nil {
+		return fmt.Errorf("%w: %s", ErrInvalidKeepPattern, err)
 	}
 	return nil
 }

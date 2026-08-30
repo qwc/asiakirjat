@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/qwc/asiakirjat/internal/database"
@@ -18,13 +19,41 @@ func (h *Handler) effectiveRetentionDays(project *database.Project) int {
 	return h.config.Retention.NonSemverDays
 }
 
-// enforceRetentionPolicy deletes non-semver versions older than the
-// configured retention period for the given project.
+// versionKeeper reports, for one project, whether a version tag is worth
+// keeping indefinitely.
+//
+// A project may name the versions it cares about with a regular expression
+// (issue #127) — "^v\\d+\\.\\d+\\.\\d+$" to keep only releases, say, or
+// "^(v\\d|stable)" to keep a branch too. Without one, the original rule
+// applies: semver-looking tags are kept and everything else expires.
+//
+// An unparseable pattern falls back to the semver rule rather than matching
+// nothing. Retention deletes what it does not keep, so the safe direction on
+// a broken pattern is to keep more, not to wipe a project's history. The
+// admin UI rejects invalid patterns, so this only covers a value that got
+// into the database some other way.
+func (h *Handler) versionKeeper(project *database.Project) func(tag string) bool {
+	if project.VersionKeepPattern == nil || *project.VersionKeepPattern == "" {
+		return docs.IsSemver
+	}
+	re, err := regexp.Compile(*project.VersionKeepPattern)
+	if err != nil {
+		h.logger.Error("retention: invalid version keep pattern, falling back to semver",
+			"project", project.Slug, "pattern", *project.VersionKeepPattern, "error", err)
+		return docs.IsSemver
+	}
+	return re.MatchString
+}
+
+// enforceRetentionPolicy deletes versions the project does not consider worth
+// keeping once they are older than its retention period.
 func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.Project) {
 	days := h.effectiveRetentionDays(project)
 	if days <= 0 {
 		return
 	}
+
+	keep := h.versionKeeper(project)
 
 	versions, err := h.versions.ListByProject(ctx, project.ID)
 	if err != nil {
@@ -35,7 +64,7 @@ func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.
 	cutoff := time.Now().AddDate(0, 0, -days)
 
 	for _, v := range versions {
-		if docs.IsSemver(v.Tag) {
+		if keep(v.Tag) {
 			continue
 		}
 		if v.CreatedAt.After(cutoff) {
@@ -99,4 +128,13 @@ func (h *Handler) StartRetentionWorker(ctx context.Context) {
 			h.runRetentionCleanup(ctx)
 		}
 	}
+}
+
+// keepPatternDisplay flattens the project's keep pattern for the edit form,
+// which cannot dereference a pointer. Empty means "no pattern set".
+func keepPatternDisplay(project *database.Project) string {
+	if project.VersionKeepPattern == nil {
+		return ""
+	}
+	return *project.VersionKeepPattern
 }

@@ -302,8 +302,9 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	// Enforce retention after new non-semver upload — also tracked.
-	if !isReupload && !docs.IsSemver(versionTag) {
+	// Enforce retention after uploading a version the project does not keep
+	// indefinitely — also tracked.
+	if !isReupload && !h.versionKeeper(project)(versionTag) {
 		h.runJob(func(ctx context.Context) {
 			h.enforceRetentionPolicy(ctx, project)
 		})

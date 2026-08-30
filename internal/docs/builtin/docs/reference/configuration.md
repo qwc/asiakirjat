@@ -104,7 +104,9 @@ retention:
 |--------|---------|-------------|
 | `nonsemver_days` | `0` | Delete non-semver versions older than this many days. `0` means unlimited (no automatic deletion). |
 
-Retention can also be configured per-project in the admin UI.
+Retention can also be configured per-project in the admin UI, where a project can
+additionally name the versions it wants to keep with a regular expression — see
+[Version Retention](../how-to/version-retention.md).
 
 ## Project Settings
 
