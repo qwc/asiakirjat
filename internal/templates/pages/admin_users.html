@@ -4,14 +4,7 @@
 <div class="admin-page">
     <h1>Manage Users</h1>
 
-    <div class="admin-nav">
-        <a href="{{url "/admin/projects"}}" class="admin-nav-link">Projects</a>
-        <a href="{{url "/admin/users"}}" class="admin-nav-link active">Users</a>
-        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
-        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
-        <a href="{{url "/admin/global-access"}}" class="admin-nav-link">Global Access</a>
-        <a href="{{url "/admin/access-lists"}}" class="admin-nav-link">Access Lists</a>
-    </div>
+    {{template "admin_nav" "users"}}
 
     <div class="admin-create-form">
         <h2>Create User</h2>

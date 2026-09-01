@@ -815,6 +815,53 @@ body {
     margin-bottom: -2px;
 }
 
+/* The mechanisms the unified access model replaces (#150, #151). They stay
+   reachable until their tables are retired, but should not read as equals of
+   the pages that replaced them. */
+.admin-nav-legacy {
+    opacity: 0.65;
+    font-size: 0.9em;
+}
+
+.admin-nav-legacy.active {
+    opacity: 1;
+}
+
+/* Cards on the access-group and organization pages. */
+.access-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    background: var(--color-surface);
+}
+
+.access-card h2 { margin-top: 0; }
+.access-card h3 {
+    font-size: 0.95rem;
+    margin: 1.25rem 0 0.5rem;
+    color: var(--color-text-muted);
+}
+
+.admin-hint {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.admin-info {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.admin-info p { margin: 0 0 0.5rem 0; }
+.admin-info p:last-child { margin-bottom: 0; }
+
+.form-group-wide { flex: 1; }
+
 .admin-create-form {
     background: var(--color-surface);
     border: 1px solid var(--color-border);

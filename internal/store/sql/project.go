@@ -47,8 +47,18 @@ func (s *ProjectStore) Create(ctx context.Context, project *database.Project) er
 	if !database.ValidExposure(project.Exposure) {
 		return fmt.Errorf("invalid exposure %q", project.Exposure)
 	}
+	if project.OrgID == nil {
+		// Resolve here rather than with COALESCE in the INSERT: the caller
+		// keeps using this struct after Create, and a nil OrgID would make
+		// every org-scoped grant invisible to an access check on it.
+		id, err := s.defaultOrgID(ctx)
+		if err != nil {
+			return err
+		}
+		project.OrgID = &id
+	}
 	query := `INSERT INTO projects (slug, name, description, visibility, exposure, org_id, retention_days, version_keep_pattern, access_list_id, created_by)
-		VALUES (?, ?, ?, ?, ?, COALESCE(?, (SELECT id FROM orgs WHERE slug = 'default')), ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := s.db.ExecContext(ctx, s.db.Rebind(query),
 		project.Slug, project.Name, project.Description, project.Visibility, project.Exposure,
 		project.OrgID, project.RetentionDays,
@@ -117,8 +127,15 @@ func (s *ProjectStore) Update(ctx context.Context, project *database.Project) er
 	if !database.ValidExposure(project.Exposure) {
 		return fmt.Errorf("invalid exposure %q", project.Exposure)
 	}
+	if project.OrgID == nil {
+		id, err := s.defaultOrgID(ctx)
+		if err != nil {
+			return err
+		}
+		project.OrgID = &id
+	}
 	query := `UPDATE projects SET slug = ?, name = ?, description = ?, visibility = ?, exposure = ?,
-		org_id = COALESCE(?, (SELECT id FROM orgs WHERE slug = 'default')), retention_days = ?,
+		org_id = ?, retention_days = ?,
 		version_keep_pattern = ?, access_list_id = ?, pinned_version = ?, pin_permanent = ?,
 		updated_at = CURRENT_TIMESTAMP WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, s.db.Rebind(query),
@@ -138,4 +155,17 @@ func (s *ProjectStore) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("deleting project: %w", err)
 	}
 	return nil
+}
+
+// defaultOrgID returns the org that holds everything not placed elsewhere.
+// Migration 016 creates it, so its absence means the schema is not where the
+// code expects and is worth failing on rather than writing a project with no
+// organization.
+func (s *ProjectStore) defaultOrgID(ctx context.Context) (int64, error) {
+	var id int64
+	query := `SELECT id FROM orgs WHERE slug = ?`
+	if err := s.db.GetContext(ctx, &id, s.db.Rebind(query), DefaultOrgSlug); err != nil {
+		return 0, fmt.Errorf("looking up the default org: %w", err)
+	}
+	return id, nil
 }

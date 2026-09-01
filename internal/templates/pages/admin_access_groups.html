@@ -1,0 +1,112 @@
+{{define "title"}}Admin: Access Groups - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Access Groups</h1>
+
+    {{template "admin_nav" "access-groups"}}
+
+    <div class="admin-info">
+        <p>A group is a named set of people — individual users, LDAP groups, OAuth2 groups, or any mix. A group grants nothing on its own: you give it a role on a project or an organization, and the same group can be an editor on one and a viewer on another.</p>
+        <p>A member naming a <strong>user</strong> takes effect immediately. A member naming an <strong>LDAP or OAuth2 group</strong> reaches each person at their next sign-in, because group membership is only known while they authenticate.</p>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
+    {{end}}
+
+    <div class="admin-create-form">
+        <h2>New Group</h2>
+        <form method="POST" action="{{url "/admin/access-groups"}}">
+            {{template "csrf_field" $.CSRFToken}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required placeholder="engineering">
+                </div>
+                <div class="form-group form-group-wide">
+                    <label for="description">Description</label>
+                    <input type="text" id="description" name="description" placeholder="Optional">
+                </div>
+                <button type="submit" class="btn btn-primary">Create Group</button>
+            </div>
+        </form>
+    </div>
+
+    {{range .Groups}}
+    <div class="access-card">
+        <h2>{{.Group.Name}}
+            <span class="badge badge-small">{{.GrantCount}} grant{{if ne .GrantCount 1}}s{{end}}</span>
+        </h2>
+
+        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/edit">
+            {{template "csrf_field" $.CSRFToken}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" name="name" value="{{.Group.Name}}" required>
+                </div>
+                <div class="form-group form-group-wide">
+                    <label>Description</label>
+                    <input type="text" name="description" value="{{.Group.Description}}">
+                </div>
+                <button type="submit" class="btn btn-secondary">Save</button>
+            </div>
+        </form>
+
+        {{if .Members}}
+        <table class="admin-table">
+            <thead>
+                <tr><th>Type</th><th>Identifier</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {{range .Members}}
+                <tr>
+                    <td><span class="badge badge-{{.SubjectType}}">{{.SubjectType}}</span></td>
+                    <td class="group-id">{{.SubjectIdentifier}}</td>
+                    <td>
+                        <form method="POST" action="{{url "/admin/access-groups/members/"}}{{.ID}}/delete" class="inline-form"
+                            onsubmit="return confirm('Remove this member from the group?')">
+                            {{template "csrf_field" $.CSRFToken}}
+                            <button type="submit" class="btn btn-small btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="empty-message">No members yet — this group admits nobody until you add one.</p>
+        {{end}}
+
+        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/members">
+            {{template "csrf_field" $.CSRFToken}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Type</label>
+                    <select name="subject_type" required>
+                        <option value="user">User</option>
+                        <option value="ldap_group">LDAP Group</option>
+                        <option value="oauth2_group">OAuth2 Group</option>
+                    </select>
+                </div>
+                <div class="form-group form-group-wide">
+                    <label>Identifier</label>
+                    <input type="text" name="subject_identifier" required
+                        placeholder="username, LDAP DN, or OAuth2 group name">
+                </div>
+                <button type="submit" class="btn btn-secondary">Add Member</button>
+            </div>
+        </form>
+
+        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/delete" class="inline-form"
+            onsubmit="return confirm('Delete this group? Every grant that uses it is revoked.')">
+            {{template "csrf_field" $.CSRFToken}}
+            <button type="submit" class="btn btn-small btn-danger">Delete Group</button>
+        </form>
+    </div>
+    {{else}}
+    <p class="empty-message">No access groups yet. Create one above, then give it a role on a project or organization.</p>
+    {{end}}
+</div>
+{{end}}

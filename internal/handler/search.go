@@ -325,5 +325,13 @@ func (h *Handler) filterSearchResults(ctx context.Context, user *database.User, 
 // canViewProject is a thin forwarder to access.Checker.CanView; the rule
 // lives in internal/access.
 func (h *Handler) canViewProject(ctx context.Context, user *database.User, project *database.Project) bool {
-	return h.checker.CanView(ctx, user, project)
+	return h.resolver.CanView(ctx, user, project)
+}
+
+// canManage reports whether the user may administer a project: its settings
+// and who may reach it. It takes a context, unlike the checker's version:
+// ownership is no longer a column on the project but an admin grant like any
+// other, so answering needs a lookup.
+func (h *Handler) canManage(ctx context.Context, user *database.User, project *database.Project) bool {
+	return h.resolver.CanManage(ctx, user, project)
 }

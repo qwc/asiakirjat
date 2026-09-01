@@ -264,5 +264,5 @@ func storePDF(src io.Reader, destDir string) error {
 // canUpload is a thin forwarder to access.Checker.CanUpload; the rule
 // lives in internal/access.
 func (h *Handler) canUpload(ctx context.Context, user *database.User, project *database.Project) bool {
-	return h.checker.CanUpload(ctx, user, project)
+	return h.resolver.CanUpload(ctx, user, project)
 }

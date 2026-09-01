@@ -16,8 +16,9 @@ Step-by-step guides for common tasks:
 
 - [Configure LDAP Authentication](how-to/configure-ldap.md)
 - [Configure OAuth2 Authentication](how-to/configure-oauth2.md)
-- [Manage Global Access](how-to/manage-global-access.md)
-- [Manage Access Lists](how-to/manage-access-lists.md)
+- [Manage Access](how-to/manage-access.md) - Access groups, grants, organizations and exposure
+- [Manage Global Access](how-to/manage-global-access.md) - superseded by Manage Access
+- [Manage Access Lists](how-to/manage-access-lists.md) - superseded by Manage Access
 - [Use API Tokens](how-to/api-tokens.md)
 - [Pin a Version as Latest](how-to/pin-versions.md)
 - [Version Retention](how-to/version-retention.md)

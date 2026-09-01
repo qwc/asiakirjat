@@ -24,31 +24,28 @@
             <small>Markdown is supported and rendered on the project detail page.</small>
         </div>
         <div class="form-group">
-            <label for="visibility">Visibility</label>
-            <select id="visibility" name="visibility">
-                {{if or .IsAdmin (eq .Project.Visibility "public")}}
-                <option value="public" {{if eq .Project.Visibility "public"}}selected{{end}}>Public — anyone can view</option>
+            <label for="exposure">Who can reach this project</label>
+            <select id="exposure" name="exposure">
+                {{if or .IsAdmin (eq .Project.Exposure "public")}}
+                <option value="public" {{if eq .Project.Exposure "public"}}selected{{end}}>Public — anyone, including signed-out visitors</option>
                 {{end}}
-                <option value="private" {{if eq .Project.Visibility "private"}}selected{{end}}>Private — global access list</option>
-                <option value="custom" {{if eq .Project.Visibility "custom"}}selected{{end}}>Custom — per-project access only</option>
-                {{if .AccessLists}}
-                <option value="list" {{if eq .Project.Visibility "list"}}selected{{end}}>Access list — a named set of users and groups</option>
-                {{end}}
+                <option value="authenticated" {{if eq .Project.Exposure "authenticated"}}selected{{end}}>Any signed-in user</option>
+                <option value="granted" {{if eq .Project.Exposure "granted"}}selected{{end}}>Only who is granted access below</option>
             </select>
             {{if not .IsAdmin}}<small>Only admins can make a project public.</small>{{end}}
         </div>
 
-        {{if .AccessLists}}
         <div class="form-group">
-            <label for="access_list_id">Access List</label>
-            <select id="access_list_id" name="access_list_id">
-                {{range .AccessLists}}
-                <option value="{{.ID}}" {{if eq .ID $.CurrentAccessListID}}selected{{end}}>{{.Name}}</option>
+            <label for="org_id">Organization</label>
+            <select id="org_id" name="org_id">
+                {{range .Orgs}}
+                <option value="{{.ID}}" {{if eq .ID $.CurrentOrgID}}selected{{end}}>{{.Name}}</option>
                 {{end}}
             </select>
-            <small>Used only when visibility is <strong>Access list</strong>. Manage lists under <a href="{{url "/admin/access-lists"}}">Admin &gt; Access Lists</a>.</small>
+            <small>A role granted on the organization applies to every project in it.</small>
         </div>
-        {{end}}
+
+        <input type="hidden" name="visibility" value="{{.Project.Visibility}}">
 
         <div class="form-group">
             <label for="version_keep_pattern">Versions to Keep (regex)</label>
@@ -69,72 +66,65 @@
         </div>
     </form>
 
-    {{if eq .Project.Visibility "private"}}
-    <div class="info-box" style="background: var(--color-bg-muted, #f6f8fa); border: 1px solid var(--color-border, #d0d7de); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-        <strong>Private visibility</strong>: Access is controlled by the global private access list
-        (configured in <code>config.yaml</code> under <code>access.private</code> or via the admin panel).
-    </div>
-    {{end}}
+    <h2>Access</h2>
+    <p class="admin-hint">A role granted here applies to this project. Someone may also reach it through a role on its organization — the stronger of the two wins.</p>
 
-    {{if eq .Project.Visibility "custom"}}
-    <h2>Project Access</h2>
+    {{if .Grants}}
     <table class="admin-table">
         <thead>
-            <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Source</th>
-                <th>Actions</th>
-            </tr>
+            <tr><th>Kind</th><th>Group or user</th><th>Role</th><th>Actions</th></tr>
         </thead>
         <tbody>
-            {{range .AccessList}}
+            {{range .Grants}}
             <tr>
-                <td>{{.Username}}</td>
+                <td><span class="badge badge-{{.Kind}}">{{.Kind}}</span></td>
+                <td>{{.Subject}}</td>
                 <td>{{.Role}}</td>
-                <td>{{if eq .Source "manual"}}manual{{else}}{{.Source}} (synced){{end}}</td>
                 <td>
-                    <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/access/revoke" class="inline-form">
+                    <form method="POST" action="{{url "/admin/projects/"}}{{$.Project.Slug}}/grants/revoke" class="inline-form"
+                        onsubmit="return confirm('Revoke this access?')">
                         {{template "csrf_field" $.CSRFToken}}
-                        <input type="hidden" name="user_id" value="{{.UserID}}">
-                        <input type="hidden" name="source" value="{{.Source}}">
+                        <input type="hidden" name="grant_id" value="{{.ID}}">
                         <button type="submit" class="btn btn-small btn-danger">Revoke</button>
                     </form>
                 </td>
             </tr>
-            {{else}}
-            <tr><td colspan="4">No specific access grants.</td></tr>
             {{end}}
         </tbody>
     </table>
-
-    {{if .HasSyncedAccess}}
-    <p><small>Grants marked <em>synced</em> come from an LDAP or OAuth2 group mapping.
-    Revoking one takes effect immediately, but the user regains it at their next login
-    unless the group mapping is changed in <strong>Admin &gt; Group Mappings</strong>.</small></p>
+    {{else}}
+    <p class="empty-message">Nobody is granted access to this project directly.</p>
     {{end}}
 
-    <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/access/grant">
+    <form method="POST" action="{{url "/admin/projects/"}}{{.Project.Slug}}/grants">
         {{template "csrf_field" $.CSRFToken}}
         <div class="form-row">
             <div class="form-group">
-                <label for="grant_user">Grant Access</label>
-                <select id="grant_user" name="grant_user_id">
-                    {{range .Users}}
-                    <option value="{{.ID}}">{{.Username}}</option>
-                    {{end}}
+                <label>Grant to</label>
+                <select name="subject_kind" required>
+                    <option value="group">Access group</option>
+                    <option value="user">User</option>
                 </select>
+            </div>
+            <div class="form-group form-group-wide">
+                <label>Name</label>
+                <input type="text" name="subject" required list="access-group-names" placeholder="group name or username">
             </div>
             <div class="form-group">
-                <label for="grant_role">Role</label>
-                <select id="grant_role" name="grant_role">
-                    <option value="viewer">Viewer</option>
-                    <option value="editor">Editor</option>
+                <label>Role</label>
+                <select name="role" required>
+                    <option value="viewer">Viewer — can read</option>
+                    <option value="editor">Editor — can upload</option>
+                    <option value="admin">Admin — can manage</option>
                 </select>
             </div>
+            <button type="submit" class="btn btn-secondary">Grant</button>
         </div>
-        <button type="submit" class="btn btn-secondary">Grant Access</button>
     </form>
-    {{end}}
+
+    <datalist id="access-group-names">
+        {{range .AccessGroups}}<option value="{{.Name}}">{{end}}
+    </datalist>
+
 </div>
 {{end}}

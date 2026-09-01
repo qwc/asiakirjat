@@ -5,14 +5,7 @@
     <h1>Manage Projects</h1>
 
     {{if .IsAdmin}}
-    <div class="admin-nav">
-        <a href="{{url "/admin/projects"}}" class="admin-nav-link active">Projects</a>
-        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
-        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
-        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
-        <a href="{{url "/admin/global-access"}}" class="admin-nav-link">Global Access</a>
-        <a href="{{url "/admin/access-lists"}}" class="admin-nav-link">Access Lists</a>
-    </div>
+    {{template "admin_nav" "projects"}}
     {{end}}
 
     <div class="admin-create-form">

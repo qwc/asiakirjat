@@ -4,14 +4,7 @@
 <div class="admin-page">
     <h1>Global Access Rules</h1>
 
-    <div class="admin-nav">
-        <a href="{{url "/admin/projects"}}" class="admin-nav-link">Projects</a>
-        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
-        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
-        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
-        <a href="{{url "/admin/global-access"}}" class="admin-nav-link active">Global Access</a>
-        <a href="{{url "/admin/access-lists"}}" class="admin-nav-link">Access Lists</a>
-    </div>
+    {{template "admin_nav" "global-access"}}
 
     <div class="admin-info">
         <p>Control who can access projects with <strong>private</strong> visibility. Users, LDAP groups, or OAuth2 groups listed here receive access to all private projects at the specified role.</p>

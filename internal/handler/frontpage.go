@@ -42,7 +42,7 @@ func latestVersionTag(versions []database.Version, pinnedVersion *string) string
 // filterAccessibleProjects is a thin forwarder to access.Checker.FilterAccessible;
 // the rule lives in internal/access.
 func (h *Handler) filterAccessibleProjects(ctx context.Context, user *database.User, all []database.Project) []database.Project {
-	return h.checker.FilterAccessible(ctx, user, all)
+	return h.resolver.FilterAccessible(ctx, user, all)
 }
 
 func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {

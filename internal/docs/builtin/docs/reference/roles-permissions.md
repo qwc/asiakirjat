@@ -1,5 +1,10 @@
 # Roles and Permissions
 
+> **Access is described differently now.** Groups and grants replace project
+> access, group mappings, global access and access lists — see
+> [Manage Access](../how-to/manage-access.md) for the current model. The
+> instance roles below still apply.
+
 Understanding user roles and project access in Asiakirjat.
 
 ## User Roles

@@ -85,9 +85,7 @@ func TestAPIVersionsVisibleToGrantedViewer(t *testing.T) {
 
 	cust := &database.Project{Slug: "granted-cust", Name: "Cust", Visibility: "custom"}
 	app.handler.projects.Create(ctx, cust)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: cust.ID, UserID: viewer.ID, Role: "viewer",
-	})
+	grantRole(t, app, cust.ID, viewer.ID, "viewer")
 	upID := uploader.ID
 	app.handler.versions.Create(ctx, &database.Version{
 		ProjectID:   cust.ID,

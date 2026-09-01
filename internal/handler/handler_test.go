@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -54,6 +55,9 @@ func setupTestApp(t *testing.T) *testApp {
 	globalAccessStore := sqlstore.NewGlobalAccessStore(db)
 	accessListStore := sqlstore.NewAccessListStore(db)
 	groupMappingStore := sqlstore.NewAuthGroupMappingStore(db)
+	orgStore := sqlstore.NewOrgStore(db)
+	accessGroupStore := sqlstore.NewAccessGroupStore(db)
+	accessGrantStore := sqlstore.NewAccessGrantStore(db)
 
 	storage := docs.NewFilesystemStorage(storageDir)
 
@@ -101,6 +105,9 @@ func setupTestApp(t *testing.T) *testApp {
 		UploadLogs:     uploadLogStore,
 		GlobalAccess:   globalAccessStore,
 		AccessLists:    accessListStore,
+		Orgs:           orgStore,
+		AccessGroups:   accessGroupStore,
+		AccessGrants:   accessGrantStore,
 		GroupMappings:  groupMappingStore,
 		Authenticators: []auth.Authenticator{builtinAuth},
 		SessionMgr:     sessionMgr,
@@ -138,13 +145,16 @@ func seedProject(t *testing.T, app *testApp, slug, name string, isPublic bool) *
 	t.Helper()
 	ctx := context.Background()
 	visibility := database.VisibilityCustom
+	exposure := database.ExposureGranted
 	if isPublic {
 		visibility = database.VisibilityPublic
+		exposure = database.ExposurePublic
 	}
 	project := &database.Project{
 		Slug:       slug,
 		Name:       name,
 		Visibility: visibility,
+		Exposure:   exposure,
 	}
 	if err := app.handler.projects.Create(ctx, project); err != nil {
 		t.Fatal(err)
@@ -154,6 +164,39 @@ func seedProject(t *testing.T, app *testApp, slug, name string, isPublic bool) *
 
 // csrfTokenFor derives the CSRF token from the session cookie returned by
 // loginUser. Tests that submit POST forms must set csrf_token to this value.
+// grantRole gives a user a role on a project in the unified access model
+// (#150, #151). Tests that only need "this user can reach this project" use
+// this; the ones exercising the old project_access store still call it
+// directly, until that table is retired.
+func grantRole(t *testing.T, app *testApp, projectID, userID int64, role string) {
+	t.Helper()
+	if err := app.handler.accessGrants.Grant(context.Background(), &database.AccessGrant{
+		UserID: &userID, ProjectID: &projectID, Role: role,
+	}); err != nil {
+		t.Fatalf("granting %s to user %d on project %d: %v", role, userID, projectID, err)
+	}
+}
+
+// defaultOrgID returns the org every project lands in unless told otherwise.
+func defaultOrgID(t *testing.T, app *testApp) int64 {
+	t.Helper()
+	org, err := sqlstore.NewOrgStore(app.db.(*sqlx.DB)).GetBySlug(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("looking up the default org: %v", err)
+	}
+	return org.ID
+}
+
+// grantOrgRole gives a user a role on an org, which cascades to its projects.
+func grantOrgRole(t *testing.T, app *testApp, orgID, userID int64, role string) {
+	t.Helper()
+	if err := app.handler.accessGrants.Grant(context.Background(), &database.AccessGrant{
+		UserID: &userID, OrgID: &orgID, Role: role,
+	}); err != nil {
+		t.Fatalf("granting %s to user %d on org %d: %v", role, userID, orgID, err)
+	}
+}
+
 func csrfTokenFor(t *testing.T, app *testApp, cookies []*http.Cookie) string {
 	t.Helper()
 	for _, c := range cookies {
@@ -770,9 +813,9 @@ func TestUploadFullFlow(t *testing.T) {
 
 	// Create a test zip
 	zipBuf := createTestZip(t, map[string]string{
-		"index.html":        "<html><body>Hello docs!</body></html>",
-		"css/style.css":     "body { color: blue; }",
-		"guide/intro.html":  "<html><body>Introduction</body></html>",
+		"index.html":       "<html><body>Hello docs!</body></html>",
+		"css/style.css":    "body { color: blue; }",
+		"guide/intro.html": "<html><body>Introduction</body></html>",
 	})
 
 	// Build multipart form
@@ -1236,7 +1279,6 @@ func TestAdminDeleteProject(t *testing.T) {
 		req.AddCookie(c)
 	}
 
-
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp, err := client.Do(req)
@@ -1257,6 +1299,25 @@ func TestAdminDeleteProject(t *testing.T) {
 }
 
 // seedEditor creates a builtin editor user with a known password.
+// seedViewer creates a plain user with no instance-level powers, so what they
+// can reach comes entirely from grants.
+func seedViewer(t *testing.T, app *testApp, username string) *database.User {
+	t.Helper()
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("viewer123")
+	user := &database.User{
+		Username:   username,
+		Email:      username + "@example.com",
+		Password:   &hash,
+		AuthSource: "builtin",
+		Role:       "viewer",
+	}
+	if err := app.handler.users.Create(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	return user
+}
+
 func seedEditor(t *testing.T, app *testApp, username string) *database.User {
 	t.Helper()
 	ctx := context.Background()
@@ -1274,7 +1335,10 @@ func seedEditor(t *testing.T, app *testApp, username string) *database.User {
 	return user
 }
 
-// An editor who created a project may edit it even though they are not an admin.
+// An editor who created a project may edit it even though they are not an
+// instance admin. Ownership is an admin grant now rather than a created_by
+// branch in the checker (#150, #151); projects.Service.Create writes it, and
+// this test seeds the project directly, so it writes the grant too.
 func TestEditorCanEditOwnProject(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
@@ -1289,6 +1353,7 @@ func TestEditorCanEditOwnProject(t *testing.T) {
 	if err := app.handler.projects.Create(ctx, project); err != nil {
 		t.Fatal(err)
 	}
+	grantRole(t, app, project.ID, editor.ID, "admin")
 
 	cookies := loginUser(t, app, "owner", "editor123")
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -1370,6 +1435,7 @@ func TestEditorCannotMakeOwnProjectPublic(t *testing.T) {
 	if err := app.handler.projects.Create(ctx, project); err != nil {
 		t.Fatal(err)
 	}
+	grantRole(t, app, project.ID, editor.ID, "admin")
 
 	cookies := loginUser(t, app, "owner", "editor123")
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -1500,11 +1566,7 @@ func TestEditorCanUploadToAssignedProject(t *testing.T) {
 	app.handler.users.Create(ctx, editor)
 
 	// Grant editor access to the project
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    editor.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, editor.ID, "editor")
 
 	cookies := loginUser(t, app, "editor", "editor123")
 
@@ -1545,11 +1607,7 @@ func TestPrivateProjectAccessForGrantedUser(t *testing.T) {
 	app.handler.users.Create(ctx, user)
 
 	// Grant access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    user.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, project.ID, user.ID, "viewer")
 
 	cookies := loginUser(t, app, "granteduser", "user123")
 
@@ -1619,11 +1677,7 @@ func TestAPIUploadWithBearerToken(t *testing.T) {
 	app.handler.users.Create(ctx, robot)
 
 	// Grant upload access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    robot.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, robot.ID, "editor")
 
 	// Generate token
 	rawToken, _ := auth.GenerateToken(32)
@@ -2699,7 +2753,6 @@ func TestAdminReindexEndpoint(t *testing.T) {
 		req.AddCookie(c)
 	}
 
-
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp, err := client.Do(req)
@@ -2741,7 +2794,6 @@ func TestAdminReindexRequiresAdmin(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
-
 
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
@@ -2893,11 +2945,7 @@ func TestSearchPageAccessControlUserWithAccess(t *testing.T) {
 		AuthSource: "builtin", Role: "viewer",
 	}
 	app.handler.users.Create(ctx, accessUser)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: privProject.ID,
-		UserID:    accessUser.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, privProject.ID, accessUser.ID, "viewer")
 
 	cookies := loginUser(t, app, "pageaccessuser", "user123")
 
@@ -3103,11 +3151,7 @@ func TestSearchAPIAccessControlUserWithAccess(t *testing.T) {
 	app.handler.users.Create(ctx, accessUser)
 
 	// Grant access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: privProject.ID,
-		UserID:    accessUser.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, privProject.ID, accessUser.ID, "viewer")
 
 	cookies := loginUser(t, app, "hasaccess", "user123")
 
@@ -3194,11 +3238,7 @@ func TestProjectTokensPageRequiresEditorAccess(t *testing.T) {
 	app.handler.users.Create(ctx, viewer)
 
 	// Grant viewer access (not editor)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    viewer.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, project.ID, viewer.ID, "viewer")
 
 	cookies := loginUser(t, app, "viewer", "viewer123")
 
@@ -3240,11 +3280,7 @@ func TestProjectTokensPageEditorCanAccess(t *testing.T) {
 	app.handler.users.Create(ctx, editor)
 
 	// Grant editor access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    editor.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, editor.ID, "editor")
 
 	cookies := loginUser(t, app, "editor", "editor123")
 
@@ -3281,11 +3317,7 @@ func TestProjectCreateTokenAlwaysScopedToProject(t *testing.T) {
 	app.handler.users.Create(ctx, editor)
 
 	// Grant editor access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    editor.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, editor.ID, "editor")
 
 	cookies := loginUser(t, app, "tokeneditor", "editor123")
 
@@ -3364,11 +3396,7 @@ func TestProjectRevokeTokenValidatesOwnership(t *testing.T) {
 		AuthSource: "builtin", Role: "viewer",
 	}
 	app.handler.users.Create(ctx, editor)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project2.ID,
-		UserID:    editor.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project2.ID, editor.ID, "editor")
 
 	cookies := loginUser(t, app, "proj2editor", "editor123")
 
@@ -3467,11 +3495,7 @@ func TestAPIUploadWithProjectScopedTokenCorrectProject(t *testing.T) {
 	app.handler.users.Create(ctx, robot)
 
 	// Grant upload access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    robot.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, robot.ID, "editor")
 
 	// Generate project-scoped token
 	rawToken, _ := auth.GenerateToken(32)
@@ -3531,12 +3555,8 @@ func TestAPIUploadWithProjectScopedTokenWrongProject(t *testing.T) {
 	app.handler.users.Create(ctx, robot)
 
 	// Grant upload access to both projects
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project1.ID, UserID: robot.ID, Role: "editor",
-	})
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project2.ID, UserID: robot.ID, Role: "editor",
-	})
+	grantRole(t, app, project1.ID, robot.ID, "editor")
+	grantRole(t, app, project2.ID, robot.ID, "editor")
 
 	// Generate token scoped to project1 ONLY
 	rawToken, _ := auth.GenerateToken(32)
@@ -3777,7 +3797,6 @@ func TestDeleteVersionSuccess(t *testing.T) {
 		req.AddCookie(c)
 	}
 
-
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
 	resp, err := client.Do(req)
@@ -3824,11 +3843,7 @@ func TestDeleteVersionRequiresEditorAccess(t *testing.T) {
 	app.handler.users.Create(ctx, viewer)
 
 	// Grant viewer access (not editor)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    viewer.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, project.ID, viewer.ID, "viewer")
 
 	cookies := loginUser(t, app, "delviewer", "viewer123")
 
@@ -3842,7 +3857,6 @@ func TestDeleteVersionRequiresEditorAccess(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
-
 
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
@@ -3885,11 +3899,7 @@ func TestDeleteVersionEditorWithAccessCanDelete(t *testing.T) {
 	app.handler.users.Create(ctx, editor)
 
 	// Grant editor access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    editor.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, editor.ID, "editor")
 
 	cookies := loginUser(t, app, "deletedit", "editor123")
 
@@ -3903,7 +3913,6 @@ func TestDeleteVersionEditorWithAccessCanDelete(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
-
 
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
@@ -3941,7 +3950,6 @@ func TestDeleteVersionNotFound(t *testing.T) {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
-
 
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 
@@ -3989,7 +3997,7 @@ func TestProfilePageRendered(t *testing.T) {
 	hash, _ := auth.HashPassword("user123")
 	user := &database.User{
 		Username: "profileuser", Password: &hash,
-		Email: "profile@example.com",
+		Email:      "profile@example.com",
 		AuthSource: "builtin", Role: "viewer",
 	}
 	app.handler.users.Create(ctx, user)
@@ -4137,11 +4145,7 @@ func TestAdminRevokeAccess(t *testing.T) {
 		AuthSource: "builtin", Role: "viewer",
 	}
 	app.handler.users.Create(ctx, user)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    user.ID,
-		Role:      "editor",
-	})
+	grantRole(t, app, project.ID, user.ID, "editor")
 
 	cookies := loginUser(t, app, "admin", "admin123")
 

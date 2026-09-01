@@ -156,9 +156,11 @@ func TestDeletingListInUseIsRefused(t *testing.T) {
 	}
 }
 
-// TestProjectCanBeGivenListVisibility covers the picker end to end: the edit
-// page offers the list, and saving stores the pointer.
-func TestProjectCanBeGivenListVisibility(t *testing.T) {
+// The project edit page no longer offers an access-list picker: a project's
+// audience is expressed with access grants now, and the list mechanism is kept
+// only until its table is retired (#150, #151). What the page must offer
+// instead is the exposure choice and a way to grant.
+func TestProjectEditPageOffersGrantsNotLists(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 
@@ -169,44 +171,24 @@ func TestProjectCanBeGivenListVisibility(t *testing.T) {
 	if err := app.handler.accessLists.Create(ctx, list); err != nil {
 		t.Fatal(err)
 	}
-	project := seedProject(t, app, "docs", "Docs", false)
+	group := &database.AccessGroup{Name: "authors"}
+	if err := app.handler.accessGroups.Create(ctx, group); err != nil {
+		t.Fatal(err)
+	}
+	seedProject(t, app, "docs", "Docs", false)
 
 	status, body := adminGet(t, app, cookies, "/admin/projects/docs/edit")
 	if status != http.StatusOK {
 		t.Fatalf("expected 200 for the edit page, got %d", status)
 	}
-	if !strings.Contains(body, "writers") {
-		t.Error("expected the edit page to offer the access list")
+	if strings.Contains(body, "writers") {
+		t.Error("the edit page must no longer offer access lists")
 	}
-
-	form := url.Values{}
-	form.Set("slug", project.Slug)
-	form.Set("name", project.Name)
-	form.Set("visibility", "list")
-	form.Set("access_list_id", strconv.FormatInt(list.ID, 10))
-	if resp := adminPost(t, app, cookies, "/admin/projects/docs/edit", form); resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("expected 303 after saving, got %d", resp.StatusCode)
+	if !strings.Contains(body, "authors") {
+		t.Error("expected the edit page to offer access groups to grant to")
 	}
-
-	updated, err := app.handler.projects.GetBySlug(ctx, "docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Visibility != database.VisibilityList {
-		t.Errorf("expected list visibility, got %q", updated.Visibility)
-	}
-	if updated.AccessListID == nil || *updated.AccessListID != list.ID {
-		t.Errorf("expected the list pointer stored, got %v", updated.AccessListID)
-	}
-
-	// Switching away clears the pointer rather than leaving it stale.
-	form.Set("visibility", "custom")
-	if resp := adminPost(t, app, cookies, "/admin/projects/docs/edit", form); resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("expected 303 after switching away, got %d", resp.StatusCode)
-	}
-	updated, _ = app.handler.projects.GetBySlug(ctx, "docs")
-	if updated.AccessListID != nil {
-		t.Errorf("expected the pointer cleared, got %v", *updated.AccessListID)
+	if !strings.Contains(body, `name="exposure"`) {
+		t.Error("expected the edit page to offer the exposure choice")
 	}
 }
 

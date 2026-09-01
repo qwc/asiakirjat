@@ -4,7 +4,10 @@
 // All validators are pure functions and safe to call from any goroutine.
 package validation
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 const (
 	maxSlugLen    = 128
@@ -34,4 +37,19 @@ func IsValidVersionTag(t string) bool {
 		return false
 	}
 	return versionTagPattern.MatchString(t)
+}
+
+// nonSlugChars matches every run of characters a slug may not contain, so they
+// can be collapsed into single separators.
+var nonSlugChars = regexp.MustCompile(`[^a-z0-9]+`)
+
+// Slugify derives a slug from a display name: lowercased, with every run of
+// other characters collapsed to one hyphen and the ends trimmed.
+//
+// The result is not guaranteed valid — a name of only punctuation yields the
+// empty string, and a very long one stays too long — so callers must still
+// pass it through IsValidSlug rather than assume. Producing something invalid
+// and failing loudly beats silently inventing a slug the user did not choose.
+func Slugify(name string) string {
+	return strings.Trim(nonSlugChars.ReplaceAllString(strings.ToLower(name), "-"), "-")
 }

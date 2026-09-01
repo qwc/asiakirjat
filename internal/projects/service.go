@@ -99,6 +99,7 @@ type Service struct {
 	projects store.ProjectStore
 	versions store.VersionStore
 	access   store.ProjectAccessStore
+	grants   store.AccessGrantStore
 	storage  docs.Storage
 	logger   *slog.Logger
 }
@@ -110,6 +111,13 @@ func NewService(p store.ProjectStore, v store.VersionStore, a store.ProjectAcces
 		l = slog.Default()
 	}
 	return &Service{projects: p, versions: v, access: a, storage: s, logger: l}
+}
+
+// SetGrants wires the unified access model's grant store, so creating a
+// project can make its creator an admin of it. Separate from NewService to
+// keep the transitional wiring out of every call site.
+func (s *Service) SetGrants(g store.AccessGrantStore) {
+	s.grants = g
 }
 
 // Create validates the input, persists the project, ensures its storage
@@ -169,6 +177,24 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 		}
 		if err := s.access.Grant(ctx, grant); err != nil {
 			s.logger.Error("auto-granting creator access", "slug", opts.Slug, "user", opts.Creator.Username, "error", err)
+		}
+	}
+
+	// Ownership as data: the creator becomes an admin of their project
+	// (#150, #151). created_by stays as provenance for the "created by"
+	// column, but it no longer decides anything — an org admin and a project
+	// creator now reach the same rule instead of two.
+	//
+	// Admins are included: their instance role already covers every project,
+	// but recording the grant keeps the project's access list honest about
+	// who owns it, and survives a later demotion.
+	if opts.Creator != nil && s.grants != nil {
+		if err := s.grants.Grant(ctx, &database.AccessGrant{
+			UserID:    &opts.Creator.ID,
+			ProjectID: &project.ID,
+			Role:      database.GrantRoleAdmin,
+		}); err != nil {
+			s.logger.Error("granting creator admin of new project", "slug", opts.Slug, "user", opts.Creator.Username, "error", err)
 		}
 	}
 

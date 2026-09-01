@@ -1,5 +1,10 @@
 # Manage Global Access
 
+> **Superseded.** Access groups and grants replace this mechanism — see
+> [Manage Access](manage-access.md). This page describes how the old model
+> worked, and stays until its tables are retired. Existing configuration was
+> translated automatically on upgrade; nothing here needs redoing by hand.
+
 This guide explains how to manage the global access list, which controls who can view and upload to **private**-visibility projects.
 
 ## When to Use Global Access

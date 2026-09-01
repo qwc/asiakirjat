@@ -15,11 +15,14 @@ import (
 // access check that ignored global access grants. A user with a global
 // editor grant can upload to a private project but couldn't delete a
 // version of it. With the fix (using h.canUpload), they can.
-func TestDeleteVersionHonorsGlobalAccessGrant(t *testing.T) {
+// An org-scoped grant reaches every project in the org. This is what the old
+// instance-wide "global access" grant became: the same reach, but expressed at
+// a scope an admin can point at, rather than a special case in the checker.
+func TestDeleteVersionHonorsOrgGrant(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 
-	// Plain viewer-role user; receives a global editor grant.
+	// Plain viewer-role user; receives an org-wide editor grant.
 	hash, _ := auth.HashPassword("v123")
 	viewer := &database.User{
 		Username: "h1-grantee", Password: &hash,
@@ -27,11 +30,7 @@ func TestDeleteVersionHonorsGlobalAccessGrant(t *testing.T) {
 	}
 	app.handler.users.Create(ctx, viewer)
 
-	if err := app.handler.globalAccess.UpsertGrant(ctx, &database.GlobalAccessGrant{
-		UserID: viewer.ID, Role: "editor", Source: "manual",
-	}); err != nil {
-		t.Fatal(err)
-	}
+	grantOrgRole(t, app, defaultOrgID(t, app), viewer.ID, "editor")
 
 	// Need an uploader for the FK on versions.uploaded_by.
 	uploader := &database.User{Username: "h1-up", AuthSource: "builtin", Role: "editor"}
@@ -62,7 +61,6 @@ func TestDeleteVersionHonorsGlobalAccessGrant(t *testing.T) {
 		req.AddCookie(c)
 	}
 
-
 	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
 	resp, err := client.Do(req)
 	if err != nil {
@@ -79,7 +77,8 @@ func TestDeleteVersionHonorsGlobalAccessGrant(t *testing.T) {
 // page must reflect canUpload semantics, not a separate inline rule.
 // Specifically, a user with a global editor grant on a private project
 // should see CanUpload=true in the rendered page.
-func TestProjectDetailCanUploadHonorsGlobalAccess(t *testing.T) {
+// The same cascade, seen through the project page's upload affordance.
+func TestProjectDetailCanUploadHonorsOrgGrant(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 
@@ -90,11 +89,7 @@ func TestProjectDetailCanUploadHonorsGlobalAccess(t *testing.T) {
 	}
 	app.handler.users.Create(ctx, viewer)
 
-	if err := app.handler.globalAccess.UpsertGrant(ctx, &database.GlobalAccessGrant{
-		UserID: viewer.ID, Role: "editor", Source: "manual",
-	}); err != nil {
-		t.Fatal(err)
-	}
+	grantOrgRole(t, app, defaultOrgID(t, app), viewer.ID, "editor")
 
 	priv := &database.Project{Slug: "h2-priv", Name: "H2", Visibility: "private"}
 	app.handler.projects.Create(ctx, priv)
@@ -198,4 +193,3 @@ func TestAPICreateProjectAllowsGlobalToken(t *testing.T) {
 		t.Errorf("global editor token should create projects, got %d", resp.StatusCode)
 	}
 }
-
