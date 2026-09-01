@@ -49,15 +49,34 @@ func MigrateAccessModel(ctx context.Context, db *sqlx.DB, logger *slog.Logger) e
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Claim the marker before doing the work, not after.
+	//
+	// Several replicas start at once — this is deployed to Kubernetes — and
+	// they all reach here having read "not migrated". Writing the marker last
+	// meant each one translated the entire access model and only then
+	// collided on the primary key, so the losers wasted the work and failed
+	// startup. Claiming first makes them block on that key instead: whoever
+	// loses finds the marker already set and skips.
+	//
+	// Any error here is treated the same way — re-read the marker rather than
+	// pick apart dialect-specific constraint violations. If it is set, someone
+	// else did the job and there is nothing to report.
+	if _, err := tx.ExecContext(ctx, tx.Rebind(
+		`INSERT INTO app_meta (meta_key, meta_value) VALUES (?, ?)`), accessMigrationKey, "1"); err != nil {
+		_ = tx.Rollback()
+		done, checkErr := metaFlag(ctx, db, accessMigrationKey)
+		if checkErr == nil && done {
+			logger.Info("access model already migrated by another instance")
+			return nil
+		}
+		return fmt.Errorf("claiming access migration: %w", err)
+	}
+
 	m := &migrator{tx: tx, logger: logger, groups: map[string]int64{}}
 	if err := m.run(ctx); err != nil {
 		return fmt.Errorf("migrating access model: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, tx.Rebind(
-		`INSERT INTO app_meta (meta_key, meta_value) VALUES (?, ?)`), accessMigrationKey, "1"); err != nil {
-		return fmt.Errorf("recording access migration: %w", err)
-	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("committing access migration: %w", err)
 	}

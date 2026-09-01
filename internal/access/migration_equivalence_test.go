@@ -130,8 +130,16 @@ func diffSnapshots(t *testing.T, before, after map[string]verdict) {
 // once, which is the case the migration has to get right.
 func seedLegacyWorld(t *testing.T) (*sqlx.DB, []database.User, []database.Project) {
 	t.Helper()
-	ctx := context.Background()
 	db := testutil.NewTestDB(t)
+	users, projects := seedLegacyWorldInto(t, db)
+	return db, users, projects
+}
+
+// seedLegacyWorldInto fills a given database, so a test can build the same
+// world twice and compare the results.
+func seedLegacyWorldInto(t *testing.T, db *sqlx.DB) ([]database.User, []database.Project) {
+	t.Helper()
+	ctx := context.Background()
 
 	users := sqlstore.NewUserStore(db)
 	projects := sqlstore.NewProjectStore(db)
@@ -241,7 +249,7 @@ func seedLegacyWorld(t *testing.T) (*sqlx.DB, []database.User, []database.Projec
 	}
 	_ = owned
 	_ = priv
-	return db, allUsers, allProjects
+	return allUsers, allProjects
 }
 
 // TestMigrationPreservesAccessExactly is the gate on the whole redesign: run

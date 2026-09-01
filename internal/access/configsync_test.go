@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -285,5 +286,60 @@ func TestConfigSyncIsIdempotent(t *testing.T) {
 	}
 	if !w.res.CanUpload(ctx, w.user, w.project) {
 		t.Error("expected access to survive repeated syncs")
+	}
+}
+
+// Several replicas start at once on Kubernetes and all run the migration.
+// Exactly one may do the work, and the others must return cleanly rather than
+// failing startup.
+func TestConcurrentMigrationRunsOnce(t *testing.T) {
+	ctx := context.Background()
+	db, _, _ := seedLegacyWorld(t)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	const replicas = 4
+	errs := make(chan error, replicas)
+	var wg sync.WaitGroup
+	for i := 0; i < replicas; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- sqlstore.MigrateAccessModel(ctx, db, logger)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Errorf("a replica failed startup rather than skipping: %v", err)
+		}
+	}
+
+	// One translation, not four: duplicated grants would be visible here.
+	var groups, grants int
+	if err := db.GetContext(ctx, &groups, `SELECT COUNT(*) FROM access_groups`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.GetContext(ctx, &grants, `SELECT COUNT(*) FROM access_grants`); err != nil {
+		t.Fatal(err)
+	}
+
+	single := testutil.NewTestDB(t)
+	seedLegacyWorldInto(t, single)
+	if err := sqlstore.MigrateAccessModel(ctx, single, logger); err != nil {
+		t.Fatal(err)
+	}
+	var wantGroups, wantGrants int
+	if err := single.GetContext(ctx, &wantGroups, `SELECT COUNT(*) FROM access_groups`); err != nil {
+		t.Fatal(err)
+	}
+	if err := single.GetContext(ctx, &wantGrants, `SELECT COUNT(*) FROM access_grants`); err != nil {
+		t.Fatal(err)
+	}
+
+	if groups != wantGroups || grants != wantGrants {
+		t.Errorf("concurrent migration produced %d groups / %d grants, a single run produces %d / %d",
+			groups, grants, wantGroups, wantGrants)
 	}
 }
