@@ -38,14 +38,40 @@ You can search through all documentation stored — not only by title, but in th
 - **Self-documenting**: deployable built-in documentation
 - **Single binary**, Docker-ready
 
+## Quick Start
+
+With Docker, from a fresh clone:
+
+```bash
+make demo
+```
+
+That builds the image, starts it, waits for it to come up, and prints the URL
+and the admin credentials it generated. Deploy the built-in documentation from
+**Admin > Deploy Built-in Docs** and you have something to read.
+
+```bash
+make logs     # follow the log
+make stop     # stop it, keeping its data
+make reset    # stop it and delete its data
+make demo PORT=9000   # any variable can be overridden
+```
+
+If you are working over SSH, that URL is local to the machine you are logged
+into — `make demo` says so and prints the `ssh -L` line to forward the port to
+wherever your browser is.
+
+`make help` lists everything. There is no config file to write first: every
+setting has an `ASIAKIRJAT_`-prefixed environment override, and the demo uses
+those. Reach for `make config && make compose-up` when you do want to edit
+`config.yaml`.
+
 ## Building and Running
 
 ```bash
-# Build
-CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w -X main.version=dev" -o asiakirjat .
-
-# Run
-./asiakirjat -config config.yaml
+make build    # or: CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w -X main.version=dev" -o asiakirjat .
+make test     # Go tests and the overlay JS tests
+make run      # build and run locally, no Docker
 ```
 
 Copy `config.yaml.example` to `config.yaml` and adjust it. Every setting can be
