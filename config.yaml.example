@@ -43,14 +43,9 @@ auth:
     # viewer_group: If set, users must be in admin_group, editor_group, OR viewer_group
     # to be allowed. If empty (default), all LDAP users are allowed as viewers.
     viewer_group: ""
-    # project_groups: Map LDAP groups to project access (synced to DB on startup)
-    # project_groups:
-    #   - group: "cn=project-a-editors,ou=groups,dc=example,dc=com"
-    #     project: "project-a"
-    #     role: "editor"
-    #   - group: "cn=docs-viewers,ou=groups,dc=example,dc=com"
-    #     project: "docs"
-    #     role: "viewer"
+    # project_groups: RETIRED — use the access: section below instead. Entries
+    # here are still applied, translated into an access group per LDAP group
+    # plus a grant, and logged with a warning at startup.
   oauth2:
     enabled: false
     client_id: ""
@@ -69,30 +64,48 @@ auth:
     # viewer_group: If set, users must be in admin_group, editor_group, OR viewer_group
     # to be allowed. If empty (default), all OAuth2 users are allowed as viewers.
     viewer_group: ""
-    # project_groups: Map OAuth2 groups to project access (synced to DB on startup)
-    # project_groups:
-    #   - group: "project-a-editors"
-    #     project: "project-a"
-    #     role: "editor"
-    #   - group: "docs-viewers"
-    #     project: "docs"
-    #     role: "viewer"
+    # project_groups: RETIRED — see the access: section below.
 
-# access: Controls who can view projects with "private" visibility.
-# Projects have three visibility levels:
-#   public  — anyone can view (including anonymous users)
-#   private — only users/groups listed here can view
-#   custom  — only users with explicit per-project access can view
+# access: Who may do what, and where.
+#
+# Two nouns, mirroring Admin > Access Groups and the Access table on every
+# project and organization:
+#
+#   groups — a named set of people: users, LDAP groups, OAuth2 groups, or a mix.
+#            A group grants nothing on its own.
+#   grants — give a group or a user a role on an organization or a project.
+#            A role on an organization applies to every project in it.
+#
+# Roles are viewer, editor and admin, at either scope. The strongest role a
+# person reaches a project by wins.
+#
+# What this section declares, it OWNS: rows written from config are reconciled
+# against this file on every startup, so deleting an entry here revokes it.
+# Anything added through the admin UI is left alone.
+#
 # access:
-#   private:
-#     viewers:
-#       users: ["user1", "user2"]
-#       ldap_groups: ["cn=readers,ou=groups,dc=example,dc=com"]
-#       oauth2_groups: ["readers"]
-#     editors:
-#       users: ["editor1"]
-#       ldap_groups: ["cn=writers,ou=groups,dc=example,dc=com"]
-#       oauth2_groups: ["writers"]
+#   groups:
+#     - name: engineering
+#       description: "Dev team"
+#       members:
+#         - ldap_group: "cn=eng,ou=groups,dc=example,dc=com"
+#         - oauth2_group: "eng"
+#         - user: "alice"          # matched immediately; groups resolve at sign-in
+#   grants:
+#     - group: engineering
+#       org: default               # every project in the organization
+#       role: viewer
+#     - group: engineering
+#       project: docs              # this project only; stronger role wins
+#       role: editor
+#     - user: alice
+#       project: docs
+#       role: admin
+#
+#   private: RETIRED. It granted access to every "private"-visibility project,
+#   and that visibility no longer exists. Existing installations had these
+#   members migrated once into a "Private Access" group — grant that group on an
+#   org or project above. This key is NOT applied, and warns at startup.
 
 storage:
   base_path: "data/projects"

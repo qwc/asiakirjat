@@ -149,6 +149,7 @@ type AccessGroupStore interface {
 	CountGrants(ctx context.Context, id int64) (int, error)
 
 	ListMembers(ctx context.Context, groupID int64) ([]database.AccessGroupMember, error)
+	ListMembersBySource(ctx context.Context, source string) ([]database.AccessGroupMember, error)
 	AddMember(ctx context.Context, m *database.AccessGroupMember) error
 	RemoveMember(ctx context.Context, memberID int64) error
 

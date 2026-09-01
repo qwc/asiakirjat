@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS access_group_members (
     group_id BIGINT NOT NULL,
     subject_type VARCHAR(50) NOT NULL,
     subject_identifier VARCHAR(255) NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'manual',
     UNIQUE KEY uq_group_subject (group_id, subject_type, subject_identifier),
     KEY idx_access_group_members_group (group_id),
     FOREIGN KEY (group_id) REFERENCES access_groups(id) ON DELETE CASCADE

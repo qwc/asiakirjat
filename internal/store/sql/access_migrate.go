@@ -176,8 +176,8 @@ func (m *migrator) addMember(ctx context.Context, groupID int64, subjectType, id
 		return nil
 	}
 	if _, err := m.tx.ExecContext(ctx, m.tx.Rebind(
-		`INSERT INTO access_group_members (group_id, subject_type, subject_identifier) VALUES (?, ?, ?)`),
-		groupID, subjectType, identifier); err != nil {
+		`INSERT INTO access_group_members (group_id, subject_type, subject_identifier, source) VALUES (?, ?, ?, ?)`),
+		groupID, subjectType, identifier, database.GrantSourceManual); err != nil {
 		return fmt.Errorf("adding access group member: %w", err)
 	}
 	return nil

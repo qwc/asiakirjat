@@ -315,6 +315,9 @@ type AccessGroupMember struct {
 	GroupID           int64  `db:"group_id"`
 	SubjectType       string `db:"subject_type"` // See SubjectType* constants
 	SubjectIdentifier string `db:"subject_identifier"`
+	// Source is GrantSourceManual or GrantSourceConfig: who owns this row.
+	// config.yaml reconciles its own rows on startup and leaves the rest alone.
+	Source string `db:"source"`
 }
 
 // AccessGroupResolved records that a user was found in a group's LDAP or

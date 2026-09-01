@@ -113,8 +113,14 @@ func (s *AccessGroupStore) AddMember(ctx context.Context, m *database.AccessGrou
 	if m.SubjectIdentifier == "" {
 		return fmt.Errorf("subject identifier must not be empty")
 	}
-	query := `INSERT INTO access_group_members (group_id, subject_type, subject_identifier) VALUES (?, ?, ?)`
-	result, err := s.db.ExecContext(ctx, s.db.Rebind(query), m.GroupID, m.SubjectType, m.SubjectIdentifier)
+	if m.Source == "" {
+		m.Source = database.GrantSourceManual
+	}
+	if !database.ValidGrantSource(m.Source) {
+		return fmt.Errorf("invalid member source %q", m.Source)
+	}
+	query := `INSERT INTO access_group_members (group_id, subject_type, subject_identifier, source) VALUES (?, ?, ?, ?)`
+	result, err := s.db.ExecContext(ctx, s.db.Rebind(query), m.GroupID, m.SubjectType, m.SubjectIdentifier, m.Source)
 	if err != nil {
 		return fmt.Errorf("adding access group member: %w", err)
 	}
@@ -200,4 +206,16 @@ func (s *AccessGroupStore) SetResolvedForUser(ctx context.Context, userID int64,
 		}
 	}
 	return nil
+}
+
+// ListMembersBySource returns every member across all groups that a given
+// owner wrote, which is what lets the config sync reconcile its own rows
+// without disturbing the ones an admin added by hand.
+func (s *AccessGroupStore) ListMembersBySource(ctx context.Context, source string) ([]database.AccessGroupMember, error) {
+	var members []database.AccessGroupMember
+	query := `SELECT * FROM access_group_members WHERE source = ?`
+	if err := s.db.SelectContext(ctx, &members, s.db.Rebind(query), source); err != nil {
+		return nil, fmt.Errorf("listing access group members by source: %w", err)
+	}
+	return members, nil
 }

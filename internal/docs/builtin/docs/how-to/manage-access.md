@@ -75,6 +75,43 @@ A user's own role, on **Admin > Users**, sits above all of this:
 
 Creating a project makes you an admin of it, recorded as an ordinary grant. You can see it in the project's Access table, and revoke it like any other.
 
+## Declaring Access in config.yaml
+
+Everything above can be declared in `config.yaml` instead of clicked, which is
+what you want when the instance is provisioned rather than administered:
+
+```yaml
+access:
+  groups:
+    - name: engineering
+      description: Dev team
+      members:
+        - ldap_group: "cn=eng,ou=groups,dc=example,dc=com"
+        - user: alice
+  grants:
+    - group: engineering
+      org: default
+      role: viewer
+    - group: engineering
+      project: docs
+      role: editor
+```
+
+What the file declares, the file owns. Those rows are reconciled against it on
+every startup, so **deleting an entry revokes it** — config is declarative, not
+additive. Anything added through the admin UI is left alone, so the two can
+coexist: provision the baseline in the file, handle exceptions in the UI.
+
+An entry naming a project, group or user that does not exist is skipped and
+logged, not fatal — one typo does not stop the server.
+
+Two older keys are retired. `auth.ldap.project_groups` and
+`auth.oauth2.project_groups` are still applied, translated into a group plus a
+grant, and warn at startup. `access.private` is **not** applied: it granted
+access to every "private"-visibility project, and that visibility no longer
+exists. Existing installations had its members migrated once into a group
+called *Private Access* — grant that group where you want it.
+
 ## Worked Example
 
 An engineering team that writes some docs and reads others:

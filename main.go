@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/qwc/asiakirjat/internal/access"
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/config"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -163,13 +164,6 @@ func main() {
 		ldapAuth.SetAccessGroups(accessGroupStore)
 		authenticators = append(authenticators, ldapAuth)
 		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
-
-		// Sync LDAP project_groups from config to database
-		if len(cfg.Auth.LDAP.ProjectGroups) > 0 {
-			if err := syncConfigGroupMappings(context.Background(), logger, projectStore, groupMappingStore, "ldap", cfg.Auth.LDAP.ProjectGroups); err != nil {
-				logger.Error("syncing LDAP project groups from config", "error", err)
-			}
-		}
 	}
 
 	// Add OAuth2 authenticator if enabled
@@ -185,12 +179,6 @@ func main() {
 		authenticators = append(authenticators, oauth2Auth)
 		logger.Info("OAuth2 authentication enabled")
 
-		// Sync OAuth2 project_groups from config to database
-		if len(cfg.Auth.OAuth2.ProjectGroups) > 0 {
-			if err := syncConfigGroupMappings(context.Background(), logger, projectStore, groupMappingStore, "oauth2", cfg.Auth.OAuth2.ProjectGroups); err != nil {
-				logger.Error("syncing OAuth2 project groups from config", "error", err)
-			}
-		}
 	}
 
 	// Sync global access config (access.private section)
@@ -218,6 +206,14 @@ func main() {
 	if err != nil {
 		logger.Error("creating static sub-fs", "error", err)
 		os.Exit(1)
+	}
+
+	// Apply the access declared in config.yaml. Rows it writes are tagged
+	// 'config' and reconciled against the file on every startup, so deleting an
+	// entry revokes it; anything added in the admin UI is left alone.
+	if err := access.NewConfigSync(accessGroupStore, accessGrantStore, orgStore, projectStore, userStore, logger).
+		Apply(context.Background(), cfg); err != nil {
+		logger.Error("applying access config", "error", err)
 	}
 
 	// Initialize handler
@@ -284,44 +280,6 @@ func main() {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
-}
-
-// syncConfigGroupMappings converts config file group mappings to database records.
-func syncConfigGroupMappings(ctx context.Context, logger *slog.Logger, projects store.ProjectStore, groupMappings store.AuthGroupMappingStore, source string, configMappings []config.AuthGroupMapping) error {
-	var dbMappings []database.AuthGroupMapping
-
-	for _, cm := range configMappings {
-		// Look up project by slug
-		project, err := projects.GetBySlug(ctx, cm.Project)
-		if err != nil {
-			logger.Warn("project not found for group mapping", "source", source, "group", cm.Group, "project", cm.Project, "error", err)
-			continue
-		}
-
-		role := cm.Role
-		if role == "" {
-			role = "viewer"
-		}
-		if role != "viewer" && role != "editor" {
-			logger.Warn("invalid role in group mapping, defaulting to viewer", "source", source, "group", cm.Group, "role", cm.Role)
-			role = "viewer"
-		}
-
-		dbMappings = append(dbMappings, database.AuthGroupMapping{
-			GroupIdentifier: cm.Group,
-			ProjectID:       project.ID,
-			Role:            role,
-		})
-	}
-
-	if len(dbMappings) > 0 {
-		if err := groupMappings.SyncFromConfig(ctx, source, dbMappings); err != nil {
-			return err
-		}
-		logger.Info("synced group mappings from config", "source", source, "count", len(dbMappings))
-	}
-
-	return nil
 }
 
 // syncGlobalAccessConfig converts access.private config rules to database records.

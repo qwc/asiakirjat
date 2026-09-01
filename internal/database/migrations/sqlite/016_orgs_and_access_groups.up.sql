@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS access_group_members (
     group_id INTEGER NOT NULL REFERENCES access_groups(id) ON DELETE CASCADE,
     subject_type TEXT NOT NULL,        -- 'user', 'ldap_group', 'oauth2_group'
     subject_identifier TEXT NOT NULL,  -- username, LDAP DN, OAuth2 group name
+    -- 'config' rows are owned by config.yaml and reconciled against it on every
+    -- startup; 'manual' rows belong to whoever added them in the UI and are
+    -- never touched by that sync. Without this, dropping an entry from config
+    -- would leave the membership in place with nothing to say so.
+    source TEXT NOT NULL DEFAULT 'manual',
     UNIQUE(group_id, subject_type, subject_identifier)
 );
 

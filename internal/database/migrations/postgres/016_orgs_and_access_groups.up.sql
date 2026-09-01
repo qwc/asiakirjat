@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS access_group_members (
     group_id BIGINT NOT NULL REFERENCES access_groups(id) ON DELETE CASCADE,
     subject_type TEXT NOT NULL,
     subject_identifier TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
     UNIQUE(group_id, subject_type, subject_identifier)
 );
 
