@@ -2,6 +2,7 @@
 <div class="project-card" data-name="{{lower .Name}}" data-slug="{{lower .Slug}}">
     <h3 class="project-card-title">{{.Name}}</h3>
     <p class="project-card-slug">{{.Slug}}</p>
+    {{if .OrgName}}<p class="project-card-org" title="Organization">{{.OrgName}}</p>{{end}}
     {{if .Description}}
     <p class="project-card-desc">{{.Description}}</p>
     {{end}}

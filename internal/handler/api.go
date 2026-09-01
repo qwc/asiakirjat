@@ -45,7 +45,10 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Visibility  string `json:"visibility"`
+		// Exposure is the current field; visibility is still accepted from
+		// callers that predate it and is translated.
+		Exposure   string `json:"exposure"`
+		Visibility string `json:"visibility"`
 	}
 
 	result := make([]projectJSON, 0, len(filtered))
@@ -346,7 +349,10 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Visibility  string `json:"visibility"`
+		// Exposure is the current field; visibility is still accepted from
+		// callers that predate it and is translated.
+		Exposure   string `json:"exposure"`
+		Visibility string `json:"visibility"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.jsonError(w, "Invalid JSON body", http.StatusBadRequest)
@@ -357,6 +363,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		Slug:        req.Slug,
 		Name:        req.Name,
 		Description: req.Description,
+		Exposure:    req.Exposure,
 		Visibility:  req.Visibility,
 		Creator:     user,
 	})
@@ -365,7 +372,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrInvalidVisibility):
-		h.jsonError(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		h.jsonError(w, "Invalid exposure: must be public, authenticated or granted", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		h.jsonError(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
@@ -385,7 +392,10 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		"slug":        project.Slug,
 		"name":        project.Name,
 		"description": project.Description,
-		"visibility":  project.Visibility,
+		// visibility is kept in the response for callers that read it; exposure
+		// is what the server actually decides with.
+		"visibility": project.Visibility,
+		"exposure":   project.Exposure,
 	})
 }
 

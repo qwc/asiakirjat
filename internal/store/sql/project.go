@@ -164,7 +164,7 @@ func (s *ProjectStore) Delete(ctx context.Context, id int64) error {
 func (s *ProjectStore) defaultOrgID(ctx context.Context) (int64, error) {
 	var id int64
 	query := `SELECT id FROM orgs WHERE slug = ?`
-	if err := s.db.GetContext(ctx, &id, s.db.Rebind(query), DefaultOrgSlug); err != nil {
+	if err := s.db.GetContext(ctx, &id, s.db.Rebind(query), database.DefaultOrgSlug); err != nil {
 		return 0, fmt.Errorf("looking up the default org: %w", err)
 	}
 	return id, nil

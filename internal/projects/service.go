@@ -38,13 +38,44 @@ var (
 // CreateOptions is the input to Service.Create. Name defaults to Slug when
 // empty; Visibility defaults to VisibilityPrivate when empty.
 type CreateOptions struct {
-	Slug          string
-	Name          string
-	Description   string
+	Slug        string
+	Name        string
+	Description string
+	// Exposure says how far the project reaches beyond its access grants.
+	// Empty means the narrowest, ExposureGranted, so a caller that forgets it
+	// creates a closed project rather than an open one.
+	Exposure string
+	// OrgID is the organization to create it in. Nil lands it in the default
+	// org, resolved by the store.
+	OrgID         *int64
 	Visibility    string
 	RetentionDays *int
 	AccessListID  *int64
 	Creator       *database.User
+}
+
+// ExposureFromVisibility maps a legacy visibility onto the exposure that means
+// the same thing. Only 'public' reached beyond a project's grants; private,
+// custom and list differed in *which* grants applied, which the grant table
+// now decides on its own.
+func ExposureFromVisibility(visibility string) string {
+	if visibility == database.VisibilityPublic {
+		return database.ExposurePublic
+	}
+	return database.ExposureGranted
+}
+
+// ValidateExposure checks an exposure value and who is allowed to set it.
+// Only admins may publish to signed-out visitors, the same rule that governed
+// public visibility.
+func ValidateExposure(exposure string, creator *database.User) error {
+	if !database.ValidExposure(exposure) {
+		return ErrInvalidVisibility
+	}
+	if exposure == database.ExposurePublic && (creator == nil || creator.Role != "admin") {
+		return ErrPublicRequiresAdmin
+	}
+	return nil
 }
 
 // ValidateVisibility checks a visibility value together with the fields it
@@ -134,11 +165,29 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 	if opts.Name == "" {
 		opts.Name = opts.Slug
 	}
-	if opts.Visibility == "" {
-		opts.Visibility = database.VisibilityPrivate
+	// Callers that predate exposure — the JSON API, existing CI scripts — still
+	// send visibility. Translate it rather than ignore it: a field that was
+	// quietly dropped would change a project's reach without anyone being told,
+	// and the old values still validate exactly as they did.
+	if opts.Exposure == "" && opts.Visibility != "" {
+		if err := ValidateVisibility(opts.Visibility, opts.AccessListID, opts.Creator); err != nil {
+			return nil, err
+		}
+		opts.Exposure = ExposureFromVisibility(opts.Visibility)
 	}
-	if err := ValidateVisibility(opts.Visibility, opts.AccessListID, opts.Creator); err != nil {
+	if opts.Exposure == "" {
+		opts.Exposure = database.ExposureGranted
+	}
+	if err := ValidateExposure(opts.Exposure, opts.Creator); err != nil {
 		return nil, err
+	}
+	// The legacy column is kept in step until it is dropped, so a downgrade of
+	// this build does not read a stale value.
+	if opts.Visibility == "" {
+		opts.Visibility = database.VisibilityCustom
+		if opts.Exposure == database.ExposurePublic {
+			opts.Visibility = database.VisibilityPublic
+		}
 	}
 
 	project := &database.Project{
@@ -146,6 +195,8 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 		Name:          opts.Name,
 		Description:   opts.Description,
 		Visibility:    opts.Visibility,
+		Exposure:      opts.Exposure,
+		OrgID:         opts.OrgID,
 		RetentionDays: opts.RetentionDays,
 		AccessListID:  opts.AccessListID,
 	}
@@ -169,7 +220,7 @@ func (s *Service) Create(ctx context.Context, opts CreateOptions) (*database.Pro
 
 	if opts.Creator != nil &&
 		opts.Creator.Role != "admin" &&
-		opts.Visibility != database.VisibilityPublic {
+		opts.Exposure != database.ExposurePublic {
 		grant := &database.ProjectAccess{
 			ProjectID: project.ID,
 			UserID:    opts.Creator.ID,

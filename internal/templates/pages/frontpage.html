@@ -4,17 +4,45 @@
 <div class="frontpage">
     <div class="frontpage-header">
         <h1>Documentation</h1>
-        <div class="search-box">
-            <input type="text" id="search-input" placeholder="Search projects..." autocomplete="off">
+        <div class="frontpage-filters">
+            {{if .ShowOrgGroups}}
+            <div class="filter-box">
+                <input type="text" id="org-filter" list="org-names" placeholder="All organizations" autocomplete="off">
+                <datalist id="org-names">
+                    {{range .Groups}}<option value="{{.Name}}">{{end}}
+                </datalist>
+            </div>
+            {{end}}
+            <div class="filter-box">
+                <input type="text" id="search-input" placeholder="Filter projects..." autocomplete="off">
+            </div>
         </div>
     </div>
-    <div class="project-grid" id="project-grid">
-        {{range .Projects}}
-        {{template "project_card" .}}
-        {{else}}
-        <p class="no-projects">No projects available.</p>
+
+    {{if .Groups}}
+    {{range .Groups}}
+    <section class="org-section" data-org="{{lower .Name}}">
+        {{if $.ShowOrgGroups}}
+        <div class="org-heading">
+            <button type="button" class="org-name" data-org-name="{{.Name}}"
+                    title="Show only this organization">{{.Name}}</button>
+            <span class="org-count">{{len .Projects}}</span>
+        </div>
         {{end}}
+        <div class="project-grid">
+            {{range .Projects}}
+            {{template "project_card" .}}
+            {{end}}
+        </div>
+    </section>
+    {{end}}
+    {{else}}
+    <div class="project-grid" id="project-grid">
+        <p class="no-projects">No projects available.</p>
     </div>
+    {{end}}
+
+    <p class="no-projects hidden" id="no-matches">Nothing matches those filters.</p>
 </div>
 {{end}}
 

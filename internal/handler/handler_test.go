@@ -1055,7 +1055,7 @@ func TestAdminCreateProject(t *testing.T) {
 	form.Set("slug", "new-project")
 	form.Set("name", "New Project")
 	form.Set("description", "A test project")
-	form.Set("visibility", "public")
+	form.Set("exposure", "public")
 
 	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))

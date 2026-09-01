@@ -277,8 +277,8 @@ func TestAPICreateProject(t *testing.T) {
 	if result["slug"] != "api-created" {
 		t.Errorf("expected slug api-created, got %s", result["slug"])
 	}
-	if result["visibility"] != "private" {
-		t.Errorf("expected default visibility private, got %s", result["visibility"])
+	if result["exposure"] != "granted" {
+		t.Errorf("expected default exposure granted, got %s", result["exposure"])
 	}
 
 	// Verify project exists in DB

@@ -60,10 +60,11 @@ func TestCreateDefaultsName(t *testing.T) {
 	if p.Name != "name-default" {
 		t.Errorf("expected Name to default to Slug, got %q", p.Name)
 	}
-	// Round-trip: visibility defaults to private.
+	// Round-trip: a project nobody asked to publish is closed. Defaulting the
+	// other way would open it to everyone on a caller that forgot the field.
 	stored, _ := pstore.GetBySlug(context.Background(), "name-default")
-	if stored.Visibility != database.VisibilityPrivate {
-		t.Errorf("expected default visibility=private, got %q", stored.Visibility)
+	if stored.Exposure != database.ExposureGranted {
+		t.Errorf("expected default exposure=granted, got %q", stored.Exposure)
 	}
 }
 

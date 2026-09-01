@@ -56,14 +56,14 @@ func ValidAccessRole(role string) bool {
 }
 
 type Project struct {
-	ID            int64     `db:"id"`
-	Slug          string    `db:"slug"`
-	Name          string    `db:"name"`
-	Description   string    `db:"description"`
-	Visibility    string    `db:"visibility"`
-	RetentionDays *int      `db:"retention_days"`
-	PinnedVersion *string   `db:"pinned_version"`
-	PinPermanent  bool      `db:"pin_permanent"`
+	ID            int64   `db:"id"`
+	Slug          string  `db:"slug"`
+	Name          string  `db:"name"`
+	Description   string  `db:"description"`
+	Visibility    string  `db:"visibility"`
+	RetentionDays *int    `db:"retention_days"`
+	PinnedVersion *string `db:"pinned_version"`
+	PinPermanent  bool    `db:"pin_permanent"`
 	// VersionKeepPattern is a regular expression naming the versions worth
 	// keeping. Versions whose tag matches are exempt from retention; the rest
 	// expire after RetentionDays. Nil falls back to "keep semver tags"
@@ -91,11 +91,11 @@ type Project struct {
 }
 
 type Version struct {
-	ID          int64     `db:"id"`
-	ProjectID   int64     `db:"project_id"`
-	Tag         string    `db:"tag"`
-	StoragePath string    `db:"storage_path"`
-	ContentType string    `db:"content_type"` // "archive" or "pdf"
+	ID          int64  `db:"id"`
+	ProjectID   int64  `db:"project_id"`
+	Tag         string `db:"tag"`
+	StoragePath string `db:"storage_path"`
+	ContentType string `db:"content_type"` // "archive" or "pdf"
 	// UploadedBy is nil when the uploading user has been deleted; the column
 	// has ON DELETE SET NULL so user removal doesn't block on historical rows.
 	UploadedBy *int64    `db:"uploaded_by"`
@@ -155,7 +155,7 @@ type GlobalAccess struct {
 	ID                int64  `db:"id"`
 	SubjectType       string `db:"subject_type"`       // 'user', 'ldap_group', 'oauth2_group'
 	SubjectIdentifier string `db:"subject_identifier"` // username, LDAP DN, OAuth2 group name
-	Role              string `db:"role"`                // 'viewer' or 'editor'
+	Role              string `db:"role"`               // 'viewer' or 'editor'
 	FromConfig        bool   `db:"from_config"`
 }
 
@@ -287,6 +287,11 @@ const (
 func ValidGrantSource(s string) bool {
 	return s == GrantSourceManual || s == GrantSourceConfig
 }
+
+// DefaultOrgSlug names the organization migration 016 creates to hold every
+// project that predates organizations. Nothing stops an admin renaming it; the
+// slug is what code identifies it by.
+const DefaultOrgSlug = "default"
 
 // Org is the container above Project. Every project belongs to exactly one.
 // Orgs do not appear in URLs, so an org slug can never collide with a

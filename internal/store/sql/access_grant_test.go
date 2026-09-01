@@ -35,7 +35,7 @@ func newGrantFixture(t *testing.T) *grantFixture {
 		grants: NewAccessGrantStore(db),
 	}
 
-	org, err := f.orgs.GetBySlug(ctx, DefaultOrgSlug)
+	org, err := f.orgs.GetBySlug(ctx, database.DefaultOrgSlug)
 	if err != nil {
 		t.Fatalf("migration 016 must create the default org: %v", err)
 	}

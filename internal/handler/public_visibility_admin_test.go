@@ -38,7 +38,7 @@ func TestAdminFormEditorCannotCreatePublicProject(t *testing.T) {
 	form := url.Values{}
 	form.Set("slug", "ed-pub-attempt")
 	form.Set("name", "Editor public attempt")
-	form.Set("visibility", "public")
+	form.Set("exposure", "public")
 
 	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))
@@ -81,7 +81,7 @@ func TestAdminFormAdminCanCreatePublicProject(t *testing.T) {
 	form := url.Values{}
 	form.Set("slug", "ad-pub-ok")
 	form.Set("name", "Admin public ok")
-	form.Set("visibility", "public")
+	form.Set("exposure", "public")
 
 	form.Set("csrf_token", csrfTokenFor(t, app, cookies))
 	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects", strings.NewReader(form.Encode()))

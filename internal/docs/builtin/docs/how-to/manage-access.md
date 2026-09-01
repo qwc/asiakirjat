@@ -51,6 +51,8 @@ Organizations never appear in URLs. A project's address is `/project/{slug}/` wh
 
 Installations that predate organizations have all their projects in one called **No Org**. It is an ordinary organization: rename it, grant on it, or move projects out of it.
 
+Pick a project's organization when you create it, or change it later on its edit page. The front page groups projects by organization, with a heading you can click to show only that one; the box beside it filters the list, and accepts a partly typed name.
+
 ## Exposure: Reaching Beyond Grants
 
 Grants say who is let in. **Exposure**, on the project's edit page, says how far the project reaches beyond them:

@@ -67,10 +67,16 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	orgs, err := h.orgs.List(ctx)
+	if err != nil {
+		h.logger.Error("listing orgs", "error", err)
+	}
+
 	reindexRunning, reindexProgress := h.reindex.snapshot()
 	data := map[string]any{
 		"User":            user,
 		"IsAdmin":         isAdmin,
+		"Orgs":            orgs,
 		"Projects":        projectViews,
 		"ReindexRunning":  reindexRunning,
 		"ReindexProgress": reindexProgress,
@@ -114,12 +120,20 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	visibility := r.FormValue("visibility")
+	// A project can be placed in an organization at creation: putting it in the
+	// wrong one first and moving it after is a needless round trip, and the
+	// org decides who can already reach it.
+	var orgID *int64
+	if id, err := strconv.ParseInt(r.FormValue("org_id"), 10, 64); err == nil && id > 0 {
+		orgID = &id
+	}
+
 	_, err := h.projectService.Create(ctx, projects.CreateOptions{
 		Slug:          r.FormValue("slug"),
 		Name:          r.FormValue("name"),
 		Description:   r.FormValue("description"),
-		Visibility:    visibility,
+		Exposure:      r.FormValue("exposure"),
+		OrgID:         orgID,
 		RetentionDays: retentionDays,
 		Creator:       auth.UserFromContext(ctx),
 	})
@@ -128,10 +142,7 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrInvalidVisibility):
-		http.Error(w, "Invalid visibility: must be public, private, custom, or list", http.StatusBadRequest)
-		return
-	case errors.Is(err, projects.ErrListRequired):
-		http.Error(w, "Choose an access list for list visibility", http.StatusBadRequest)
+		http.Error(w, "Invalid exposure: must be public, authenticated or granted", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)

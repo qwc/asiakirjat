@@ -8,10 +8,6 @@ import (
 	"github.com/qwc/asiakirjat/internal/database"
 )
 
-// DefaultOrgSlug names the organization that holds everything predating orgs.
-// Migration 016 creates it and points every existing project at it.
-const DefaultOrgSlug = "default"
-
 // OrgStore manages organizations, the container above projects (issue #150).
 // Orgs never appear in URLs, so an org slug cannot collide with a project's.
 type OrgStore struct {
