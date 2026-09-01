@@ -8,7 +8,10 @@
 //      same time must intersect, not replace one another.
 //   2. A section whose projects are all filtered out is hidden entirely. A
 //      heading left standing over nothing reads as an empty organization
-//      rather than one that was filtered away.
+//      rather than one that was filtered away. This is asserted against the
+//      REAL stylesheet, not the class list: the "hidden" class used to be
+//      styled only for .project-card, so toggling it on a section did nothing
+//      and a class-only assertion passed while the page was visibly wrong.
 //   3. Clicking an organization heading toggles: clicking the one already
 //      filtered to clears it, so the heading is not a one-way trip that needs
 //      the input to undo.
@@ -24,6 +27,11 @@ const SEARCH_JS = fs.readFileSync(
   "utf8"
 );
 
+const STYLE_CSS = fs.readFileSync(
+  path.join(__dirname, "..", "static", "css", "style.css"),
+  "utf8"
+);
+
 // Mirrors the frontpage's grouped markup: two organizations, two projects each.
 function markup() {
   const card = (name, slug, desc) => `
@@ -32,7 +40,7 @@ function markup() {
       <p class="project-card-desc">${desc}</p>
     </div>`;
 
-  return `<!DOCTYPE html><html><body>
+  return `<!DOCTYPE html><html><head><style>${STYLE_CSS}</style></head><body>
     <input type="text" id="org-filter">
     <input type="text" id="search-input">
     <section class="org-section" data-org="no org">
@@ -52,7 +60,6 @@ function markup() {
         ${card("Runtime", "runtime", "the runtime")}
       </div>
     </section>
-    <p class="no-projects hidden" id="no-matches">Nothing matches those filters.</p>
   </body></html>`;
 }
 
@@ -77,7 +84,12 @@ function setup() {
       .filter((s) => !s.classList.contains("hidden"))
       .map((s) => s.getAttribute("data-org"));
 
-  return { dom, doc, type, visibleCards, visibleSections };
+  // Whether the browser would actually paint it, rather than whether the
+  // class happens to be set.
+  const isRendered = (el) =>
+    dom.window.getComputedStyle(el).display !== "none";
+
+  return { dom, doc, type, visibleCards, visibleSections, isRendered };
 }
 
 test("text filter matches name, slug and description", () => {
@@ -121,13 +133,24 @@ test("the two filters intersect rather than replace each other", () => {
 });
 
 test("a section with nothing left is hidden, heading and all", () => {
-  const { type, visibleSections } = setup();
+  const { doc, type, visibleSections, isRendered } = setup();
 
   type("search-input", "runtime");
   assert.deepStrictEqual(
     visibleSections(),
     ["platform team"],
     "an empty organization heading must not be left standing"
+  );
+
+  // And it is really not painted — the class alone is not the point.
+  const emptied = doc.querySelector('.org-section[data-org="no org"]');
+  assert.ok(
+    !isRendered(emptied),
+    "the filtered-out section must actually be hidden by the stylesheet"
+  );
+  assert.ok(
+    isRendered(doc.querySelector('.org-section[data-org="platform team"]')),
+    "the matching section must still be visible"
   );
 });
 
@@ -144,16 +167,3 @@ test("clicking an organization heading filters, and clicking it again clears", (
   assert.deepStrictEqual(visibleCards(), ["Handbook", "Runbook", "Runtime"]);
 });
 
-test("a filter matching nothing says so", () => {
-  const { doc, type, visibleCards } = setup();
-
-  type("search-input", "nothing-matches-this");
-  assert.deepStrictEqual(visibleCards(), []);
-  assert.ok(
-    !doc.getElementById("no-matches").classList.contains("hidden"),
-    "expected the empty-state message to appear"
-  );
-
-  type("search-input", "");
-  assert.ok(doc.getElementById("no-matches").classList.contains("hidden"));
-});

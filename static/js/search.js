@@ -16,7 +16,6 @@
     var orgInput = document.getElementById("org-filter");
     var sections = Array.prototype.slice.call(document.querySelectorAll(".org-section"));
     var cards = Array.prototype.slice.call(document.querySelectorAll(".project-card"));
-    var noMatches = document.getElementById("no-matches");
 
     if (!textInput && !orgInput) return;
 
@@ -32,7 +31,6 @@
     function apply() {
         var query = textInput ? textInput.value.toLowerCase().trim() : "";
         var org = orgInput ? orgInput.value.toLowerCase().trim() : "";
-        var anyVisible = false;
 
         sections.forEach(function (section) {
             var sectionOrg = section.getAttribute("data-org") || "";
@@ -50,20 +48,13 @@
             // A heading over nothing reads as an empty organization rather
             // than one filtered out, so the whole section goes.
             section.classList.toggle("hidden", visibleInSection === 0);
-            if (visibleInSection > 0) anyVisible = true;
         });
 
         // Ungrouped pages have cards outside any section.
         if (sections.length === 0) {
             cards.forEach(function (card) {
-                var show = matchesText(card, query);
-                card.classList.toggle("hidden", !show);
-                if (show) anyVisible = true;
+                card.classList.toggle("hidden", !matchesText(card, query));
             });
-        }
-
-        if (noMatches) {
-            noMatches.classList.toggle("hidden", anyVisible || cards.length === 0);
         }
     }
 

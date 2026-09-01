@@ -437,8 +437,11 @@ body {
     gap: 0.5rem;
 }
 
-.project-card.hidden {
-    display: none;
+/* Generic: anything the frontpage filters hides. This used to be scoped to
+   .project-card, so toggling "hidden" on an org section did nothing and its
+   heading stayed above an empty grid. */
+.hidden {
+    display: none !important;
 }
 
 .no-projects {
