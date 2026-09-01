@@ -13,6 +13,10 @@
         {{else if and (eq .Tag $.EffectiveLatest) (not $.PinnedVersion)}}
             <span class="version-badge version-badge-latest">Latest</span>
         {{end}}
+        {{if .ExpiresIn}}
+        <span class="version-badge version-badge-expiring"
+              title="Not kept by this project's version pattern; retention deletes it on {{.ExpiresAt}}">Expires {{.ExpiresIn}}</span>
+        {{end}}
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
         <a href="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/download"
            class="btn btn-tiny btn-secondary" title="{{if .IsPDF}}Download PDF{{else}}Download as ZIP{{end}}">{{if .IsPDF}}Download PDF{{else}}Download{{end}}</a>

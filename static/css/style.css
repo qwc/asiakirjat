@@ -644,6 +644,27 @@ body {
     letter-spacing: 0.03em;
 }
 
+.version-badge-expiring {
+    background: var(--color-danger);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.retention-note {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.5rem;
+}
+
+.retention-note code {
+    font-size: 0.85em;
+}
+
 .version-badge-reupload {
     background: var(--color-warning);
     color: #fff;

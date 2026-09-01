@@ -37,6 +37,11 @@ type versionViewData struct {
 	CreatedAt   interface{ Format(string) string }
 	ProjectSlug string
 	IsPDF       bool
+	// ExpiresIn is empty for a version retention keeps; otherwise it reads
+	// "in 12 days" or "soon" (issue #149). ExpiresAt is the due date, shown
+	// as the badge's tooltip.
+	ExpiresIn string
+	ExpiresAt string
 }
 
 func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
@@ -76,16 +81,21 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	docs.SortVersionTags(tags)
 
+	expiries := h.versionExpiries(project, versions)
+
 	var versionViews []versionViewData
 	bp := h.config.Server.BasePath
 	for _, tag := range tags {
 		v := versions[versionMap[tag]]
+		expiry := expiries[v.Tag]
 		versionViews = append(versionViews, versionViewData{
 			Tag:         v.Tag,
 			URL:         bp + "/project/" + slug + "/" + v.Tag + "/",
 			CreatedAt:   v.CreatedAt,
 			ProjectSlug: slug,
 			IsPDF:       v.ContentType == "pdf",
+			ExpiresIn:   expiry.In,
+			ExpiresAt:   expiry.At,
 		})
 	}
 
@@ -126,6 +136,14 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		"PinPermanent":    project.PinPermanent,
 		"LatestVersion":   latestVersion,
 		"EffectiveLatest": effectiveLatest,
+	}
+
+	// The rule behind the expiry badges, stated once above the list. Zero days
+	// means retention is off, and the template then says nothing.
+	if days := h.effectiveRetentionDays(project); days > 0 {
+		pattern, _ := h.effectiveKeepPattern(project)
+		data["RetentionDays"] = days
+		data["RetentionPattern"] = pattern
 	}
 
 	// Fetch upload logs for editors/admins

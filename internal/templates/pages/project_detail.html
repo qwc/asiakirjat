@@ -63,6 +63,12 @@
     {{end}}
 
     <h2>Versions</h2>
+    {{if .RetentionDays}}
+    <p class="retention-note">
+        Versions {{if .RetentionPattern}}whose tag does not match <code>{{.RetentionPattern}}</code>{{else}}whose tag does not look like a release number{{end}}
+        are deleted {{.RetentionDays}} day{{if ne .RetentionDays 1}}s{{end}} after upload.
+    </p>
+    {{end}}
     {{template "version_list" .}}
 
     {{if .UploadLogs}}
