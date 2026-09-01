@@ -87,6 +87,7 @@ func setupTestApp(t *testing.T) *testApp {
 	os.WriteFile(filepath.Join(staticDir, "js", "search.js"), []byte("// test"), 0644)
 	os.WriteFile(filepath.Join(staticDir, "js", "overlay.js"), []byte("// test"), 0644)
 	os.WriteFile(filepath.Join(staticDir, "js", "navbar-search.js"), []byte("// test"), 0644)
+	os.WriteFile(filepath.Join(staticDir, "js", "admin-filter.js"), []byte("// test"), 0644)
 	staticFS := os.DirFS(staticDir)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))

@@ -342,3 +342,41 @@ func TestNewAdminPagesRender(t *testing.T) {
 		}
 	}
 }
+
+// The filter appears once a list is long enough to want narrowing, and not
+// before: a filter box over a single card is furniture.
+func TestAdminListsOfferAFilterOnlyWhenWorthIt(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	// One organization (the default) and one group: no filters yet.
+	if err := app.handler.accessGroups.Create(ctx, &database.AccessGroup{Name: "engineering"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/admin/orgs", "/admin/access-groups"} {
+		if _, body := adminGet(t, app, cookies, path); strings.Contains(body, `class="admin-filter"`) {
+			t.Errorf("%s: expected no filter for a single item", path)
+		}
+	}
+
+	// A second of each, and both pages offer one.
+	if err := app.handler.orgs.Create(ctx, &database.Org{Slug: "platform", Name: "Platform Team"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.handler.accessGroups.Create(ctx, &database.AccessGroup{Name: "writers"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/admin/orgs", "/admin/access-groups"} {
+		_, body := adminGet(t, app, cookies, path)
+		if !strings.Contains(body, `class="admin-filter"`) {
+			t.Errorf("%s: expected a filter once there is more than one item", path)
+		}
+		// The filter matches against text the card carries, so it has to be there.
+		if !strings.Contains(body, "data-filter-text=") {
+			t.Errorf("%s: expected cards to carry the text the filter matches on", path)
+		}
+	}
+}

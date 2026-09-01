@@ -15,6 +15,13 @@
     <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
     {{end}}
 
+    {{if gt (len .Groups) 1}}
+    <div class="filter-box admin-filter-box">
+        <input type="text" class="admin-filter" data-filter-items=".access-card"
+               placeholder="Filter access groups..." autocomplete="off">
+    </div>
+    {{end}}
+
     <div class="admin-create-form">
         <h2>New Group</h2>
         <form method="POST" action="{{url "/admin/access-groups"}}">
@@ -34,7 +41,7 @@
     </div>
 
     {{range .Groups}}
-    <div class="access-card">
+    <div class="access-card" data-filter-text="{{lower .Group.Name}} {{lower .Group.Description}}">
         <h2>{{.Group.Name}}
             <span class="badge badge-small">{{.GrantCount}} grant{{if ne .GrantCount 1}}s{{end}}</span>
         </h2>
@@ -109,4 +116,8 @@
     <p class="empty-message">No access groups yet. Create one above, then give it a role on a project or organization.</p>
     {{end}}
 </div>
+{{end}}
+
+{{define "scripts"}}
+<script src="{{url "/static/js/admin-filter.js"}}"></script>
 {{end}}

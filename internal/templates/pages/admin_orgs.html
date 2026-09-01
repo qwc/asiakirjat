@@ -15,6 +15,13 @@
     <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
     {{end}}
 
+    {{if gt (len .Orgs) 1}}
+    <div class="filter-box admin-filter-box">
+        <input type="text" class="admin-filter" data-filter-items=".access-card"
+               placeholder="Filter organizations..." autocomplete="off">
+    </div>
+    {{end}}
+
     <div class="admin-create-form">
         <h2>New Organization</h2>
         <form method="POST" action="{{url "/admin/orgs"}}">
@@ -38,7 +45,7 @@
     </div>
 
     {{range .Orgs}}
-    <div class="access-card">
+    <div class="access-card" data-filter-text="{{lower .Org.Name}} {{lower .Org.Slug}} {{lower .Org.Description}}">
         <h2>{{.Org.Name}}
             <span class="badge badge-small">{{.ProjectCount}} project{{if ne .ProjectCount 1}}s{{end}}</span>
         </h2>
@@ -124,4 +131,8 @@
         {{range .Groups}}<option value="{{.Name}}">{{end}}
     </datalist>
 </div>
+{{end}}
+
+{{define "scripts"}}
+<script src="{{url "/static/js/admin-filter.js"}}"></script>
 {{end}}

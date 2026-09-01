@@ -812,6 +812,10 @@ body {
     min-width: 14rem;
 }
 
+.admin-filter-box {
+    margin-bottom: 1.25rem;
+}
+
 .org-section + .org-section {
     border-top: 1px solid var(--color-border);
     margin-top: 2rem;
