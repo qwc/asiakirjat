@@ -39,6 +39,17 @@ A pattern that matches nothing means every version expires after the retention p
 
 Invalid patterns are refused when you save. If one somehow reaches the database anyway, retention falls back to the semver rule rather than treating everything as expendable — the safe direction is always to keep more.
 
+## Seeing What Will Go
+
+While a project has a retention period, its detail page states the rule above
+the version list and marks every version the rule does not keep with an
+**Expires in N days** badge, counting from the version's upload date. A version
+already past its window shows **Expires soon** — retention runs hourly, so it
+goes on the next pass.
+
+No badges and no notice means the project has no retention period: nothing is
+deleted automatically, whatever the pattern says.
+
 ## When It Runs
 
 Retention runs at startup, then hourly, and again right after an upload of a version the project does not keep. Deletion removes the version's files, its database record, and its search index entries. It cannot be undone, so it is worth setting the pattern before the retention days on a project with history you care about.
