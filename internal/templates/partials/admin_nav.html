@@ -5,9 +5,9 @@
     editing six templates and noticing all six. Pass the active page's key as
     the dot: {{template "admin_nav" "orgs"}}.
 
-    Access Groups and Organizations are where permissions live now; Group
-    Mappings, Global Access and Access Lists are the mechanisms they replace and
-    are kept only until the old tables are retired.
+    Access Groups and Organizations are where permissions live now. The pages
+    they replaced — Group Mappings, Global Access, Access Lists — redirect here,
+    since nothing reads what they used to write.
 */}}
 {{define "admin_nav"}}
 <div class="admin-nav">
@@ -16,8 +16,5 @@
     <a href="{{url "/admin/access-groups"}}" class="admin-nav-link{{if eq . "access-groups"}} active{{end}}">Access Groups</a>
     <a href="{{url "/admin/users"}}" class="admin-nav-link{{if eq . "users"}} active{{end}}">Users</a>
     <a href="{{url "/admin/robots"}}" class="admin-nav-link{{if eq . "robots"}} active{{end}}">Robot Users</a>
-    <a href="{{url "/admin/groups"}}" class="admin-nav-link admin-nav-legacy{{if eq . "groups"}} active{{end}}">Group Mappings</a>
-    <a href="{{url "/admin/global-access"}}" class="admin-nav-link admin-nav-legacy{{if eq . "global-access"}} active{{end}}">Global Access</a>
-    <a href="{{url "/admin/access-lists"}}" class="admin-nav-link admin-nav-legacy{{if eq . "access-lists"}} active{{end}}">Access Lists</a>
 </div>
 {{end}}

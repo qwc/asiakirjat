@@ -1,9 +1,10 @@
 # Manage Access Lists
 
-> **Superseded.** Access groups and grants replace this mechanism — see
-> [Manage Access](manage-access.md). This page describes how the old model
-> worked, and stays until its tables are retired. Existing configuration was
-> translated automatically on upgrade; nothing here needs redoing by hand.
+> **Retired.** Access groups and grants replace this mechanism — see
+> [Manage Access](manage-access.md). The admin page described below no longer
+> exists and its address redirects. Your configuration was translated
+> automatically on upgrade; nothing here needs redoing by hand. This page is
+> kept as a record of how the old model worked.
 
 An **access list** is a named set of users and groups that projects can share. Give several projects the same list and they all admit exactly the same people; change the list once and every one of them follows.
 

@@ -179,10 +179,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.handleAdminEditProject)))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminUpdateProject))))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminDeleteProject))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/grant", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminGrantAccess))))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/grants", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminGrantProjectAccess))))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/grants/revoke", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminRevokeProjectAccess))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/revoke", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminRevokeAccess))))
 	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateUser))))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteUser))))
@@ -194,9 +192,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeToken))))
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteRobot))))
 	mux.HandleFunc("POST "+bp+"/admin/reindex", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminReindex))))
-	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
-	mux.HandleFunc("POST "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateGroupMapping))))
-	mux.HandleFunc("POST "+bp+"/admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteGroupMapping))))
 	// Unified access model (#150, #151): access groups, orgs, and the grants
 	// that connect them.
 	mux.HandleFunc("GET "+bp+"/admin/access-groups", h.withSession(h.requireAdmin(h.handleAdminAccessGroups)))
@@ -213,14 +208,16 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+bp+"/admin/orgs/{id}/access/grant", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGrantOrgAccess))))
 	mux.HandleFunc("POST "+bp+"/admin/orgs/access/{grantID}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeOrgAccess))))
 
-	mux.HandleFunc("GET "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.handleAdminAccessLists)))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateAccessList))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessList))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/{id}/members", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminAddAccessListMember))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/members/{memberID}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessListMember))))
-	mux.HandleFunc("GET "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.handleAdminGlobalAccess)))
-	mux.HandleFunc("POST "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateGlobalAccessRule))))
-	mux.HandleFunc("POST "+bp+"/admin/global-access/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteGlobalAccessRule))))
+	// The mechanisms the unified model replaces. Their tables still hold the
+	// data the migration read, and stay until it has been confirmed good in
+	// production — but nothing consults them any more, so their pages must not
+	// keep accepting edits. A form that saves where nothing reads is precisely
+	// the bug class this redesign set out to end, so the write routes are gone
+	// and the old addresses point at what replaced them.
+	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/access-groups"))))
+	mux.HandleFunc("GET "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/orgs"))))
+	mux.HandleFunc("GET "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/access-groups"))))
+
 	mux.HandleFunc("POST "+bp+"/admin/deploy-docs", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeployBuiltinDocs))))
 
 	// Health check (keep at root for load balancer compatibility, but also at base path)

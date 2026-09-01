@@ -259,3 +259,19 @@ func (h *Handler) grantFromForm(ctx context.Context, r *http.Request) (*database
 	}
 	return grant, ""
 }
+
+// retiredAccessPage sends one of the replaced access pages to whatever now
+// does its job.
+//
+// The pages are not merely hidden from the nav: their old addresses are
+// bookmarked and linked from the docs, and landing on a form that saves into a
+// table nothing reads would be worse than a redirect. The rows themselves are
+// untouched — the migration read them, and they stay until it is confirmed
+// good in production.
+func (h *Handler) retiredAccessPage(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h.redirect(w, r, target+"?msg=error&error="+url.QueryEscape(
+			"That page has been replaced. Access is managed with groups and grants now; "+
+				"your existing configuration was migrated automatically."), http.StatusSeeOther)
+	}
+}

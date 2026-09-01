@@ -13,65 +13,6 @@ import (
 	"github.com/qwc/asiakirjat/internal/database"
 )
 
-// Regression for audit M-1: deleting an LDAP/OAuth2 group mapping must
-// also revoke the project_access rows that were granted via that source.
-// (Surviving mappings re-grant on next login; this just closes the
-// dangling-grant window so a removed mapping doesn't leave access in
-// place indefinitely.)
-func TestDeleteGroupMappingRevokesProjectAccess(t *testing.T) {
-	app := setupTestApp(t)
-	ctx := context.Background()
-
-	adminHash, _ := auth.HashPassword("admin123")
-	app.handler.users.Create(ctx, &database.User{
-		Username: "m1-admin", Password: &adminHash,
-		AuthSource: "builtin", Role: "admin",
-	})
-
-	// A user whose access was granted by the mapping we're about to delete.
-	grantee := &database.User{Username: "m1-grantee", AuthSource: "oauth2", Role: "viewer"}
-	app.handler.users.Create(ctx, grantee)
-
-	project := &database.Project{Slug: "m1-proj", Name: "M1", Visibility: "custom"}
-	app.handler.projects.Create(ctx, project)
-
-	mapping := &database.AuthGroupMapping{
-		AuthSource: "oauth2", GroupIdentifier: "doomed-group",
-		ProjectID: project.ID, Role: "editor",
-	}
-	app.handler.groupMappings.Create(ctx, mapping)
-
-	// Simulate an existing per-user grant that came from this oauth2 mapping.
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID, UserID: grantee.ID,
-		Role: "editor", Source: "oauth2",
-	})
-
-	// Delete the mapping.
-	cookies := loginUser(t, app, "m1-admin", "admin123")
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	req, _ := http.NewRequest("POST",
-		fmt.Sprintf("%s/admin/groups/%d/delete", app.server.URL, mapping.ID), nil)
-	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-
-	// Existing oauth2-sourced access on the project must be gone.
-	if a, _ := app.handler.access.GetAccessBySource(ctx, project.ID, grantee.ID, "oauth2"); a != nil {
-		t.Error("oauth2-sourced access should be revoked after mapping delete")
-	}
-}
-
 // Regression for audit M-3: changing visibility from public to non-public
 // must surface a warning so the admin remembers to review access.
 func TestVisibilityRestrictionFlagsFlash(t *testing.T) {
