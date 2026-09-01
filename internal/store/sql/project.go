@@ -16,6 +16,21 @@ func NewProjectStore(db *sqlx.DB) *ProjectStore {
 	return &ProjectStore{db: db}
 }
 
+// exposureForVisibility derives a project's exposure from the visibility value
+// a caller set, for as long as both columns exist.
+//
+// Callers that predate exposure set only Visibility, and defaulting them all to
+// 'granted' would quietly un-publish every public project created between this
+// change and the handler rewrite. Only 'public' reaches beyond a project's
+// grants; the other three visibilities differed in *which* grants applied,
+// which is now the grant table's business.
+func exposureForVisibility(visibility string) string {
+	if visibility == database.VisibilityPublic {
+		return database.ExposurePublic
+	}
+	return database.ExposureGranted
+}
+
 // Create inserts a project. Two invariants are enforced here rather than
 // trusted from the caller, because both fail dangerously if left unset:
 //
@@ -27,7 +42,7 @@ func NewProjectStore(db *sqlx.DB) *ProjectStore {
 //     listings without being visibly broken.
 func (s *ProjectStore) Create(ctx context.Context, project *database.Project) error {
 	if project.Exposure == "" {
-		project.Exposure = database.ExposureGranted
+		project.Exposure = exposureForVisibility(project.Visibility)
 	}
 	if !database.ValidExposure(project.Exposure) {
 		return fmt.Errorf("invalid exposure %q", project.Exposure)
@@ -97,7 +112,7 @@ func (s *ProjectStore) Search(ctx context.Context, q string) ([]database.Project
 
 func (s *ProjectStore) Update(ctx context.Context, project *database.Project) error {
 	if project.Exposure == "" {
-		project.Exposure = database.ExposureGranted
+		project.Exposure = exposureForVisibility(project.Visibility)
 	}
 	if !database.ValidExposure(project.Exposure) {
 		return fmt.Errorf("invalid exposure %q", project.Exposure)
