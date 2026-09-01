@@ -97,6 +97,16 @@ demo: image $(PASSWORD_FILE) ## Build the image and run it, ready to log into
 	@echo "    make stop    stop it, keeping its data"
 	@echo "    make reset   stop it and delete its data"
 	@echo
+	@# The port is published on this machine's loopback. Over SSH that is the
+	@# machine you are logged into, not the one your browser runs on — which
+	@# looks exactly like the server being down.
+	@if [ -n "$$SSH_CONNECTION" ]; then \
+		echo "  You are on an SSH session, so that URL is local to THIS machine."; \
+		echo "  To reach it from the machine your browser runs on, forward the port:"; \
+		echo; \
+		echo "    ssh -L $(PORT):localhost:$(PORT) $$(id -un)@$$(uname -n)"; \
+		echo; \
+	fi
 
 logs: ## Follow the demo container's log
 	docker logs -f $(CONTAINER)

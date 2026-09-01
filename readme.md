@@ -57,6 +57,10 @@ make reset    # stop it and delete its data
 make demo PORT=9000   # any variable can be overridden
 ```
 
+If you are working over SSH, that URL is local to the machine you are logged
+into — `make demo` says so and prints the `ssh -L` line to forward the port to
+wherever your browser is.
+
 `make help` lists everything. There is no config file to write first: every
 setting has an `ASIAKIRJAT_`-prefixed environment override, and the demo uses
 those. Reach for `make config && make compose-up` when you do want to edit
