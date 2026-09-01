@@ -96,6 +96,18 @@ func main() {
 	globalAccessStore := sqlstore.NewGlobalAccessStore(db)
 	accessListStore := sqlstore.NewAccessListStore(db)
 	uploadLogStore := sqlstore.NewUploadLogStore(db)
+	orgStore := sqlstore.NewOrgStore(db)
+	accessGroupStore := sqlstore.NewAccessGroupStore(db)
+	accessGrantStore := sqlstore.NewAccessGrantStore(db)
+
+	// Fold the four old access mechanisms into groups and grants (#150, #151).
+	// Guarded by a marker in app_meta: it runs once on the first start after
+	// the upgrade and never again, so a grant an admin later revokes stays
+	// revoked.
+	if err := sqlstore.MigrateAccessModel(context.Background(), db, logger); err != nil {
+		logger.Error("migrating access model", "error", err)
+		os.Exit(1)
+	}
 
 	// Initialize storage
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
@@ -147,6 +159,7 @@ func main() {
 		}
 		ldapAuth = auth.NewLDAPAuthenticator(cfg.Auth.LDAP, userStore, logger)
 		ldapAuth.SetStores(accessStore, groupMappingStore, globalAccessStore, accessListStore)
+		ldapAuth.SetAccessGroups(accessGroupStore)
 		authenticators = append(authenticators, ldapAuth)
 		logger.Info("LDAP authentication enabled", "url", cfg.Auth.LDAP.URL)
 
@@ -167,6 +180,7 @@ func main() {
 		}
 		oauth2Auth = auth.NewOAuth2Authenticator(cfg.Auth.OAuth2, userStore, logger)
 		oauth2Auth.SetStores(accessStore, groupMappingStore, globalAccessStore, accessListStore)
+		oauth2Auth.SetAccessGroups(accessGroupStore)
 		authenticators = append(authenticators, oauth2Auth)
 		logger.Info("OAuth2 authentication enabled")
 
@@ -220,6 +234,9 @@ func main() {
 		GroupMappings:  groupMappingStore,
 		GlobalAccess:   globalAccessStore,
 		AccessLists:    accessListStore,
+		Orgs:           orgStore,
+		AccessGroups:   accessGroupStore,
+		AccessGrants:   accessGrantStore,
 		UploadLogs:     uploadLogStore,
 		Authenticators: authenticators,
 		OAuth2Auth:     oauth2Auth,

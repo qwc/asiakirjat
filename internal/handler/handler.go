@@ -30,6 +30,9 @@ type Handler struct {
 	groupMappings  store.AuthGroupMappingStore
 	globalAccess   store.GlobalAccessStore
 	accessLists    store.AccessListStore
+	orgs           store.OrgStore
+	accessGroups   store.AccessGroupStore
+	accessGrants   store.AccessGrantStore
 	uploadLogs     store.UploadLogStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
@@ -40,6 +43,7 @@ type Handler struct {
 	searchIndex    *docs.SearchIndex
 	projectService *projects.Service
 	checker        *access.Checker
+	resolver       *access.Resolver
 	logger         *slog.Logger
 
 	// Serializes storage-mutating work (archive extraction vs. rename) per
@@ -68,6 +72,9 @@ type Deps struct {
 	GroupMappings  store.AuthGroupMappingStore
 	GlobalAccess   store.GlobalAccessStore
 	AccessLists    store.AccessListStore
+	Orgs           store.OrgStore
+	AccessGroups   store.AccessGroupStore
+	AccessGrants   store.AccessGrantStore
 	UploadLogs     store.UploadLogStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
@@ -91,6 +98,9 @@ func New(deps Deps) *Handler {
 		groupMappings:  deps.GroupMappings,
 		globalAccess:   deps.GlobalAccess,
 		accessLists:    deps.AccessLists,
+		orgs:           deps.Orgs,
+		accessGroups:   deps.AccessGroups,
+		accessGrants:   deps.AccessGrants,
 		uploadLogs:     deps.UploadLogs,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
@@ -101,6 +111,7 @@ func New(deps Deps) *Handler {
 		searchIndex:    deps.SearchIndex,
 		projectService: projects.NewService(deps.Projects, deps.Versions, deps.Access, deps.Storage, deps.Logger),
 		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.AccessLists, deps.Logger),
+		resolver:       access.NewResolver(deps.AccessGrants, deps.Logger),
 		jobs:           newJobs(),
 		projectLocks:   newKeyedMutex(),
 		logger:         deps.Logger,

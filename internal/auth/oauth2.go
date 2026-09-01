@@ -40,6 +40,7 @@ type OAuth2Authenticator struct {
 	users         store.UserStore
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
+	accessGroups  store.AccessGroupStore
 	globalAccess  store.GlobalAccessStore
 	accessLists   store.AccessListStore
 	logger        *slog.Logger
@@ -78,6 +79,13 @@ func (a *OAuth2Authenticator) SetStores(access store.ProjectAccessStore, groupMa
 	a.access = access
 	a.groupMappings = groupMappings
 	a.globalAccess = globalAccess
+}
+
+// SetAccessGroups wires the unified access model's group store. It is separate
+// from SetStores so the transitional model can be wired without disturbing
+// callers of the old one; both syncs run until the old tables are retired.
+func (a *OAuth2Authenticator) SetAccessGroups(groups store.AccessGroupStore) {
+	a.accessGroups = groups
 }
 
 func (a *OAuth2Authenticator) Name() string {
@@ -205,6 +213,13 @@ func (a *OAuth2Authenticator) HandleCallback(ctx context.Context, code, codeVeri
 	if a.accessLists != nil {
 		if err := syncAccessListGrants(ctx, a.accessLists, a.logger, user, groups, database.SubjectTypeOAuth2Group, "oauth2"); err != nil {
 			a.logger.Warn("syncing OAuth2 access lists", "username", username, "error", err)
+		}
+	}
+
+	// Record access group membership for the unified model (#150, #151).
+	if a.accessGroups != nil {
+		if err := syncAccessGroupMembership(ctx, a.accessGroups, a.logger, user, groups, database.SubjectTypeOAuth2Group, "oauth2"); err != nil {
+			a.logger.Warn("syncing OAuth2 access groups", "username", username, "error", err)
 		}
 	}
 
