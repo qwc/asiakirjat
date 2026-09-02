@@ -3,6 +3,7 @@ package access
 import (
 	"context"
 	"log/slog"
+	"sort"
 
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/store"
@@ -92,6 +93,34 @@ func (r *Resolver) CanUpload(ctx context.Context, user *database.User, project *
 		return true
 	}
 	return database.GrantRoleRank(r.RoleFor(ctx, user, project)) >= database.GrantRoleRank(database.GrantRoleEditor)
+}
+
+// OrgsWhereCanCreate returns the organizations in which user may create
+// projects: an editor or admin grant on an org is what "may add projects
+// here" means now (#155). A robot with a global token used to be able to
+// create anywhere because every robot was an instance editor; its reach is a
+// grant like anyone else's, and this is where that reach is read.
+//
+// Instance admins and editors are not listed — they may create anywhere, and
+// callers check that first.
+func (r *Resolver) OrgsWhereCanCreate(ctx context.Context, user *database.User) []int64 {
+	if user == nil {
+		return nil
+	}
+	held, err := r.grants.GrantsForUser(ctx, user.ID, user.Username)
+	if err != nil {
+		r.logger.Error("resolving grants for user", "username", user.Username, "error", err)
+		return nil
+	}
+
+	var orgs []int64
+	for orgID, role := range held.Orgs {
+		if database.GrantRoleRank(role) >= database.GrantRoleRank(database.GrantRoleEditor) {
+			orgs = append(orgs, orgID)
+		}
+	}
+	sort.Slice(orgs, func(i, j int) bool { return orgs[i] < orgs[j] })
+	return orgs
 }
 
 // CanManage reports whether user may administer project: its settings and who

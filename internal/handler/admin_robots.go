@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
@@ -10,7 +13,31 @@ import (
 
 // Admin handlers for robot users and their API tokens.
 
-func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
+// robotGrantView is one row of "what this robot can reach": the scope it was
+// granted on, named, and the role it holds there.
+type robotGrantView struct {
+	ID    int64
+	Scope string // "organization" or "project"
+	Name  string
+	Role  string
+}
+
+type robotTokenView struct {
+	database.APIToken
+	ProjectName string
+}
+
+type robotView struct {
+	User    database.User
+	Tokens  []robotTokenView
+	Grants  []robotGrantView
+	RobotID int64
+}
+
+// renderRobots draws the page. Both the list and the two forms that change it
+// end here, so a new column is added once rather than in every handler that
+// happens to re-render.
+func (h *Handler) renderRobots(w http.ResponseWriter, r *http.Request, newToken string) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
 
@@ -27,49 +54,81 @@ func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
-	// Build project name lookup for token display
-	projectNames := make(map[int64]string)
+	projectNames := make(map[int64]string, len(projects))
 	for _, p := range projects {
 		projectNames[p.ID] = p.Name
 	}
 
-	type tokenView struct {
-		database.APIToken
-		ProjectName string
+	orgs, err := h.orgs.List(ctx)
+	if err != nil {
+		h.logger.Error("listing organizations", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	orgNames := make(map[int64]string, len(orgs))
+	for _, o := range orgs {
+		orgNames[o.ID] = o.Name
 	}
 
-	type robotView struct {
-		User    database.User
-		Tokens  []tokenView
-		RobotID int64
-	}
-
-	var robotViews []robotView
+	robotViews := make([]robotView, 0, len(robots))
 	for _, robot := range robots {
 		tokens, _ := h.tokens.ListByUser(ctx, robot.ID)
-		var tokenViews []tokenView
+		tokenViews := make([]robotTokenView, 0, len(tokens))
 		for _, t := range tokens {
-			tv := tokenView{APIToken: t}
+			tv := robotTokenView{APIToken: t}
 			if t.ProjectID != nil {
 				tv.ProjectName = projectNames[*t.ProjectID]
 			}
 			tokenViews = append(tokenViews, tv)
 		}
+
+		grants, _ := h.accessGrants.ListByUser(ctx, robot.ID)
+		grantViews := make([]robotGrantView, 0, len(grants))
+		for _, g := range grants {
+			switch {
+			case g.OrgID != nil:
+				grantViews = append(grantViews, robotGrantView{
+					ID: g.ID, Scope: "organization", Name: orgNames[*g.OrgID], Role: g.Role,
+				})
+			case g.ProjectID != nil:
+				grantViews = append(grantViews, robotGrantView{
+					ID: g.ID, Scope: "project", Name: projectNames[*g.ProjectID], Role: g.Role,
+				})
+			}
+		}
+
 		robotViews = append(robotViews, robotView{
-			User:    robot,
-			Tokens:  tokenViews,
-			RobotID: robot.ID,
+			User: robot, Tokens: tokenViews, Grants: grantViews, RobotID: robot.ID,
 		})
 	}
 
-	h.render(w, r, "admin_robots", map[string]any{
+	data := map[string]any{
 		"User":     user,
 		"Robots":   robotViews,
 		"Projects": projects,
+		"Orgs":     orgs,
+	}
+	if newToken != "" {
+		data["NewToken"] = newToken
+	}
+	applyFlash(data, r, map[string]string{
+		"granted": "Access granted.",
+		"revoked": "Access revoked.",
 	})
+	h.render(w, r, "admin_robots", data)
 }
 
+func (h *Handler) handleAdminRobots(w http.ResponseWriter, r *http.Request) {
+	h.renderRobots(w, r, "")
+}
+
+// handleAdminCreateRobot creates a robot and, optionally, the grant that gives
+// it somewhere to upload.
+//
+// A robot is an ordinary subject now: it holds the viewer role like any other
+// account and reaches what it has been granted (#155). It used to be created
+// as an instance editor, which meant every robot could upload to every project
+// and only a token's project_id ever narrowed it.
 func (h *Handler) handleAdminCreateRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -82,7 +141,7 @@ func (h *Handler) handleAdminCreateRobot(w http.ResponseWriter, r *http.Request)
 	user := &database.User{
 		Username:   username,
 		AuthSource: "robot",
-		Role:       "editor",
+		Role:       "viewer",
 		IsRobot:    true,
 	}
 
@@ -93,12 +152,111 @@ func (h *Handler) handleAdminCreateRobot(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// The scope picker is optional: a robot with no grant yet is a valid
+	// thing to have, it just cannot upload until it is given somewhere to.
+	if scope := r.FormValue("scope"); scope != "" {
+		if problem := h.grantRobotScope(ctx, user.ID, scope, r.FormValue("role")); problem != "" {
+			h.robotError(w, r, problem)
+			return
+		}
+	}
+
 	h.redirect(w, r, "/admin/robots", http.StatusSeeOther)
+}
+
+// handleAdminGrantRobotAccess gives a robot a role on an organization or a
+// project, from the robots page rather than by typing its username into the
+// project's own grant form.
+func (h *Handler) handleAdminGrantRobotAccess(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	robotID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid robot ID", http.StatusBadRequest)
+		return
+	}
+	robot, err := h.users.GetByID(ctx, robotID)
+	if err != nil || !robot.IsRobot {
+		http.Error(w, "Robot not found", http.StatusNotFound)
+		return
+	}
+
+	if problem := h.grantRobotScope(ctx, robotID, r.FormValue("scope"), r.FormValue("role")); problem != "" {
+		h.robotError(w, r, problem)
+		return
+	}
+	h.redirect(w, r, "/admin/robots?msg=granted", http.StatusSeeOther)
+}
+
+func (h *Handler) handleAdminRevokeRobotAccess(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	grantID, err := strconv.ParseInt(r.PathValue("grantID"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid grant", http.StatusBadRequest)
+		return
+	}
+
+	// Revoke reports whether a row actually went, so a click that matched
+	// nothing says so rather than redirecting as though it worked (#126).
+	removed, err := h.accessGrants.Revoke(ctx, grantID)
+	if err != nil {
+		h.logger.Error("revoking robot access", "grant_id", grantID, "error", err)
+		h.robotError(w, r, "Could not revoke that access.")
+		return
+	}
+	if !removed {
+		h.robotError(w, r, "That grant no longer exists.")
+		return
+	}
+	h.redirect(w, r, "/admin/robots?msg=revoked", http.StatusSeeOther)
+}
+
+// grantRobotScope applies one "org:12" or "project:7" scope string. It returns
+// a message for the operator, or "" when the grant landed.
+func (h *Handler) grantRobotScope(ctx context.Context, robotID int64, scope, role string) string {
+	if !database.ValidGrantRole(role) {
+		return "Unknown role."
+	}
+
+	kind, rest, ok := strings.Cut(scope, ":")
+	if !ok {
+		return "Choose an organization or a project to grant on."
+	}
+	id, err := strconv.ParseInt(rest, 10, 64)
+	if err != nil {
+		return "Choose an organization or a project to grant on."
+	}
+
+	grant := &database.AccessGrant{UserID: &robotID, Role: role}
+	switch kind {
+	case "org":
+		if _, err := h.orgs.GetByID(ctx, id); err != nil {
+			return "That organization no longer exists."
+		}
+		grant.OrgID = &id
+	case "project":
+		if _, err := h.projects.GetByID(ctx, id); err != nil {
+			return "That project no longer exists."
+		}
+		grant.ProjectID = &id
+	default:
+		return "Choose an organization or a project to grant on."
+	}
+
+	if err := h.accessGrants.Grant(ctx, grant); err != nil {
+		h.logger.Error("granting robot access", "robot_id", robotID, "error", err)
+		return "Could not grant that access."
+	}
+	return ""
+}
+
+func (h *Handler) robotError(w http.ResponseWriter, r *http.Request, message string) {
+	h.redirect(w, r, "/admin/robots?msg=error&error="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user := auth.UserFromContext(ctx)
 
 	robotID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -149,12 +307,10 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tokenHash := auth.HashToken(rawToken)
-
 	token := &database.APIToken{
 		UserID:    robotID,
 		ProjectID: projectID,
-		TokenHash: tokenHash,
+		TokenHash: auth.HashToken(rawToken),
 		Name:      name,
 		Scopes:    "upload",
 	}
@@ -165,51 +321,8 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Re-render robots page with the new token shown
-	robots, _ := h.users.ListRobots(ctx)
-	projects, _ := h.projects.List(ctx)
-
-	// Build project name lookup for token display
-	projectNames := make(map[int64]string)
-	for _, p := range projects {
-		projectNames[p.ID] = p.Name
-	}
-
-	type tokenView struct {
-		database.APIToken
-		ProjectName string
-	}
-
-	type robotView struct {
-		User    database.User
-		Tokens  []tokenView
-		RobotID int64
-	}
-
-	var robotViews []robotView
-	for _, robot := range robots {
-		tokens, _ := h.tokens.ListByUser(ctx, robot.ID)
-		var tokenViews []tokenView
-		for _, t := range tokens {
-			tv := tokenView{APIToken: t}
-			if t.ProjectID != nil {
-				tv.ProjectName = projectNames[*t.ProjectID]
-			}
-			tokenViews = append(tokenViews, tv)
-		}
-		robotViews = append(robotViews, robotView{
-			User:    robot,
-			Tokens:  tokenViews,
-			RobotID: robot.ID,
-		})
-	}
-
-	h.render(w, r, "admin_robots", map[string]any{
-		"User":     user,
-		"Robots":   robotViews,
-		"Projects": projects,
-		"NewToken": rawToken,
-	})
+	// Re-render with the new token shown: it is the only time anyone sees it.
+	h.renderRobots(w, r, rawToken)
 }
 
 func (h *Handler) handleAdminRevokeToken(w http.ResponseWriter, r *http.Request) {

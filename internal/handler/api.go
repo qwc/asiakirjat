@@ -160,11 +160,16 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 				h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 				return
 			}
-			if !canAutoCreate(user) {
-				h.jsonError(w, "Forbidden: insufficient role to auto-create projects", http.StatusForbidden)
+			orgID, orgErr := h.autoCreateOrg(ctx, user)
+			switch {
+			case errors.Is(orgErr, errNoCreateRights):
+				h.jsonError(w, "Forbidden: no rights to create projects", http.StatusForbidden)
+				return
+			case errors.Is(orgErr, errAmbiguousCreateOrg):
+				h.jsonError(w, "Ambiguous: you may create projects in several organizations; create it explicitly with POST /api/projects", http.StatusConflict)
 				return
 			}
-			project, err = h.autoCreateProject(ctx, slug, user)
+			project, err = h.autoCreateProject(ctx, slug, user, orgID)
 			if err != nil {
 				h.logger.Error("auto-creating project", "error", err)
 				h.jsonError(w, "Failed to create project", http.StatusInternalServerError)

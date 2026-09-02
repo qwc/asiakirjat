@@ -46,8 +46,9 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
-		if h.config.Projects.AutoCreate && canAutoCreate(user) && validation.IsValidSlug(slug) {
-			project, err = h.autoCreateProject(ctx, slug, user)
+		orgID, orgErr := h.autoCreateOrg(ctx, user)
+		if h.config.Projects.AutoCreate && orgErr == nil && validation.IsValidSlug(slug) {
+			project, err = h.autoCreateProject(ctx, slug, user, orgID)
 			if err != nil {
 				h.logger.Error("auto-creating project", "error", err)
 				http.Error(w, "Failed to create project", http.StatusInternalServerError)

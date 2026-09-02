@@ -173,6 +173,7 @@ type AccessGrantStore interface {
 	Revoke(ctx context.Context, id int64) (bool, error)
 	ListByProject(ctx context.Context, projectID int64) ([]database.AccessGrant, error)
 	ListByOrg(ctx context.Context, orgID int64) ([]database.AccessGrant, error)
+	ListByUser(ctx context.Context, userID int64) ([]database.AccessGrant, error)
 	DeleteBySource(ctx context.Context, source string) error
 	GrantsForUser(ctx context.Context, userID int64, username string) (UserGrants, error)
 }

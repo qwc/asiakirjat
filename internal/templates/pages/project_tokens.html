@@ -14,9 +14,13 @@
     </div>
     {{end}}
 
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
+    {{end}}
+
     <div class="admin-create-form">
         <h2>Create New Token</h2>
-        <p class="hint-text">Tokens created here are scoped to this project only.</p>
+        <p class="hint-text">A token speaks for a robot, not for you: the robot is what uploads appear under, and it is granted editor on this project. The token itself reaches this project and no other. Name a robot that already exists to give it another credential, or a new name to create one.</p>
         <form method="POST" action="{{url "/project/"}}{{.Project.Slug}}/tokens">
             {{template "csrf_field" $.CSRFToken}}
             <div class="form-row">
@@ -24,9 +28,17 @@
                     <label for="name">Token Name</label>
                     <input type="text" id="name" name="name" required placeholder="ci-upload">
                 </div>
+                <div class="form-group form-group-wide">
+                    <label for="robot">Robot</label>
+                    <input type="text" id="robot" name="robot" list="project-robot-names"
+                        value="{{.SuggestedRobot}}" placeholder="{{.SuggestedRobot}}">
+                </div>
                 <button type="submit" class="btn btn-primary">Generate Token</button>
             </div>
         </form>
+        <datalist id="project-robot-names">
+            {{range .Robots}}<option value="{{.Username}}">{{end}}
+        </datalist>
     </div>
 
     <h2>Existing Tokens</h2>
@@ -35,7 +47,7 @@
         <thead>
             <tr>
                 <th>Name</th>
-                <th>Created By</th>
+                <th>Speaks for</th>
                 <th>Created</th>
                 <th>Actions</th>
             </tr>
@@ -44,7 +56,7 @@
             {{range .Tokens}}
             <tr>
                 <td>{{.Name}}</td>
-                <td>{{.Username}}</td>
+                <td>{{.Username}}{{if not .IsRobot}} <span class="token-scope">(a person's account)</span>{{end}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02"}}</td>
                 <td>
                     <form method="POST" action="{{url "/project/"}}{{$.Project.Slug}}/tokens/{{.ID}}/revoke" class="inline-form"

@@ -110,6 +110,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Robots stop being blanket instance editors and become grant subjects
+	// like everyone else (#155). Runs after the access migration, because it
+	// grants on the organizations that one creates.
+	if err := sqlstore.MigrateRobotSubjects(context.Background(), db, logger); err != nil {
+		logger.Error("migrating robot subjects", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize storage
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
 

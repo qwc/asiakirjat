@@ -191,6 +191,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGenerateToken))))
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeToken))))
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteRobot))))
+	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/grants", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGrantRobotAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/robots/grants/{grantID}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeRobotAccess))))
 	mux.HandleFunc("POST "+bp+"/admin/reindex", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminReindex))))
 	// Unified access model (#150, #151): access groups, orgs, and the grants
 	// that connect them.

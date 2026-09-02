@@ -123,6 +123,19 @@ func (s *AccessGrantStore) ListByOrg(ctx context.Context, orgID int64) ([]databa
 	return grants, nil
 }
 
+// ListByUser returns the grants held by one user directly — not the ones they
+// reach through a group. The robots page shows these, because a robot's reach
+// is now a set of rows an admin can read and revoke rather than an instance
+// role nobody can see (#155).
+func (s *AccessGrantStore) ListByUser(ctx context.Context, userID int64) ([]database.AccessGrant, error) {
+	var grants []database.AccessGrant
+	query := `SELECT * FROM access_grants WHERE user_id = ? ORDER BY id`
+	if err := s.db.SelectContext(ctx, &grants, s.db.Rebind(query), userID); err != nil {
+		return nil, fmt.Errorf("listing grants for user: %w", err)
+	}
+	return grants, nil
+}
+
 // DeleteBySource removes every grant owned by one source. config-sourced rows
 // are owned by config.yaml and replaced wholesale on each startup sync;
 // manual rows are never touched by it.
