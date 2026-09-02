@@ -25,6 +25,7 @@ type robotGrantView struct {
 type robotTokenView struct {
 	database.APIToken
 	ProjectName string
+	MayCreate   bool
 }
 
 type robotView struct {
@@ -75,7 +76,7 @@ func (h *Handler) renderRobots(w http.ResponseWriter, r *http.Request, newToken 
 		tokens, _ := h.tokens.ListByUser(ctx, robot.ID)
 		tokenViews := make([]robotTokenView, 0, len(tokens))
 		for _, t := range tokens {
-			tv := robotTokenView{APIToken: t}
+			tv := robotTokenView{APIToken: t, MayCreate: tokenAllows(&t, scopeCreate)}
 			if t.ProjectID != nil {
 				tv.ProjectName = projectNames[*t.ProjectID]
 			}
@@ -299,6 +300,12 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		projectID = &pid
 	}
 
+	expiresAt, problem := expiryFromForm(r.FormValue("expires_in_days"))
+	if problem != "" {
+		h.robotError(w, r, problem)
+		return
+	}
+
 	// Generate raw token
 	rawToken, err := auth.GenerateToken(32)
 	if err != nil {
@@ -312,7 +319,8 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		ProjectID: projectID,
 		TokenHash: auth.HashToken(rawToken),
 		Name:      name,
-		Scopes:    "upload",
+		Scopes:    scopesFromForm(r.FormValue("may_create")),
+		ExpiresAt: expiresAt,
 	}
 
 	if err := h.tokens.Create(ctx, token); err != nil {

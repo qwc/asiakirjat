@@ -34,7 +34,10 @@ func TestAPIUploadAutoCreateProject(t *testing.T) {
 		UserID:    robot.ID,
 		TokenHash: tokenHash,
 		Name:      "ci-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	zipBuf := createTestZip(t, map[string]string{
@@ -93,7 +96,10 @@ func TestAPIUploadAutoCreateDisabled(t *testing.T) {
 		UserID:    robot.ID,
 		TokenHash: tokenHash,
 		Name:      "ci-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	zipBuf := createTestZip(t, map[string]string{
@@ -142,7 +148,10 @@ func TestAPIUploadAutoCreateViewerDenied(t *testing.T) {
 		UserID:    viewer.ID,
 		TokenHash: tokenHash,
 		Name:      "viewer-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	zipBuf := createTestZip(t, map[string]string{
@@ -253,7 +262,10 @@ func TestAPICreateProject(t *testing.T) {
 		UserID:    robot.ID,
 		TokenHash: tokenHash,
 		Name:      "ci-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	payload := `{"slug":"api-created","name":"API Created Project","description":"Created via API"}`
@@ -311,7 +323,10 @@ func TestAPICreateProjectDuplicate(t *testing.T) {
 		UserID:    robot.ID,
 		TokenHash: tokenHash,
 		Name:      "ci-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	payload := `{"slug":"existing-proj"}`
@@ -349,7 +364,10 @@ func TestAPICreateProjectViewerDenied(t *testing.T) {
 		UserID:    viewer.ID,
 		TokenHash: tokenHash,
 		Name:      "viewer-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	payload := `{"slug":"viewer-proj"}`
@@ -387,7 +405,10 @@ func TestAPICreateProjectInvalidSlug(t *testing.T) {
 		UserID:    robot.ID,
 		TokenHash: tokenHash,
 		Name:      "ci-token",
-		Scopes:    "upload",
+		// "upload,create" is what a token that may bring new projects into
+		// existence carries now; the old value said nothing and was checked
+		// nowhere (#155).
+		Scopes: "upload,create",
 	})
 
 	payload := `{"slug":"INVALID SLUG!"}`

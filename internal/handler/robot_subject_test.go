@@ -277,7 +277,7 @@ func TestAutoCreateUsesTheOrgTheRobotWasGranted(t *testing.T) {
 	}
 	rawToken, _ := auth.GenerateToken(32)
 	if err := app.handler.tokens.Create(ctx, &database.APIToken{
-		UserID: robot.ID, TokenHash: auth.HashToken(rawToken), Name: "t", Scopes: "upload",
+		UserID: robot.ID, TokenHash: auth.HashToken(rawToken), Name: "t", Scopes: "upload,create",
 	}); err != nil {
 		t.Fatal(err)
 	}

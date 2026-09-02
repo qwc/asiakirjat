@@ -996,6 +996,27 @@ body {
 
 .form-group-wide { flex: 1; }
 
+/* A checkbox in a form row: the label reads across, not above, and the box
+   itself must not stretch to the column width the way a text input does. */
+.form-group-check {
+    display: flex;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.form-group-check label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    margin-bottom: 0.5rem;
+}
+
+.form-group-check input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
 .admin-create-form {
     background: var(--color-surface);
     border: 1px solid var(--color-border);

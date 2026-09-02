@@ -55,6 +55,12 @@ Installations that predate organizations have all their projects in one called *
 
 Pick a project's organization when you create it, or change it later on its edit page. The front page groups projects by organization, with a heading you can click to show only that one; the box beside it filters the list, and accepts a partly typed name.
 
+## Robots
+
+A robot is an account that signs in with a token instead of a password, and it is an ordinary subject here: grant it a role on a project or an organization the same way you would grant a colleague. Its username is what you grant to, and what appears as the uploader of everything it pushes.
+
+The token adds a second, independent limit — a token issued for one project reaches only that project, however much its robot is granted. See [Using API Tokens](api-tokens.md).
+
 ## Exposure: Reaching Beyond Grants
 
 Grants say who is let in. **Exposure**, on the project's edit page, says how far the project reaches beyond them:

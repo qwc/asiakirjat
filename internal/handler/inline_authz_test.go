@@ -175,7 +175,8 @@ func TestAPICreateProjectAllowsGlobalToken(t *testing.T) {
 		UserID:    editor.ID,
 		TokenHash: auth.HashToken(rawToken),
 		Name:      "global-token",
-		// ProjectID nil = global
+		// ProjectID nil = global, and creating projects is its own scope (#155)
+		Scopes: "upload,create",
 	})
 
 	body := bytes.NewBufferString(`{"slug":"h3-ok","name":"x","visibility":"private"}`)

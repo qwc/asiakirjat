@@ -144,7 +144,7 @@ func TestAPICreateProjectAdminCanCreatePublic(t *testing.T) {
 
 	rawToken, _ := auth.GenerateToken(32)
 	app.handler.tokens.Create(ctx, &database.APIToken{
-		UserID: admin.ID, TokenHash: auth.HashToken(rawToken), Name: "t",
+		UserID: admin.ID, TokenHash: auth.HashToken(rawToken), Name: "t", Scopes: "upload,create",
 	})
 
 	body := bytes.NewBufferString(`{"slug":"api-ad-pub","name":"x","visibility":"public"}`)

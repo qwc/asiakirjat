@@ -160,6 +160,10 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 				h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 				return
 			}
+			if !tokenAllows(token, scopeCreate) {
+				h.jsonError(w, "Forbidden: this token may not create projects", http.StatusForbidden)
+				return
+			}
 			orgID, orgErr := h.autoCreateOrg(ctx, user)
 			switch {
 			case errors.Is(orgErr, errNoCreateRights):
@@ -356,6 +360,10 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 	// must not be able to spawn project B. Use a global (unscoped) token.
 	if token.ProjectID != nil {
 		h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
+		return
+	}
+	if !tokenAllows(token, scopeCreate) {
+		h.jsonError(w, "Forbidden: this token may not create projects", http.StatusForbidden)
 		return
 	}
 

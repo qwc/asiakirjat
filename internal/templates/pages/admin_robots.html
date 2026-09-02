@@ -118,7 +118,7 @@
             {{if .Tokens}}
             <table class="admin-table">
                 <thead>
-                    <tr><th>Name</th><th>Scope</th><th>Created</th><th>Actions</th></tr>
+                    <tr><th>Name</th><th>Scope</th><th>May create</th><th>Expires</th><th>Created</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     {{range .Tokens}}
@@ -128,6 +128,8 @@
                             {{if .ProjectName}}<span class="token-scope">{{.ProjectName}} only</span>
                             {{else}}<span class="token-scope token-global">everything it is granted</span>{{end}}
                         </td>
+                        <td>{{if .MayCreate}}projects{{else}}—{{end}}</td>
+                        <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02"}}{{else}}never{{end}}</td>
                         <td>{{.CreatedAt.Format "2006-01-02"}}</td>
                         <td>
                             <form method="POST" action="{{url "/admin/robots/"}}{{$robot.RobotID}}/tokens/{{.ID}}/revoke" class="inline-form">
@@ -156,6 +158,13 @@
                             <option value="">Everything the robot is granted</option>
                             {{range $.Projects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Expires in</label>
+                        <input type="number" name="expires_in_days" min="1" max="3650" placeholder="days">
+                    </div>
+                    <div class="form-group form-group-check">
+                        <label><input type="checkbox" name="may_create" value="1"> May create projects</label>
                     </div>
                     <button type="submit" class="btn btn-secondary">Generate Token</button>
                 </div>

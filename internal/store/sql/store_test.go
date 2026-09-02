@@ -727,3 +727,52 @@ func TestProjectStorePinnedVersion(t *testing.T) {
 		t.Error("expected PinPermanent to be false after clearing")
 	}
 }
+
+// The scopes backfill writes what each token could already do: a global token
+// created projects, a scoped one could not. Getting this wrong would revoke
+// project creation from every CI job on the upgrade.
+func TestMigrateTokenScopesWritesWhatTokensCouldAlreadyDo(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	ctx := context.Background()
+
+	users := NewUserStore(db)
+	projects := NewProjectStore(db)
+	tokens := NewTokenStore(db)
+
+	robot := &database.User{Username: "bot", AuthSource: "robot", Role: "editor", IsRobot: true}
+	if err := users.Create(ctx, robot); err != nil {
+		t.Fatal(err)
+	}
+	project := &database.Project{Slug: "docs", Name: "Docs", Visibility: "public"}
+	if err := projects.Create(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+
+	global := &database.APIToken{UserID: robot.ID, TokenHash: "global-hash", Name: "g", Scopes: "upload"}
+	scoped := &database.APIToken{UserID: robot.ID, ProjectID: &project.ID, TokenHash: "scoped-hash", Name: "s", Scopes: "upload"}
+	for _, tok := range []*database.APIToken{global, scoped} {
+		if err := tokens.Create(ctx, tok); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := MigrateTokenScopes(ctx, db, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := tokens.GetByID(ctx, global.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Scopes != "upload,create" {
+		t.Errorf("expected a global token to keep creating projects, got %q", after.Scopes)
+	}
+
+	afterScoped, err := tokens.GetByID(ctx, scoped.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterScoped.Scopes != "upload" {
+		t.Errorf("expected a project-scoped token to stay upload-only, got %q", afterScoped.Scopes)
+	}
+}

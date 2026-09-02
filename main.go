@@ -118,6 +118,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Give api_tokens.scopes the meaning it always looked like it had, writing
+	// what each existing token could already do (#155).
+	if err := sqlstore.MigrateTokenScopes(context.Background(), db, logger); err != nil {
+		logger.Error("migrating token scopes", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize storage
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
 

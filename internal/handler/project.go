@@ -398,6 +398,12 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		robotName = slug + "-bot"
 	}
 
+	expiresAt, problem := expiryFromForm(r.FormValue("expires_in_days"))
+	if problem != "" {
+		h.renderProjectTokens(w, r, project, "", &Flash{Type: "error", Message: problem})
+		return
+	}
+
 	robot, problem := h.robotForProject(ctx, robotName, project)
 	if problem != "" {
 		h.renderProjectTokens(w, r, project, "", &Flash{Type: "error", Message: problem})
@@ -417,7 +423,8 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		ProjectID: &projectID,
 		TokenHash: auth.HashToken(rawToken),
 		Name:      name,
-		Scopes:    "upload",
+		Scopes:    scopeUpload,
+		ExpiresAt: expiresAt,
 	}
 	if err := h.tokens.Create(ctx, token); err != nil {
 		h.logger.Error("creating token", "error", err)
