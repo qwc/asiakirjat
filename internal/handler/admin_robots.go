@@ -106,17 +106,36 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// The id comes from the URL, and a token authenticates as whichever user
+	// it names — so minting one for a human account would hand out that
+	// person's access as a bearer credential (#155).
+	robot, err := h.users.GetByID(ctx, robotID)
+	if err != nil {
+		http.Error(w, "Robot not found", http.StatusNotFound)
+		return
+	}
+	if !robot.IsRobot {
+		http.Error(w, "Tokens can only be issued to robot users", http.StatusBadRequest)
+		return
+	}
+
 	name := r.FormValue("name")
 	if name == "" {
 		name = "default"
 	}
 
-	// Parse optional project_id for scoped tokens
+	// Parse optional project_id for scoped tokens. A token scoped to a project
+	// that does not exist can never authenticate anything, so it is a typo
+	// worth catching here rather than a 401 in someone's CI next week.
 	var projectID *int64
 	if pidStr := r.FormValue("project_id"); pidStr != "" {
 		pid, err := strconv.ParseInt(pidStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Invalid project ID", http.StatusBadRequest)
+			return
+		}
+		if _, err := h.projects.GetByID(ctx, pid); err != nil {
+			http.Error(w, "Project not found", http.StatusBadRequest)
 			return
 		}
 		projectID = &pid

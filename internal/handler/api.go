@@ -145,10 +145,19 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		// Project doesn't exist — try auto-create path
 		if h.config.Projects.AutoCreate && validation.IsValidSlug(slug) {
-			// No project to scope to, so use unscoped auth
-			user = h.tokenAuth.AuthenticateRequest(r)
+			// There is no project to scope to yet, so the token's own scope is
+			// the whole check (#155). Auto-create is project creation wearing
+			// an upload's clothes: a token scoped to project A must not be
+			// able to bring project B into existence, exactly as POST
+			// /api/projects refuses it.
+			var token *database.APIToken
+			user, token = h.tokenAuth.AuthenticateRequestWithToken(r)
 			if user == nil {
 				h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if token.ProjectID != nil {
+				h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 				return
 			}
 			if !canAutoCreate(user) {
