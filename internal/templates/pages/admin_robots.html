@@ -22,6 +22,13 @@
     </div>
     {{end}}
 
+    {{if gt (len .Robots) 1}}
+    <div class="filter-box admin-filter-box">
+        <input type="text" class="admin-filter" data-filter-items=".access-card"
+               placeholder="Filter robots..." autocomplete="off">
+    </div>
+    {{end}}
+
     <div class="admin-create-form">
         <h2>Create Robot User</h2>
         <form method="POST" action="{{url "/admin/robots"}}">

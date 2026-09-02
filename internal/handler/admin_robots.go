@@ -314,11 +314,17 @@ func (h *Handler) handleAdminGenerateToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if projectID != nil {
+		r.Form.Set("may_create", "")
+	}
+
 	token := &database.APIToken{
 		UserID:    robotID,
 		ProjectID: projectID,
 		TokenHash: auth.HashToken(rawToken),
 		Name:      name,
+		// A project-scoped token cannot create projects whatever the form
+		// says, so the row states that rather than implying otherwise.
 		Scopes:    scopesFromForm(r.FormValue("may_create")),
 		ExpiresAt: expiresAt,
 	}

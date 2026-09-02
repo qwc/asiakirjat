@@ -205,6 +205,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 func (a *LDAPAuthenticator) provisionUser(ctx context.Context, username, email, role string) (*database.User, error) {
 	existing, err := a.users.GetByUsername(ctx, username)
 	if err == nil && existing != nil {
+		// A robot is a service account, never a login identity. Adopting one
+		// here would hand this person the robot's grants, and hand whoever
+		// holds the robot's token this person's access — the two directions of
+		// the same collision (#155).
+		if existing.IsRobot {
+			return nil, fmt.Errorf("username %q belongs to a robot account", username)
+		}
 		// Only update email if changed; preserve manually-assigned role
 		if existing.Email != email {
 			existing.Email = email
