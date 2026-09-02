@@ -1,0 +1,20 @@
+{{/*
+    The admin section's navigation, in one place.
+
+    It used to be copied into every admin page, so adding a section meant
+    editing six templates and noticing all six. Pass the active page's key as
+    the dot: {{template "admin_nav" "orgs"}}.
+
+    Access Groups and Organizations are where permissions live now. The pages
+    they replaced — Group Mappings, Global Access, Access Lists — redirect here,
+    since nothing reads what they used to write.
+*/}}
+{{define "admin_nav"}}
+<div class="admin-nav">
+    <a href="{{url "/admin/projects"}}" class="admin-nav-link{{if eq . "projects"}} active{{end}}">Projects</a>
+    <a href="{{url "/admin/orgs"}}" class="admin-nav-link{{if eq . "orgs"}} active{{end}}">Organizations</a>
+    <a href="{{url "/admin/access-groups"}}" class="admin-nav-link{{if eq . "access-groups"}} active{{end}}">Access Groups</a>
+    <a href="{{url "/admin/users"}}" class="admin-nav-link{{if eq . "users"}} active{{end}}">Users</a>
+    <a href="{{url "/admin/robots"}}" class="admin-nav-link{{if eq . "robots"}} active{{end}}">Robot Users</a>
+</div>
+{{end}}

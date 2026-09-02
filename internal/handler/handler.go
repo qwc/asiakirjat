@@ -30,6 +30,9 @@ type Handler struct {
 	groupMappings  store.AuthGroupMappingStore
 	globalAccess   store.GlobalAccessStore
 	accessLists    store.AccessListStore
+	orgs           store.OrgStore
+	accessGroups   store.AccessGroupStore
+	accessGrants   store.AccessGrantStore
 	uploadLogs     store.UploadLogStore
 	authenticators []auth.Authenticator
 	oauth2Auth     *auth.OAuth2Authenticator
@@ -40,6 +43,7 @@ type Handler struct {
 	searchIndex    *docs.SearchIndex
 	projectService *projects.Service
 	checker        *access.Checker
+	resolver       *access.Resolver
 	logger         *slog.Logger
 
 	// Serializes storage-mutating work (archive extraction vs. rename) per
@@ -68,6 +72,9 @@ type Deps struct {
 	GroupMappings  store.AuthGroupMappingStore
 	GlobalAccess   store.GlobalAccessStore
 	AccessLists    store.AccessListStore
+	Orgs           store.OrgStore
+	AccessGroups   store.AccessGroupStore
+	AccessGrants   store.AccessGrantStore
 	UploadLogs     store.UploadLogStore
 	Authenticators []auth.Authenticator
 	OAuth2Auth     *auth.OAuth2Authenticator
@@ -91,6 +98,9 @@ func New(deps Deps) *Handler {
 		groupMappings:  deps.GroupMappings,
 		globalAccess:   deps.GlobalAccess,
 		accessLists:    deps.AccessLists,
+		orgs:           deps.Orgs,
+		accessGroups:   deps.AccessGroups,
+		accessGrants:   deps.AccessGrants,
 		uploadLogs:     deps.UploadLogs,
 		authenticators: deps.Authenticators,
 		oauth2Auth:     deps.OAuth2Auth,
@@ -99,8 +109,9 @@ func New(deps Deps) *Handler {
 		loginLimiter:   NewRateLimiter(10, 60*time.Second),
 		trustedProxies: parseTrustedProxies(deps.Config.Server.TrustedProxies),
 		searchIndex:    deps.SearchIndex,
-		projectService: projects.NewService(deps.Projects, deps.Versions, deps.Access, deps.Storage, deps.Logger),
+		projectService: newProjectService(deps),
 		checker:        access.NewChecker(deps.Access, deps.GlobalAccess, deps.AccessLists, deps.Logger),
+		resolver:       access.NewResolver(deps.AccessGrants, deps.Logger),
 		jobs:           newJobs(),
 		projectLocks:   newKeyedMutex(),
 		logger:         deps.Logger,
@@ -168,8 +179,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.handleAdminEditProject)))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/edit", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminUpdateProject))))
 	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/delete", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminDeleteProject))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/grant", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminGrantAccess))))
-	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/access/revoke", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminRevokeAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/grants", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminGrantProjectAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/projects/{slug}/grants/revoke", h.withSession(h.requireEditorOrAdmin(h.requireCSRF(h.handleAdminRevokeProjectAccess))))
 	mux.HandleFunc("GET "+bp+"/admin/users", h.withSession(h.requireAdmin(h.handleAdminUsers)))
 	mux.HandleFunc("POST "+bp+"/admin/users", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateUser))))
 	mux.HandleFunc("POST "+bp+"/admin/users/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteUser))))
@@ -180,18 +191,35 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGenerateToken))))
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/tokens/{tid}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeToken))))
 	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteRobot))))
+	mux.HandleFunc("POST "+bp+"/admin/robots/{id}/grants", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGrantRobotAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/robots/grants/{grantID}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeRobotAccess))))
 	mux.HandleFunc("POST "+bp+"/admin/reindex", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminReindex))))
-	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.handleAdminGroups)))
-	mux.HandleFunc("POST "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateGroupMapping))))
-	mux.HandleFunc("POST "+bp+"/admin/groups/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteGroupMapping))))
-	mux.HandleFunc("GET "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.handleAdminAccessLists)))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateAccessList))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessList))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/{id}/members", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminAddAccessListMember))))
-	mux.HandleFunc("POST "+bp+"/admin/access-lists/members/{memberID}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessListMember))))
-	mux.HandleFunc("GET "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.handleAdminGlobalAccess)))
-	mux.HandleFunc("POST "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateGlobalAccessRule))))
-	mux.HandleFunc("POST "+bp+"/admin/global-access/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteGlobalAccessRule))))
+	// Unified access model (#150, #151): access groups, orgs, and the grants
+	// that connect them.
+	mux.HandleFunc("GET "+bp+"/admin/access-groups", h.withSession(h.requireAdmin(h.handleAdminAccessGroups)))
+	mux.HandleFunc("POST "+bp+"/admin/access-groups", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateAccessGroup))))
+	mux.HandleFunc("POST "+bp+"/admin/access-groups/{id}/edit", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminUpdateAccessGroup))))
+	mux.HandleFunc("POST "+bp+"/admin/access-groups/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessGroup))))
+	mux.HandleFunc("POST "+bp+"/admin/access-groups/{id}/members", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminAddAccessGroupMember))))
+	mux.HandleFunc("POST "+bp+"/admin/access-groups/members/{memberID}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteAccessGroupMember))))
+
+	mux.HandleFunc("GET "+bp+"/admin/orgs", h.withSession(h.requireAdmin(h.handleAdminOrgs)))
+	mux.HandleFunc("POST "+bp+"/admin/orgs", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminCreateOrg))))
+	mux.HandleFunc("POST "+bp+"/admin/orgs/{id}/edit", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminUpdateOrg))))
+	mux.HandleFunc("POST "+bp+"/admin/orgs/{id}/delete", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeleteOrg))))
+	mux.HandleFunc("POST "+bp+"/admin/orgs/{id}/access/grant", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminGrantOrgAccess))))
+	mux.HandleFunc("POST "+bp+"/admin/orgs/access/{grantID}/revoke", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminRevokeOrgAccess))))
+
+	// The mechanisms the unified model replaces. Their tables still hold the
+	// data the migration read, and stay until it has been confirmed good in
+	// production — but nothing consults them any more, so their pages must not
+	// keep accepting edits. A form that saves where nothing reads is precisely
+	// the bug class this redesign set out to end, so the write routes are gone
+	// and the old addresses point at what replaced them.
+	mux.HandleFunc("GET "+bp+"/admin/groups", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/access-groups"))))
+	mux.HandleFunc("GET "+bp+"/admin/global-access", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/orgs"))))
+	mux.HandleFunc("GET "+bp+"/admin/access-lists", h.withSession(h.requireAdmin(h.retiredAccessPage("/admin/access-groups"))))
+
 	mux.HandleFunc("POST "+bp+"/admin/deploy-docs", h.withSession(h.requireAdmin(h.requireCSRF(h.handleAdminDeployBuiltinDocs))))
 
 	// Health check (keep at root for load balancer compatibility, but also at base path)
@@ -224,4 +252,12 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 // redirect performs an HTTP redirect with the base path prepended to the path.
 func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, path string, code int) {
 	http.Redirect(w, r, h.config.Server.BasePath+path, code)
+}
+
+// newProjectService wires the project service, including the grant store that
+// makes a project's creator an admin of it (#150, #151).
+func newProjectService(deps Deps) *projects.Service {
+	svc := projects.NewService(deps.Projects, deps.Versions, deps.Access, deps.Storage, deps.Logger)
+	svc.SetGrants(deps.AccessGrants)
+	return svc
 }

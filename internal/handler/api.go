@@ -45,7 +45,10 @@ func (h *Handler) handleAPIProjects(w http.ResponseWriter, r *http.Request) {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Visibility  string `json:"visibility"`
+		// Exposure is the current field; visibility is still accepted from
+		// callers that predate it and is translated.
+		Exposure   string `json:"exposure"`
+		Visibility string `json:"visibility"`
 	}
 
 	result := make([]projectJSON, 0, len(filtered))
@@ -142,17 +145,35 @@ func (h *Handler) handleAPIUploadWithSlug(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		// Project doesn't exist — try auto-create path
 		if h.config.Projects.AutoCreate && validation.IsValidSlug(slug) {
-			// No project to scope to, so use unscoped auth
-			user = h.tokenAuth.AuthenticateRequest(r)
+			// There is no project to scope to yet, so the token's own scope is
+			// the whole check (#155). Auto-create is project creation wearing
+			// an upload's clothes: a token scoped to project A must not be
+			// able to bring project B into existence, exactly as POST
+			// /api/projects refuses it.
+			var token *database.APIToken
+			user, token = h.tokenAuth.AuthenticateRequestWithToken(r)
 			if user == nil {
 				h.jsonError(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			if !canAutoCreate(user) {
-				h.jsonError(w, "Forbidden: insufficient role to auto-create projects", http.StatusForbidden)
+			if token.ProjectID != nil {
+				h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 				return
 			}
-			project, err = h.autoCreateProject(ctx, slug, user)
+			if !tokenAllows(token, scopeCreate) {
+				h.jsonError(w, "Forbidden: this token may not create projects", http.StatusForbidden)
+				return
+			}
+			orgID, orgErr := h.autoCreateOrg(ctx, user)
+			switch {
+			case errors.Is(orgErr, errNoCreateRights):
+				h.jsonError(w, "Forbidden: no rights to create projects", http.StatusForbidden)
+				return
+			case errors.Is(orgErr, errAmbiguousCreateOrg):
+				h.jsonError(w, "Ambiguous: you may create projects in several organizations; create it explicitly with POST /api/projects", http.StatusConflict)
+				return
+			}
+			project, err = h.autoCreateProject(ctx, slug, user, orgID)
 			if err != nil {
 				h.logger.Error("auto-creating project", "error", err)
 				h.jsonError(w, "Failed to create project", http.StatusInternalServerError)
@@ -341,12 +362,19 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		h.jsonError(w, "Forbidden: project-scoped tokens cannot create projects; use a global token", http.StatusForbidden)
 		return
 	}
+	if !tokenAllows(token, scopeCreate) {
+		h.jsonError(w, "Forbidden: this token may not create projects", http.StatusForbidden)
+		return
+	}
 
 	var req struct {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
-		Visibility  string `json:"visibility"`
+		// Exposure is the current field; visibility is still accepted from
+		// callers that predate it and is translated.
+		Exposure   string `json:"exposure"`
+		Visibility string `json:"visibility"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.jsonError(w, "Invalid JSON body", http.StatusBadRequest)
@@ -357,6 +385,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		Slug:        req.Slug,
 		Name:        req.Name,
 		Description: req.Description,
+		Exposure:    req.Exposure,
 		Visibility:  req.Visibility,
 		Creator:     user,
 	})
@@ -365,7 +394,7 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		h.jsonError(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with hyphens", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrInvalidVisibility):
-		h.jsonError(w, "Invalid visibility: must be public, private, or custom", http.StatusBadRequest)
+		h.jsonError(w, "Invalid exposure: must be public, authenticated or granted", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		h.jsonError(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
@@ -385,7 +414,10 @@ func (h *Handler) handleAPICreateProject(w http.ResponseWriter, r *http.Request)
 		"slug":        project.Slug,
 		"name":        project.Name,
 		"description": project.Description,
-		"visibility":  project.Visibility,
+		// visibility is kept in the response for callers that read it; exposure
+		// is what the server actually decides with.
+		"visibility": project.Visibility,
+		"exposure":   project.Exposure,
 	})
 }
 

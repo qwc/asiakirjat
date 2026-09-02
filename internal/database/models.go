@@ -56,14 +56,14 @@ func ValidAccessRole(role string) bool {
 }
 
 type Project struct {
-	ID            int64     `db:"id"`
-	Slug          string    `db:"slug"`
-	Name          string    `db:"name"`
-	Description   string    `db:"description"`
-	Visibility    string    `db:"visibility"`
-	RetentionDays *int      `db:"retention_days"`
-	PinnedVersion *string   `db:"pinned_version"`
-	PinPermanent  bool      `db:"pin_permanent"`
+	ID            int64   `db:"id"`
+	Slug          string  `db:"slug"`
+	Name          string  `db:"name"`
+	Description   string  `db:"description"`
+	Visibility    string  `db:"visibility"`
+	RetentionDays *int    `db:"retention_days"`
+	PinnedVersion *string `db:"pinned_version"`
+	PinPermanent  bool    `db:"pin_permanent"`
 	// VersionKeepPattern is a regular expression naming the versions worth
 	// keeping. Versions whose tag matches are exempt from retention; the rest
 	// expire after RetentionDays. Nil falls back to "keep semver tags"
@@ -77,17 +77,25 @@ type Project struct {
 	// before this was tracked, or whose creator has since been deleted
 	// (the column has ON DELETE SET NULL). The creator may manage their own
 	// project without being a global admin.
-	CreatedBy *int64    `db:"created_by"`
+	CreatedBy *int64 `db:"created_by"`
+	// OrgID is the organization the project belongs to. Every project has one;
+	// installations that predate orgs get the 'default' org. Nil only if a
+	// row was written outside the store.
+	OrgID *int64 `db:"org_id"`
+	// Exposure says how far the project reaches beyond its access grants.
+	// See Exposure* constants. It replaces Visibility, which is kept until
+	// nothing reads it.
+	Exposure  string    `db:"exposure"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
 type Version struct {
-	ID          int64     `db:"id"`
-	ProjectID   int64     `db:"project_id"`
-	Tag         string    `db:"tag"`
-	StoragePath string    `db:"storage_path"`
-	ContentType string    `db:"content_type"` // "archive" or "pdf"
+	ID          int64  `db:"id"`
+	ProjectID   int64  `db:"project_id"`
+	Tag         string `db:"tag"`
+	StoragePath string `db:"storage_path"`
+	ContentType string `db:"content_type"` // "archive" or "pdf"
 	// UploadedBy is nil when the uploading user has been deleted; the column
 	// has ON DELETE SET NULL so user removal doesn't block on historical rows.
 	UploadedBy *int64    `db:"uploaded_by"`
@@ -147,7 +155,7 @@ type GlobalAccess struct {
 	ID                int64  `db:"id"`
 	SubjectType       string `db:"subject_type"`       // 'user', 'ldap_group', 'oauth2_group'
 	SubjectIdentifier string `db:"subject_identifier"` // username, LDAP DN, OAuth2 group name
-	Role              string `db:"role"`                // 'viewer' or 'editor'
+	Role              string `db:"role"`               // 'viewer' or 'editor'
 	FromConfig        bool   `db:"from_config"`
 }
 
@@ -202,4 +210,150 @@ type GlobalAccessGrant struct {
 	UserID int64  `db:"user_id"`
 	Role   string `db:"role"`   // 'viewer' or 'editor'
 	Source string `db:"source"` // 'manual', 'ldap', 'oauth2'
+}
+
+// ---------------------------------------------------------------------------
+// Unified access model (issues #150, #151)
+//
+// One noun and one edge replace global_access, access_lists,
+// auth_group_mappings and project_access: an AccessGroup names a set of
+// subjects, and an AccessGrant points a group or a single user at an org or a
+// project with a role. The role is on the grant, never on the membership, so
+// one group can be editor on one project and viewer on another.
+// ---------------------------------------------------------------------------
+
+// Project exposure constants. Exposure says how far a project reaches beyond
+// its grants; everything else is a question of who holds a grant. It replaces
+// the four Visibility values, whose differences were all about grants.
+const (
+	ExposurePublic        = "public"        // Anyone, including signed-out visitors
+	ExposureAuthenticated = "authenticated" // Any signed-in user
+	ExposureGranted       = "granted"       // Only what access_grants allows
+)
+
+// ValidExposure reports whether e is a value a project may carry.
+func ValidExposure(e string) bool {
+	switch e {
+	case ExposurePublic, ExposureAuthenticated, ExposureGranted:
+		return true
+	}
+	return false
+}
+
+// Grant roles. Wider than ValidAccessRole, which the old model deliberately
+// capped at editor: a grant can now confer administration of the thing it
+// points at, which is what makes OrgAdmin and ProjectAdmin ordinary data
+// rather than special cases in the checker.
+const (
+	GrantRoleViewer = "viewer"
+	GrantRoleEditor = "editor"
+	GrantRoleAdmin  = "admin"
+)
+
+// ValidGrantRole reports whether role is one an access grant may confer.
+func ValidGrantRole(role string) bool {
+	switch role {
+	case GrantRoleViewer, GrantRoleEditor, GrantRoleAdmin:
+		return true
+	}
+	return false
+}
+
+// GrantRoleRank orders grant roles so the strongest of several wins. Unknown
+// roles rank 0, below viewer, so a value that somehow reached the database
+// grants nothing rather than everything.
+func GrantRoleRank(role string) int {
+	switch role {
+	case GrantRoleAdmin:
+		return 3
+	case GrantRoleEditor:
+		return 2
+	case GrantRoleViewer:
+		return 1
+	}
+	return 0
+}
+
+// Grant sources. 'config' rows are owned by config.yaml and are replaced on
+// every startup sync; 'manual' rows are owned by whoever made them in the UI
+// and are never touched by the sync.
+const (
+	GrantSourceManual = "manual"
+	GrantSourceConfig = "config"
+)
+
+// ValidGrantSource reports whether s is a source the application records on
+// access_grants rows.
+func ValidGrantSource(s string) bool {
+	return s == GrantSourceManual || s == GrantSourceConfig
+}
+
+// DefaultOrgSlug names the organization migration 016 creates to hold every
+// project that predates organizations. Nothing stops an admin renaming it; the
+// slug is what code identifies it by.
+const DefaultOrgSlug = "default"
+
+// Org is the container above Project. Every project belongs to exactly one.
+// Orgs do not appear in URLs, so an org slug can never collide with a
+// project slug.
+type Org struct {
+	ID          int64     `db:"id"`
+	Slug        string    `db:"slug"`
+	Name        string    `db:"name"`
+	Description string    `db:"description"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
+// AccessGroup is a named set of subjects — users, LDAP groups, OAuth2 groups,
+// in any combination. It confers nothing by itself; an AccessGrant does that.
+type AccessGroup struct {
+	ID          int64     `db:"id"`
+	Name        string    `db:"name"`
+	Description string    `db:"description"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
+// AccessGroupMember names one subject in a group. Carries no role: see the
+// section header.
+type AccessGroupMember struct {
+	ID                int64  `db:"id"`
+	GroupID           int64  `db:"group_id"`
+	SubjectType       string `db:"subject_type"` // See SubjectType* constants
+	SubjectIdentifier string `db:"subject_identifier"`
+	// Source is GrantSourceManual or GrantSourceConfig: who owns this row.
+	// config.yaml reconciles its own rows on startup and leaves the rest alone.
+	Source string `db:"source"`
+}
+
+// AccessGroupResolved records that a user was found in a group's LDAP or
+// OAuth2 membership while signing in. Members naming a user need no row here;
+// they are matched by username when access is checked.
+type AccessGroupResolved struct {
+	ID      int64  `db:"id"`
+	GroupID int64  `db:"group_id"`
+	UserID  int64  `db:"user_id"`
+	Source  string `db:"source"` // 'ldap' or 'oauth2'
+}
+
+// AccessGrant is the edge: exactly one of GroupID/UserID is set, and exactly
+// one of OrgID/ProjectID. An org grant cascades to every project in the org.
+type AccessGrant struct {
+	ID        int64     `db:"id"`
+	GroupID   *int64    `db:"group_id"`
+	UserID    *int64    `db:"user_id"`
+	OrgID     *int64    `db:"org_id"`
+	ProjectID *int64    `db:"project_id"`
+	Role      string    `db:"role"`
+	Source    string    `db:"source"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
+// Valid reports whether the grant names exactly one subject and exactly one
+// scope with a role the model allows. The database enforces the same thing
+// with CHECK constraints; this catches it before the round-trip, and on MySQL
+// servers older than 8.0.16, where CHECK is parsed and ignored.
+func (g *AccessGrant) Valid() bool {
+	oneSubject := (g.GroupID != nil) != (g.UserID != nil)
+	oneScope := (g.OrgID != nil) != (g.ProjectID != nil)
+	return oneSubject && oneScope && ValidGrantRole(g.Role) && ValidGrantSource(g.Source)
 }

@@ -24,16 +24,16 @@ You can search through all documentation stored — not only by title, but in th
 - **Stable `/latest/` permalink** per project, with an optional pinned version
 - **Version comparison** with an inline diff view between versions
 - **Inline PDF viewer** for PDF documents
-- **Three-tier visibility**: public (anonymous), private (global access list), custom (per-project grants)
+- **Exposure per project**: public (anonymous), any signed-in user, or only who is granted
 - **Authentication**: built-in (bcrypt), LDAP, OAuth2/OIDC — used simultaneously
-- **Role-based access**: admin, editor, viewer at global and per-project level
-- **Group mapping**: LDAP/OAuth2 groups to project access and global access roles
+- **Organizations** above projects: a role granted on one applies to every project in it
+- **Access groups**: one named set of users and/or LDAP/OAuth2 groups, granted viewer, editor or admin per project or organization
 - **Full-text search** (Bleve) across all documentation with project/version filtering
 - **Archive upload**: .zip, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz, .7z
 - **REST API** with Bearer token auth: project listing, version listing, upload, search
 - **Robot users**: API-only accounts with project-scoped tokens for CI/CD
 - **Multi-database**: SQLite (default), PostgreSQL, MySQL with auto-migrations
-- **Admin panel**: manage projects, users, robots, group mappings, search reindex
+- **Admin panel**: manage projects, organizations, access groups, users, robots, search reindex
 - **Branding**: custom app name, logo, CSS
 - **Self-documenting**: deployable built-in documentation
 - **Single binary**, Docker-ready

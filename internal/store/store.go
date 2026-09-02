@@ -120,3 +120,60 @@ type GlobalAccessStore interface {
 	DeleteGrantsBySource(ctx context.Context, userID int64, source string) error
 	ListGrants(ctx context.Context) ([]database.GlobalAccessGrant, error)
 }
+
+// ---------------------------------------------------------------------------
+// Unified access model (issues #150, #151)
+// ---------------------------------------------------------------------------
+
+// OrgStore manages organizations, the container above projects. Every project
+// belongs to exactly one; installations predating orgs get the 'default' org.
+type OrgStore interface {
+	List(ctx context.Context) ([]database.Org, error)
+	GetByID(ctx context.Context, id int64) (*database.Org, error)
+	GetBySlug(ctx context.Context, slug string) (*database.Org, error)
+	Create(ctx context.Context, org *database.Org) error
+	Update(ctx context.Context, org *database.Org) error
+	Delete(ctx context.Context, id int64) error
+	CountProjects(ctx context.Context, id int64) (int, error)
+}
+
+// AccessGroupStore manages access groups and their membership. Members carry
+// no role: the role belongs to the grant.
+type AccessGroupStore interface {
+	List(ctx context.Context) ([]database.AccessGroup, error)
+	GetByID(ctx context.Context, id int64) (*database.AccessGroup, error)
+	GetByName(ctx context.Context, name string) (*database.AccessGroup, error)
+	Create(ctx context.Context, group *database.AccessGroup) error
+	Update(ctx context.Context, group *database.AccessGroup) error
+	Delete(ctx context.Context, id int64) error
+	CountGrants(ctx context.Context, id int64) (int, error)
+
+	ListMembers(ctx context.Context, groupID int64) ([]database.AccessGroupMember, error)
+	ListMembersBySource(ctx context.Context, source string) ([]database.AccessGroupMember, error)
+	AddMember(ctx context.Context, m *database.AccessGroupMember) error
+	RemoveMember(ctx context.Context, memberID int64) error
+
+	ListGroupsBySubject(ctx context.Context, subjectType, identifier string) ([]int64, error)
+	ListResolvedForUser(ctx context.Context, userID int64, source string) ([]int64, error)
+	SetResolvedForUser(ctx context.Context, userID int64, source string, groupIDs []int64) error
+}
+
+// UserGrants is one user's roles, keyed by the scope that granted them. The
+// checker combines the two: an org role applies to every project in that org,
+// and the strongest role from either wins.
+type UserGrants struct {
+	Projects map[int64]string
+	Orgs     map[int64]string
+}
+
+// AccessGrantStore manages the grant edge: group-or-user to org-or-project,
+// with a role.
+type AccessGrantStore interface {
+	Grant(ctx context.Context, g *database.AccessGrant) error
+	Revoke(ctx context.Context, id int64) (bool, error)
+	ListByProject(ctx context.Context, projectID int64) ([]database.AccessGrant, error)
+	ListByOrg(ctx context.Context, orgID int64) ([]database.AccessGrant, error)
+	ListByUser(ctx context.Context, userID int64) ([]database.AccessGrant, error)
+	DeleteBySource(ctx context.Context, source string) error
+	GrantsForUser(ctx context.Context, userID int64, username string) (UserGrants, error)
+}

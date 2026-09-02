@@ -2,8 +2,8 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -63,16 +63,21 @@ func (h *Handler) handleAdminProjects(w http.ResponseWriter, r *http.Request) {
 		projectViews = append(projectViews, projectView{
 			Project:       p,
 			CreatedByName: name,
-			CanManage:     h.checker.CanManage(user, &p),
+			CanManage:     h.canManage(ctx, user, &p),
 		})
+	}
+
+	orgs, err := h.orgs.List(ctx)
+	if err != nil {
+		h.logger.Error("listing orgs", "error", err)
 	}
 
 	reindexRunning, reindexProgress := h.reindex.snapshot()
 	data := map[string]any{
 		"User":            user,
 		"IsAdmin":         isAdmin,
+		"Orgs":            orgs,
 		"Projects":        projectViews,
-		"AccessLists":     h.availableAccessLists(ctx),
 		"ReindexRunning":  reindexRunning,
 		"ReindexProgress": reindexProgress,
 	}
@@ -115,14 +120,21 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	visibility := r.FormValue("visibility")
+	// A project can be placed in an organization at creation: putting it in the
+	// wrong one first and moving it after is a needless round trip, and the
+	// org decides who can already reach it.
+	var orgID *int64
+	if id, err := strconv.ParseInt(r.FormValue("org_id"), 10, 64); err == nil && id > 0 {
+		orgID = &id
+	}
+
 	_, err := h.projectService.Create(ctx, projects.CreateOptions{
 		Slug:          r.FormValue("slug"),
 		Name:          r.FormValue("name"),
 		Description:   r.FormValue("description"),
-		Visibility:    visibility,
+		Exposure:      r.FormValue("exposure"),
+		OrgID:         orgID,
 		RetentionDays: retentionDays,
-		AccessListID:  accessListIDFromForm(r, visibility),
 		Creator:       auth.UserFromContext(ctx),
 	})
 	switch {
@@ -130,10 +142,7 @@ func (h *Handler) handleAdminCreateProject(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid slug: must be 1-128 lowercase alphanumeric characters with single hyphens between segments", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrInvalidVisibility):
-		http.Error(w, "Invalid visibility: must be public, private, custom, or list", http.StatusBadRequest)
-		return
-	case errors.Is(err, projects.ErrListRequired):
-		http.Error(w, "Choose an access list for list visibility", http.StatusBadRequest)
+		http.Error(w, "Invalid exposure: must be public, authenticated or granted", http.StatusBadRequest)
 		return
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		http.Error(w, "Forbidden: only admins can create public projects", http.StatusForbidden)
@@ -161,7 +170,7 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !h.checker.CanManage(user, project) {
+	if !h.canManage(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -209,10 +218,22 @@ func (h *Handler) handleAdminEditProject(w http.ResponseWriter, r *http.Request)
 		globalRetentionLabel = strconv.Itoa(globalDefault) + " days"
 	}
 
+	grants, err := h.accessGrants.ListByProject(ctx, project.ID)
+	if err != nil {
+		h.logger.Error("listing project grants", "project", project.Slug, "error", err)
+	}
+
+	orgs, err := h.orgs.List(ctx)
+	if err != nil {
+		h.logger.Error("listing orgs", "error", err)
+	}
+
 	h.render(w, r, "admin_project_edit", map[string]any{
 		"User":                   user,
-		"AccessLists":            h.availableAccessLists(ctx),
-		"CurrentAccessListID":    currentAccessListID(project),
+		"Grants":                 h.grantViews(ctx, grants),
+		"AccessGroups":           h.availableAccessGroups(ctx),
+		"Orgs":                   orgs,
+		"CurrentOrgID":           currentOrgID(project),
 		"IsAdmin":                user != nil && user.Role == "admin",
 		"Project":                project,
 		"CreatedByName":          createdByName,
@@ -236,7 +257,7 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !h.checker.CanManage(user, project) {
+	if !h.canManage(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -253,9 +274,20 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 	// One rule for both paths: projects.ValidateVisibility is what
 	// Service.Create applies, including that only admins may publish and
 	// that list visibility needs the list it points at.
+	// The form posts exposure; visibility is derived when absent, so a caller
+	// that only knows the new field is not rejected. Both are kept in step
+	// until the visibility column goes.
+	exposure := r.FormValue("exposure")
+	if exposure == "" {
+		exposure = project.Exposure
+	}
 	visibility := r.FormValue("visibility")
-	accessListID := accessListIDFromForm(r, visibility)
-	switch err := projects.ValidateVisibility(visibility, accessListID, user); {
+	if visibility == "" {
+		visibility = visibilityForExposure(exposure, project.Visibility)
+	}
+	// The access-list picker is gone: a project's audience is expressed with
+	// grants now. ValidateVisibility still guards who may publish publicly.
+	switch err := projects.ValidateVisibility(visibility, nil, user); {
 	case errors.Is(err, projects.ErrPublicRequiresAdmin):
 		http.Error(w, "Forbidden: only admins can make projects public", http.StatusForbidden)
 		return
@@ -267,7 +299,28 @@ func (h *Handler) handleAdminUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	project.Visibility = visibility
-	project.AccessListID = accessListID
+
+	// Exposure is what the checker reads now (#150, #151); visibility is kept
+	// in step with it until the column goes, so a downgrade of this build does
+	// not resurrect a stale value.
+	if !database.ValidExposure(exposure) {
+		http.Error(w, "Invalid exposure", http.StatusBadRequest)
+		return
+	}
+	// Only admins may publish to signed-out visitors, matching the rule that
+	// already governed public visibility.
+	if exposure == database.ExposurePublic && (user == nil || user.Role != "admin") {
+		http.Error(w, "Only admins can make a project public", http.StatusForbidden)
+		return
+	}
+	project.Exposure = exposure
+
+	if orgID, err := strconv.ParseInt(r.FormValue("org_id"), 10, 64); err == nil && orgID > 0 {
+		project.OrgID = &orgID
+	}
+	// Any list a project still points at is inert: the checker reads grants.
+	// Clearing it keeps the row from implying otherwise.
+	project.AccessListID = nil
 
 	// A version keep pattern is optional; empty clears it and restores the
 	// "keep semver tags" default.
@@ -344,7 +397,7 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !h.checker.CanManage(user, project) {
+	if !h.canManage(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -373,49 +426,29 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 	h.redirect(w, r, "/admin/projects", http.StatusSeeOther)
 }
 
-func (h *Handler) handleAdminGrantAccess(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := auth.UserFromContext(ctx)
-	slug := r.PathValue("slug")
-
-	project, err := h.projects.GetBySlug(ctx, slug)
-	if err != nil {
-		http.Error(w, "Project not found", http.StatusNotFound)
-		return
+// currentOrgID flattens the project's nullable org for the edit form, which
+// cannot dereference a pointer. 0 means "not set", which the store resolves to
+// the default org on save.
+func currentOrgID(project *database.Project) int64 {
+	if project.OrgID == nil {
+		return 0
 	}
-
-	if !h.checker.CanManage(user, project) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	userID, err := strconv.ParseInt(r.FormValue("grant_user_id"), 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
-	}
-
-	role := r.FormValue("grant_role")
-	if role != "viewer" && role != "editor" {
-		role = "viewer"
-	}
-
-	access := &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    userID,
-		Role:      role,
-	}
-
-	if err := h.access.Grant(ctx, access); err != nil {
-		h.logger.Error("granting access", "error", err)
-		http.Error(w, "Failed to grant access", http.StatusInternalServerError)
-		return
-	}
-
-	h.redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
+	return *project.OrgID
 }
 
-func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request) {
+// exposureForVisibility mirrors the store's transitional mapping so the edit
+// form can fall back to it when a caller posts only the legacy field.
+func exposureForVisibility(visibility string) string {
+	if visibility == database.VisibilityPublic {
+		return database.ExposurePublic
+	}
+	return database.ExposureGranted
+}
+
+// handleAdminGrantProjectAccess points a group or a user at this project with
+// a role. This is the whole per-project access UI now: one table, one form,
+// the same shape as an org's.
+func (h *Handler) handleAdminGrantProjectAccess(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
 	slug := r.PathValue("slug")
@@ -425,36 +458,76 @@ func (h *Handler) handleAdminRevokeAccess(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Project not found", http.StatusNotFound)
 		return
 	}
-
-	if !h.checker.CanManage(user, project) {
+	if !h.canManage(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	userID, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	grant, problem := h.grantFromForm(ctx, r)
+	if problem != "" {
+		h.projectAccessError(w, r, slug, problem)
+		return
+	}
+	grant.ProjectID = &project.ID
+
+	if err := h.accessGrants.Grant(ctx, grant); err != nil {
+		h.logger.Error("granting project access", "project", slug, "error", err)
+		h.projectAccessError(w, r, slug, "Could not grant that access.")
+		return
+	}
+	h.redirect(w, r, "/admin/projects/"+slug+"/edit?msg=granted", http.StatusSeeOther)
+}
+
+// handleAdminRevokeProjectAccess removes one grant, and says so when the click
+// matched nothing rather than redirecting as though it worked (issue #126).
+func (h *Handler) handleAdminRevokeProjectAccess(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+	slug := r.PathValue("slug")
+
+	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+	if !h.canManage(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	// The edit page lists grants from every source, so revoke the exact
-	// row that was clicked. Without this the button silently did nothing
-	// for LDAP- and OAuth2-synced grants (issue #126). An absent field
-	// keeps the previous manual-only behaviour.
-	source := r.FormValue("source")
-	if source == "" {
-		source = database.AccessSourceManual
-	}
-	if !database.ValidAccessSource(source) {
-		http.Error(w, "Invalid access source", http.StatusBadRequest)
+	grantID, err := strconv.ParseInt(r.FormValue("grant_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid grant", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.access.RevokeBySource(ctx, project.ID, userID, source); err != nil {
-		h.logger.Error("revoking access", "error", err, "source", source)
-		http.Error(w, "Failed to revoke access", http.StatusInternalServerError)
+	removed, err := h.accessGrants.Revoke(ctx, grantID)
+	if err != nil {
+		h.logger.Error("revoking project access", "project", slug, "grant_id", grantID, "error", err)
+		h.projectAccessError(w, r, slug, "Could not revoke that access.")
 		return
 	}
+	if !removed {
+		h.projectAccessError(w, r, slug, "That grant no longer exists.")
+		return
+	}
+	h.redirect(w, r, "/admin/projects/"+slug+"/edit?msg=revoked", http.StatusSeeOther)
+}
 
-	h.redirect(w, r, fmt.Sprintf("/admin/projects/%s/edit", slug), http.StatusSeeOther)
+func (h *Handler) projectAccessError(w http.ResponseWriter, r *http.Request, slug, message string) {
+	h.redirect(w, r, "/admin/projects/"+slug+"/edit?msg=error&error="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+// visibilityForExposure keeps the legacy column in step with exposure while
+// both exist. A project that is not public keeps whichever narrow visibility
+// it already had, since the four old values differ only in which grants
+// applied — a distinction the grant table now carries on its own.
+func visibilityForExposure(exposure, current string) string {
+	if exposure == database.ExposurePublic {
+		return database.VisibilityPublic
+	}
+	if current == "" || current == database.VisibilityPublic {
+		return database.VisibilityCustom
+	}
+	return current
 }

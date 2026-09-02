@@ -47,11 +47,11 @@ type BrandingConfig struct {
 }
 
 type ServerConfig struct {
-	Address         string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
-	Port            int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
-	BasePath        string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
-	ProxyStripPath  bool   `yaml:"proxy_strip_path" env:"ASIAKIRJAT_SERVER_PROXY_STRIP_PATH"`
-	LogLevel        string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
+	Address        string `yaml:"address" env:"ASIAKIRJAT_SERVER_ADDRESS"`
+	Port           int    `yaml:"port" env:"ASIAKIRJAT_SERVER_PORT"`
+	BasePath       string `yaml:"base_path" env:"ASIAKIRJAT_SERVER_BASE_PATH"`
+	ProxyStripPath bool   `yaml:"proxy_strip_path" env:"ASIAKIRJAT_SERVER_PROXY_STRIP_PATH"`
+	LogLevel       string `yaml:"log_level" env:"ASIAKIRJAT_LOG_LEVEL"`
 	// TrustedProxies is a comma-separated list of CIDR ranges or single IPs
 	// whose X-Forwarded-For headers are honored when deriving the client IP
 	// (used by rate limiters). Empty (default) means the header is ignored
@@ -125,9 +125,44 @@ type StorageConfig struct {
 	BasePath string `yaml:"base_path" env:"ASIAKIRJAT_STORAGE_PATH"`
 }
 
-// AccessConfig controls global access rules for "private" visibility projects.
+// AccessConfig declares access in config.yaml, mirroring the model the admin
+// UI edits: groups say who people are, grants say what they may do and where.
+//
+// What this section declares is owned by the file: rows it wrote are
+// reconciled against it on every startup, so deleting an entry here revokes
+// it. Anything added through the admin UI is left alone.
 type AccessConfig struct {
+	// Private is the retired instance-wide rule for "private" visibility.
+	// Read only to warn about it; see internal/access/configsync.go.
 	Private PrivateAccessConfig `yaml:"private"`
+
+	Groups []AccessGroupConfig `yaml:"groups"`
+	Grants []AccessGrantConfig `yaml:"grants"`
+}
+
+// AccessGroupConfig is a named set of people.
+type AccessGroupConfig struct {
+	Name        string                    `yaml:"name"`
+	Description string                    `yaml:"description"`
+	Members     []AccessGroupMemberConfig `yaml:"members"`
+}
+
+// AccessGroupMemberConfig names exactly one subject: a user by username, or an
+// LDAP or OAuth2 group by its identifier.
+type AccessGroupMemberConfig struct {
+	User        string `yaml:"user"`
+	LDAPGroup   string `yaml:"ldap_group"`
+	OAuth2Group string `yaml:"oauth2_group"`
+}
+
+// AccessGrantConfig gives a group or a user a role on an org or a project.
+// Exactly one subject and exactly one scope, matching the access_grants table.
+type AccessGrantConfig struct {
+	Group   string `yaml:"group"`   // access group name
+	User    string `yaml:"user"`    // username
+	Org     string `yaml:"org"`     // org slug
+	Project string `yaml:"project"` // project slug
+	Role    string `yaml:"role"`    // viewer, editor or admin
 }
 
 // PrivateAccessConfig defines who can access private-visibility projects.

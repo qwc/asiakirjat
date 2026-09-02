@@ -652,12 +652,7 @@ func TestViewerCannotPin(t *testing.T) {
 	app.handler.users.Create(ctx, viewer)
 
 	// Grant viewer access
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: project.ID,
-		UserID:    viewer.ID,
-		Role:      "viewer",
-		Source:    "manual",
-	})
+	grantRole(t, app, project.ID, viewer.ID, "viewer")
 
 	// Create a version
 	admin, _ := app.handler.users.GetByUsername(ctx, "admin")
@@ -693,4 +688,3 @@ func TestViewerCannotPin(t *testing.T) {
 		t.Errorf("expected 403 for viewer trying to pin, got %d", resp.StatusCode)
 	}
 }
-

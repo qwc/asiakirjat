@@ -1,5 +1,11 @@
 # Manage Global Access
 
+> **Retired.** Access groups and grants replace this mechanism — see
+> [Manage Access](manage-access.md). The admin page described below no longer
+> exists and its address redirects. Your configuration was translated
+> automatically on upgrade; nothing here needs redoing by hand. This page is
+> kept as a record of how the old model worked.
+
 This guide explains how to manage the global access list, which controls who can view and upload to **private**-visibility projects.
 
 ## When to Use Global Access

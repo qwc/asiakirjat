@@ -48,6 +48,7 @@ type LDAPAuthenticator struct {
 	users         store.UserStore
 	access        store.ProjectAccessStore
 	groupMappings store.AuthGroupMappingStore
+	accessGroups  store.AccessGroupStore
 	globalAccess  store.GlobalAccessStore
 	accessLists   store.AccessListStore
 	logger        *slog.Logger
@@ -81,6 +82,13 @@ func (a *LDAPAuthenticator) SetStores(access store.ProjectAccessStore, groupMapp
 	a.groupMappings = groupMappings
 	a.globalAccess = globalAccess
 	a.accessLists = accessLists
+}
+
+// SetAccessGroups wires the unified access model's group store. It is separate
+// from SetStores so the transitional model can be wired without disturbing
+// callers of the old one; both syncs run until the old tables are retired.
+func (a *LDAPAuthenticator) SetAccessGroups(groups store.AccessGroupStore) {
+	a.accessGroups = groups
 }
 
 func (a *LDAPAuthenticator) Name() string {
@@ -183,6 +191,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 		}
 	}
 
+	// Record access group membership for the unified model (#150, #151).
+	if a.accessGroups != nil {
+		if err := syncAccessGroupMembership(ctx, a.accessGroups, a.logger, user, memberOf, database.SubjectTypeLDAPGroup, "ldap"); err != nil {
+			a.logger.Warn("syncing LDAP access groups", "username", username, "error", err)
+		}
+	}
+
 	return user, nil
 }
 
@@ -190,6 +205,13 @@ func (a *LDAPAuthenticator) Authenticate(ctx context.Context, username, password
 func (a *LDAPAuthenticator) provisionUser(ctx context.Context, username, email, role string) (*database.User, error) {
 	existing, err := a.users.GetByUsername(ctx, username)
 	if err == nil && existing != nil {
+		// A robot is a service account, never a login identity. Adopting one
+		// here would hand this person the robot's grants, and hand whoever
+		// holds the robot's token this person's access — the two directions of
+		// the same collision (#155).
+		if existing.IsRobot {
+			return nil, fmt.Errorf("username %q belongs to a robot account", username)
+		}
 		// Only update email if changed; preserve manually-assigned role
 		if existing.Email != email {
 			existing.Email = email

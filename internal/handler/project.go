@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/qwc/asiakirjat/internal/auth"
 	"github.com/qwc/asiakirjat/internal/database"
 	"github.com/qwc/asiakirjat/internal/docs"
+	"github.com/qwc/asiakirjat/internal/validation"
 )
 
 // attachmentDisposition builds a safe `attachment; filename=...` header value.
@@ -292,22 +294,17 @@ func (h *Handler) handleDownloadVersion(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleProjectTokens lists API tokens scoped to this project.
-func (h *Handler) handleProjectTokens(w http.ResponseWriter, r *http.Request) {
+// projectTokenView is one token row: the credential's name, and the robot it
+// speaks for.
+type projectTokenView struct {
+	database.APIToken
+	Username string
+	IsRobot  bool
+}
+
+// renderProjectTokens draws the page for every handler that changes it.
+func (h *Handler) renderProjectTokens(w http.ResponseWriter, r *http.Request, project *database.Project, newToken string, flash *Flash) {
 	ctx := r.Context()
-	user := auth.UserFromContext(ctx)
-	slug := r.PathValue("slug")
-
-	project, err := h.projects.GetBySlug(ctx, slug)
-	if err != nil {
-		http.Error(w, "Project not found", http.StatusNotFound)
-		return
-	}
-
-	// Check editor access
-	if !h.canUpload(ctx, user, project) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
 
 	tokens, err := h.tokens.ListByProject(ctx, project.ID)
 	if err != nil {
@@ -316,35 +313,66 @@ func (h *Handler) handleProjectTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build user lookup for token display
 	users, _ := h.users.List(ctx)
-	userNames := make(map[int64]string)
+	byID := make(map[int64]database.User, len(users))
+	var robots []database.User
 	for _, u := range users {
-		userNames[u.ID] = u.Username
+		byID[u.ID] = u
+		if u.IsRobot {
+			robots = append(robots, u)
+		}
 	}
 
-	type tokenView struct {
-		database.APIToken
-		Username string
-	}
-
-	var tokenViews []tokenView
+	views := make([]projectTokenView, 0, len(tokens))
 	for _, t := range tokens {
-		tokenViews = append(tokenViews, tokenView{
-			APIToken: t,
-			Username: userNames[t.UserID],
+		owner := byID[t.UserID]
+		views = append(views, projectTokenView{
+			APIToken: t, Username: owner.Username, IsRobot: owner.IsRobot,
 		})
 	}
 
-	h.render(w, r, "project_tokens", map[string]any{
-		"User":    user,
-		"Project": project,
-		"Tokens":  tokenViews,
-	})
+	data := map[string]any{
+		"User":           auth.UserFromContext(ctx),
+		"Project":        project,
+		"Tokens":         views,
+		"Robots":         robots,
+		"SuggestedRobot": project.Slug + "-bot",
+	}
+	if newToken != "" {
+		data["NewToken"] = newToken
+	}
+	if flash != nil {
+		data["Flash"] = flash
+	}
+	h.render(w, r, "project_tokens", data)
 }
 
-// handleProjectCreateToken creates a new API token scoped to this project.
-// Editors can only create project-scoped tokens, not global tokens.
+func (h *Handler) handleProjectTokens(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := auth.UserFromContext(ctx)
+
+	project, err := h.projects.GetBySlug(ctx, r.PathValue("slug"))
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+	if !h.canUpload(ctx, user, project) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	h.renderProjectTokens(w, r, project, "", nil)
+}
+
+// handleProjectCreateToken issues a token for this project, owned by a robot.
+//
+// It used to hang the token off whoever clicked the button, which made a
+// project's CI credential a slice of one person's account: it carried their
+// access, it said their name on every version it uploaded, and it died with
+// them when the account went. A token names a robot now — an existing one, or
+// one created here — and the robot is granted editor on this project, so its
+// reach is a grant like everyone else's and the token's scope narrows it to
+// this project (#155).
 func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
@@ -355,8 +383,6 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Project not found", http.StatusNotFound)
 		return
 	}
-
-	// Check editor access
 	if !h.canUpload(ctx, user, project) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -367,7 +393,23 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		name = "default"
 	}
 
-	// Generate raw token
+	robotName := strings.TrimSpace(r.FormValue("robot"))
+	if robotName == "" {
+		robotName = slug + "-bot"
+	}
+
+	expiresAt, problem := expiryFromForm(r.FormValue("expires_in_days"))
+	if problem != "" {
+		h.renderProjectTokens(w, r, project, "", &Flash{Type: "error", Message: problem})
+		return
+	}
+
+	robot, problem := h.robotForProject(ctx, robotName, project)
+	if problem != "" {
+		h.renderProjectTokens(w, r, project, "", &Flash{Type: "error", Message: problem})
+		return
+	}
+
 	rawToken, err := auth.GenerateToken(32)
 	if err != nil {
 		h.logger.Error("generating token", "error", err)
@@ -375,52 +417,59 @@ func (h *Handler) handleProjectCreateToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tokenHash := auth.HashToken(rawToken)
-
-	// Editors can only create project-scoped tokens (projectID is always set)
 	projectID := project.ID
 	token := &database.APIToken{
-		UserID:    user.ID,
+		UserID:    robot.ID,
 		ProjectID: &projectID,
-		TokenHash: tokenHash,
+		TokenHash: auth.HashToken(rawToken),
 		Name:      name,
-		Scopes:    "upload",
+		Scopes:    scopeUpload,
+		ExpiresAt: expiresAt,
 	}
-
 	if err := h.tokens.Create(ctx, token); err != nil {
 		h.logger.Error("creating token", "error", err)
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
 		return
 	}
 
-	// Re-render tokens page with the new token shown
-	tokens, _ := h.tokens.ListByProject(ctx, project.ID)
+	h.renderProjectTokens(w, r, project, rawToken, nil)
+}
 
-	users, _ := h.users.List(ctx)
-	userNames := make(map[int64]string)
-	for _, u := range users {
-		userNames[u.ID] = u.Username
+// robotForProject finds or creates the robot a project token speaks for, and
+// makes sure it may upload here. Reusing an existing robot is the common case
+// — one robot, one token per pipeline — so a name that already belongs to a
+// robot is not an error; a name that belongs to a person is.
+func (h *Handler) robotForProject(ctx context.Context, name string, project *database.Project) (*database.User, string) {
+	// A robot name is a slug: lowercase, hyphenated, no spaces. It ends up in
+	// grant tables and log lines, and "CI Bot (temp)" helps nobody there.
+	if !validation.IsValidSlug(name) {
+		return nil, "A robot name must be lowercase letters, digits and hyphens."
 	}
 
-	type tokenView struct {
-		database.APIToken
-		Username string
+	robot, err := h.users.GetByUsername(ctx, name)
+	if err == nil && robot != nil {
+		if !robot.IsRobot {
+			return nil, name + " is a person's account, not a robot. Choose another name."
+		}
+	} else {
+		robot = &database.User{
+			Username: name, AuthSource: "robot", Role: "viewer", IsRobot: true,
+		}
+		if err := h.users.Create(ctx, robot); err != nil {
+			h.logger.Error("creating robot for project token", "username", name, "error", err)
+			return nil, "Could not create the robot " + name + "."
+		}
 	}
 
-	var tokenViews []tokenView
-	for _, t := range tokens {
-		tokenViews = append(tokenViews, tokenView{
-			APIToken: t,
-			Username: userNames[t.UserID],
-		})
+	// Grant is idempotent on (subject, scope), so re-issuing a token for the
+	// same robot updates nothing rather than piling up rows.
+	if err := h.accessGrants.Grant(ctx, &database.AccessGrant{
+		UserID: &robot.ID, ProjectID: &project.ID, Role: database.GrantRoleEditor,
+	}); err != nil {
+		h.logger.Error("granting robot access to project", "username", name, "error", err)
+		return nil, "Could not give " + name + " access to this project."
 	}
-
-	h.render(w, r, "project_tokens", map[string]any{
-		"User":     user,
-		"Project":  project,
-		"Tokens":   tokenViews,
-		"NewToken": rawToken,
-	})
+	return robot, ""
 }
 
 // handleProjectRevokeToken revokes a token scoped to this project.

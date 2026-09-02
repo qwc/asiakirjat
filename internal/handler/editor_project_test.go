@@ -186,11 +186,7 @@ func TestEditorSeesOnlyAccessibleProjects(t *testing.T) {
 	// Create a custom project with editor access (editor should see it)
 	accessProject := &database.Project{Slug: "access-proj", Name: "Accessible", Visibility: "custom"}
 	app.handler.projects.Create(ctx, accessProject)
-	app.handler.access.Grant(ctx, &database.ProjectAccess{
-		ProjectID: accessProject.ID,
-		UserID:    editor.ID,
-		Role:      "viewer",
-	})
+	grantRole(t, app, accessProject.ID, editor.ID, "viewer")
 
 	cookies := loginUser(t, app, "filtereditor", "editor123")
 

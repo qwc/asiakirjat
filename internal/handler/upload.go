@@ -46,8 +46,9 @@ func (h *Handler) handleUploadSubmit(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.projects.GetBySlug(ctx, slug)
 	if err != nil {
-		if h.config.Projects.AutoCreate && canAutoCreate(user) && validation.IsValidSlug(slug) {
-			project, err = h.autoCreateProject(ctx, slug, user)
+		orgID, orgErr := h.autoCreateOrg(ctx, user)
+		if h.config.Projects.AutoCreate && orgErr == nil && validation.IsValidSlug(slug) {
+			project, err = h.autoCreateProject(ctx, slug, user, orgID)
 			if err != nil {
 				h.logger.Error("auto-creating project", "error", err)
 				http.Error(w, "Failed to create project", http.StatusInternalServerError)
@@ -264,5 +265,5 @@ func storePDF(src io.Reader, destDir string) error {
 // canUpload is a thin forwarder to access.Checker.CanUpload; the rule
 // lives in internal/access.
 func (h *Handler) canUpload(ctx context.Context, user *database.User, project *database.Project) bool {
-	return h.checker.CanUpload(ctx, user, project)
+	return h.resolver.CanUpload(ctx, user, project)
 }

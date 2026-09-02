@@ -5,14 +5,7 @@
     <h1>Manage Projects</h1>
 
     {{if .IsAdmin}}
-    <div class="admin-nav">
-        <a href="{{url "/admin/projects"}}" class="admin-nav-link active">Projects</a>
-        <a href="{{url "/admin/users"}}" class="admin-nav-link">Users</a>
-        <a href="{{url "/admin/robots"}}" class="admin-nav-link">Robot Users</a>
-        <a href="{{url "/admin/groups"}}" class="admin-nav-link">Group Mappings</a>
-        <a href="{{url "/admin/global-access"}}" class="admin-nav-link">Global Access</a>
-        <a href="{{url "/admin/access-lists"}}" class="admin-nav-link">Access Lists</a>
-    </div>
+    {{template "admin_nav" "projects"}}
     {{end}}
 
     <div class="admin-create-form">
@@ -40,24 +33,21 @@
             </div>
             <div class="form-row" style="align-items:center;">
                 <div class="form-group" style="margin-bottom:0;">
-                    <label for="visibility">Visibility</label>
-                    <select id="visibility" name="visibility">
-                        <option value="public">Public</option>
-                        <option value="private" selected>Private</option>
-                        <option value="custom">Custom</option>
-                        {{if .AccessLists}}<option value="list">Access list</option>{{end}}
+                    <label for="exposure">Who can reach it</label>
+                    <select id="exposure" name="exposure">
+                        {{if .IsAdmin}}<option value="public">Public — anyone</option>{{end}}
+                        <option value="authenticated">Any signed-in user</option>
+                        <option value="granted" selected>Only who is granted access</option>
                     </select>
                 </div>
-                {{if .AccessLists}}
                 <div class="form-group" style="margin-bottom:0;">
-                    <label for="access_list_id">Access List</label>
-                    <select id="access_list_id" name="access_list_id">
-                        {{range .AccessLists}}
+                    <label for="org_id">Organization</label>
+                    <select id="org_id" name="org_id">
+                        {{range .Orgs}}
                         <option value="{{.ID}}">{{.Name}}</option>
                         {{end}}
                     </select>
                 </div>
-                {{end}}
                 <button type="submit" class="btn btn-primary">Create</button>
             </div>
         </form>

@@ -1,0 +1,143 @@
+{{define "title"}}Admin: Organizations - asiakirjat{{end}}
+
+{{define "content"}}
+<div class="admin-page">
+    <h1>Organizations</h1>
+
+    {{template "admin_nav" "orgs"}}
+
+    <div class="admin-info">
+        <p>Every project belongs to one organization. A role granted here applies to <strong>every project in the organization</strong> — that is what makes an organization an access boundary rather than a label.</p>
+        <p>Organizations do not appear in URLs, so a project's address never changes when it moves between them.</p>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
+    {{end}}
+
+    {{if gt (len .Orgs) 1}}
+    <div class="filter-box admin-filter-box">
+        <input type="text" class="admin-filter" data-filter-items=".access-card"
+               placeholder="Filter organizations..." autocomplete="off">
+    </div>
+    {{end}}
+
+    <div class="admin-create-form">
+        <h2>New Organization</h2>
+        <form method="POST" action="{{url "/admin/orgs"}}">
+            {{template "csrf_field" $.CSRFToken}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required placeholder="Platform Team">
+                </div>
+                <div class="form-group">
+                    <label for="slug">Slug</label>
+                    <input type="text" id="slug" name="slug" placeholder="derived from the name">
+                </div>
+                <div class="form-group form-group-wide">
+                    <label for="description">Description</label>
+                    <input type="text" id="description" name="description" placeholder="Optional">
+                </div>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+        </form>
+    </div>
+
+    {{range .Orgs}}
+    <details class="access-card" data-filter-text="{{lower .Org.Name}} {{lower .Org.Slug}} {{lower .Org.Description}}">
+        <summary class="access-card-summary">
+            <h2 class="access-card-name">{{.Org.Name}}</h2>
+            <span class="access-card-count">{{.ProjectCount}} project{{if ne .ProjectCount 1}}s{{end}}</span>
+            <span class="access-card-edit"><span class="access-card-edit-open">Edit</span><span class="access-card-edit-close">Close</span></span>
+            {{if .Org.Description}}<span class="access-card-desc">{{.Org.Description}}</span>{{end}}
+        </summary>
+
+        <div class="access-card-body">
+            <form method="POST" action="{{url "/admin/orgs/"}}{{.Org.ID}}/edit">
+                {{template "csrf_field" $.CSRFToken}}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" value="{{.Org.Name}}" required>
+                    </div>
+                    <div class="form-group form-group-wide">
+                        <label>Description</label>
+                        <input type="text" name="description" value="{{.Org.Description}}">
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Save</button>
+                </div>
+            </form>
+
+            <h3>Who can reach every project in this organization</h3>
+            {{if .Grants}}
+            <table class="admin-table">
+                <thead>
+                    <tr><th>Kind</th><th>Group or user</th><th>Role</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    {{range .Grants}}
+                    <tr>
+                        <td><span class="badge badge-{{.Kind}}">{{.Kind}}</span></td>
+                        <td>{{.Subject}}</td>
+                        <td>{{.Role}}</td>
+                        <td>
+                            <form method="POST" action="{{url "/admin/orgs/access/"}}{{.ID}}/revoke" class="inline-form"
+                                onsubmit="return confirm('Revoke this access?')">
+                                {{template "csrf_field" $.CSRFToken}}
+                                <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="empty-message">Nobody has organization-wide access. Projects here are reachable only through their own grants.</p>
+            {{end}}
+
+            <form method="POST" action="{{url "/admin/orgs/"}}{{.Org.ID}}/access/grant">
+                {{template "csrf_field" $.CSRFToken}}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Grant to</label>
+                        <select name="subject_kind" required>
+                            <option value="group">Access group</option>
+                            <option value="user">User</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-wide">
+                        <label>Name</label>
+                        <input type="text" name="subject" required list="access-group-names"
+                            placeholder="group name or username">
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select name="role" required>
+                            <option value="viewer">Viewer — can read</option>
+                            <option value="editor">Editor — can upload</option>
+                            <option value="admin">Admin — can manage</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Grant</button>
+                </div>
+            </form>
+
+            <form method="POST" action="{{url "/admin/orgs/"}}{{.Org.ID}}/delete" class="inline-form"
+                onsubmit="return confirm('Delete this organization?')">
+                {{template "csrf_field" $.CSRFToken}}
+                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+        </div>
+    </details>
+    {{end}}
+
+    <datalist id="access-group-names">
+        {{range .Groups}}<option value="{{.Name}}">{{end}}
+    </datalist>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="{{url "/static/js/admin-filter.js"}}"></script>
+{{end}}

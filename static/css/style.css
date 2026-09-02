@@ -437,8 +437,11 @@ body {
     gap: 0.5rem;
 }
 
-.project-card.hidden {
-    display: none;
+/* Generic: anything the frontpage filters hides. This used to be scoped to
+   .project-card, so toggling "hidden" on an org section did nothing and its
+   heading stayed above an empty grid. */
+.hidden {
+    display: none !important;
 }
 
 .no-projects {
@@ -793,6 +796,67 @@ body {
     max-width: 1000px;
 }
 
+/* Frontpage: organization grouping and filters (#150). */
+.frontpage-filters {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.filter-box input {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    font-size: 0.875rem;
+    min-width: 14rem;
+}
+
+.admin-filter-box {
+    margin-bottom: 1.25rem;
+}
+
+.org-section + .org-section {
+    border-top: 1px solid var(--color-border);
+    margin-top: 2rem;
+    padding-top: 1rem;
+}
+
+.org-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.org-name {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.org-name:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}
+
+.org-count {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+
+.project-card-org {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: -0.25rem;
+}
+
 .admin-nav {
     display: flex;
     gap: 0.5rem;
@@ -813,6 +877,144 @@ body {
     font-weight: 600;
     border-bottom: 2px solid var(--color-primary);
     margin-bottom: -2px;
+}
+
+/* The mechanisms the unified access model replaces (#150, #151). They stay
+   reachable until their tables are retired, but should not read as equals of
+   the pages that replaced them. */
+.admin-nav-legacy {
+    opacity: 0.65;
+    font-size: 0.9em;
+}
+
+.admin-nav-legacy.active {
+    opacity: 1;
+}
+
+/* Cards on the access-group and organization pages. Collapsed they are one
+   scannable line — name, count, description — and the edit fields, member and
+   grant tables only unfold for the one card you came to change. A list of
+   twenty organizations was otherwise twenty full forms deep. */
+.access-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 0.75rem;
+    background: var(--color-surface);
+}
+
+.access-card-summary {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    column-gap: 1rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+/* The default disclosure triangle would sit beside our own affordance. */
+.access-card-summary::-webkit-details-marker { display: none; }
+
+.access-card-summary:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+}
+
+.access-card-name {
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+/* Its own centred column, so counts line up down the list instead of drifting
+   with the length of each name. */
+.access-card-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    min-width: 7rem;
+}
+
+.access-card-edit {
+    font-size: 0.8rem;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+.access-card-edit::after {
+    content: "\25B8";
+    display: inline-block;
+    margin-left: 0.35rem;
+    transition: transform 0.15s ease;
+}
+
+.access-card[open] .access-card-edit::after { transform: rotate(90deg); }
+
+.access-card-edit-close { display: none; }
+.access-card[open] .access-card-edit-open { display: none; }
+.access-card[open] .access-card-edit-close { display: inline; }
+
+.access-card-desc {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+    margin-top: 0.15rem;
+}
+
+/* Open, the description is right there in the edit field below. */
+.access-card[open] .access-card-desc { display: none; }
+
+.access-card-body {
+    border-top: 1px solid var(--color-border);
+    margin-top: 0.75rem;
+    padding-top: 1rem;
+}
+
+.access-card h3 {
+    font-size: 0.95rem;
+    margin: 1.25rem 0 0.5rem;
+    color: var(--color-text-muted);
+}
+
+.admin-hint {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.admin-info {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.admin-info p { margin: 0 0 0.5rem 0; }
+.admin-info p:last-child { margin-bottom: 0; }
+
+.form-group-wide { flex: 1; }
+
+/* A checkbox in a form row: the label reads across, not above, and the box
+   itself must not stretch to the column width the way a text input does. */
+.form-group-check {
+    display: flex;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.form-group-check label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    margin-bottom: 0.5rem;
+}
+
+.form-group-check input[type="checkbox"] {
+    width: auto;
+    margin: 0;
 }
 
 .admin-create-form {

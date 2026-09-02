@@ -1,5 +1,11 @@
 # Manage Access Lists
 
+> **Retired.** Access groups and grants replace this mechanism — see
+> [Manage Access](manage-access.md). The admin page described below no longer
+> exists and its address redirects. Your configuration was translated
+> automatically on upgrade; nothing here needs redoing by hand. This page is
+> kept as a record of how the old model worked.
+
 An **access list** is a named set of users and groups that projects can share. Give several projects the same list and they all admit exactly the same people; change the list once and every one of them follows.
 
 Use an access list when the same audience keeps recurring — a team, a customer, a department. Use **custom** visibility instead when a project's audience is genuinely its own, and **private** when the audience is "everyone on the global access list".
