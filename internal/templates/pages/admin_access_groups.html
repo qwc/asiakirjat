@@ -41,80 +41,86 @@
     </div>
 
     {{range .Groups}}
-    <div class="access-card" data-filter-text="{{lower .Group.Name}} {{lower .Group.Description}}">
-        <h2>{{.Group.Name}}
-            <span class="badge badge-small">{{.GrantCount}} grant{{if ne .GrantCount 1}}s{{end}}</span>
-        </h2>
+    <details class="access-card" data-filter-text="{{lower .Group.Name}} {{lower .Group.Description}}">
+        <summary class="access-card-summary">
+            <h2 class="access-card-name">{{.Group.Name}}</h2>
+            <span class="access-card-count">{{.GrantCount}} grant{{if ne .GrantCount 1}}s{{end}}</span>
+            <span class="access-card-edit"><span class="access-card-edit-open">Edit</span><span class="access-card-edit-close">Close</span></span>
+            {{if .Group.Description}}<span class="access-card-desc">{{.Group.Description}}</span>{{end}}
+        </summary>
 
-        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/edit">
-            {{template "csrf_field" $.CSRFToken}}
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Name</label>
-                    <input type="text" name="name" value="{{.Group.Name}}" required>
+        <div class="access-card-body">
+            <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/edit">
+                {{template "csrf_field" $.CSRFToken}}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" value="{{.Group.Name}}" required>
+                    </div>
+                    <div class="form-group form-group-wide">
+                        <label>Description</label>
+                        <input type="text" name="description" value="{{.Group.Description}}">
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Save</button>
                 </div>
-                <div class="form-group form-group-wide">
-                    <label>Description</label>
-                    <input type="text" name="description" value="{{.Group.Description}}">
-                </div>
-                <button type="submit" class="btn btn-secondary">Save</button>
-            </div>
-        </form>
+            </form>
 
-        {{if .Members}}
-        <table class="admin-table">
-            <thead>
-                <tr><th>Type</th><th>Identifier</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-                {{range .Members}}
-                <tr>
-                    <td><span class="badge badge-{{.SubjectType}}">{{.SubjectType}}</span></td>
-                    <td class="group-id">{{.SubjectIdentifier}}</td>
-                    <td>
-                        <form method="POST" action="{{url "/admin/access-groups/members/"}}{{.ID}}/delete" class="inline-form"
-                            onsubmit="return confirm('Remove this member from the group?')">
-                            {{template "csrf_field" $.CSRFToken}}
-                            <button type="submit" class="btn btn-small btn-danger">Remove</button>
-                        </form>
-                    </td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-        {{else}}
-        <p class="empty-message">No members yet — this group admits nobody until you add one.</p>
-        {{end}}
+            {{if .Members}}
+            <table class="admin-table">
+                <thead>
+                    <tr><th>Type</th><th>Identifier</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    {{range .Members}}
+                    <tr>
+                        <td><span class="badge badge-{{.SubjectType}}">{{.SubjectType}}</span></td>
+                        <td class="group-id">{{.SubjectIdentifier}}</td>
+                        <td>
+                            <form method="POST" action="{{url "/admin/access-groups/members/"}}{{.ID}}/delete" class="inline-form"
+                                onsubmit="return confirm('Remove this member from the group?')">
+                                {{template "csrf_field" $.CSRFToken}}
+                                <button type="submit" class="btn btn-small btn-danger">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="empty-message">No members yet — this group admits nobody until you add one.</p>
+            {{end}}
 
-        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/members">
-            {{template "csrf_field" $.CSRFToken}}
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Type</label>
-                    <select name="subject_type" required>
-                        <option value="user">User</option>
-                        <option value="ldap_group">LDAP Group</option>
-                        <option value="oauth2_group">OAuth2 Group</option>
-                    </select>
+            <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/members">
+                {{template "csrf_field" $.CSRFToken}}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select name="subject_type" required>
+                            <option value="user">User</option>
+                            <option value="ldap_group">LDAP Group</option>
+                            <option value="oauth2_group">OAuth2 Group</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-wide">
+                        <label>Identifier</label>
+                        <input type="text" name="subject_identifier" required
+                            placeholder="username, LDAP DN, or OAuth2 group name">
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Add Member</button>
                 </div>
-                <div class="form-group form-group-wide">
-                    <label>Identifier</label>
-                    <input type="text" name="subject_identifier" required
-                        placeholder="username, LDAP DN, or OAuth2 group name">
-                </div>
-                <button type="submit" class="btn btn-secondary">Add Member</button>
-            </div>
-        </form>
+            </form>
 
-        <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/delete" class="inline-form"
-            onsubmit="return confirm('Delete this group? Every grant that uses it is revoked.')">
-            {{template "csrf_field" $.CSRFToken}}
-            <button type="submit" class="btn btn-small btn-danger">Delete Group</button>
-        </form>
-    </div>
+            <form method="POST" action="{{url "/admin/access-groups/"}}{{.Group.ID}}/delete" class="inline-form"
+                onsubmit="return confirm('Delete this group? Every grant that uses it is revoked.')">
+                {{template "csrf_field" $.CSRFToken}}
+                <button type="submit" class="btn btn-small btn-danger">Delete Group</button>
+            </form>
+        </div>
+    </details>
     {{else}}
     <p class="empty-message">No access groups yet. Create one above, then give it a role on a project or organization.</p>
     {{end}}
+
 </div>
 {{end}}
 

@@ -32,9 +32,11 @@ Group membership carries **no role**. That is deliberate — it is what lets one
 
 A member naming an LDAP or OAuth2 group only takes effect once that person signs in, because group membership is known while they authenticate and is not stored anywhere else. Naming a **user** needs no sign-in and applies at once.
 
+Both this page and **Admin > Organizations** list one collapsed card per entry — its name, how many projects or grants it holds, and its description. Click **Edit** on a card to unfold its fields, members and grants; click **Close** to fold it away again. Above a list of more than one, a box filters it by name or description.
+
 ## Granting Access
 
-On **Admin > Projects > Edit**, or on an organization under **Admin > Organizations**, the Access table lists who can reach it. Grant to either:
+On **Admin > Projects > Edit**, or on an organization under **Admin > Organizations** (open its card with **Edit**), the Access table lists who can reach it. Grant to either:
 
 - an **access group** — the usual case, and the one that scales;
 - a **user** — for the one-off, so you never have to invent a group of one.

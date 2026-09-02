@@ -891,16 +891,86 @@ body {
     opacity: 1;
 }
 
-/* Cards on the access-group and organization pages. */
+/* Cards on the access-group and organization pages. Collapsed they are one
+   scannable line — name, count, description — and the edit fields, member and
+   grant tables only unfold for the one card you came to change. A list of
+   twenty organizations was otherwise twenty full forms deep. */
 .access-card {
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 0.75rem;
     background: var(--color-surface);
 }
 
-.access-card h2 { margin-top: 0; }
+.access-card-summary {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    column-gap: 1rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+/* The default disclosure triangle would sit beside our own affordance. */
+.access-card-summary::-webkit-details-marker { display: none; }
+
+.access-card-summary:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+}
+
+.access-card-name {
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+/* Its own centred column, so counts line up down the list instead of drifting
+   with the length of each name. */
+.access-card-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    min-width: 7rem;
+}
+
+.access-card-edit {
+    font-size: 0.8rem;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+.access-card-edit::after {
+    content: "\25B8";
+    display: inline-block;
+    margin-left: 0.35rem;
+    transition: transform 0.15s ease;
+}
+
+.access-card[open] .access-card-edit::after { transform: rotate(90deg); }
+
+.access-card-edit-close { display: none; }
+.access-card[open] .access-card-edit-open { display: none; }
+.access-card[open] .access-card-edit-close { display: inline; }
+
+.access-card-desc {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+    margin-top: 0.15rem;
+}
+
+/* Open, the description is right there in the edit field below. */
+.access-card[open] .access-card-desc { display: none; }
+
+.access-card-body {
+    border-top: 1px solid var(--color-border);
+    margin-top: 0.75rem;
+    padding-top: 1rem;
+}
+
 .access-card h3 {
     font-size: 0.95rem;
     margin: 1.25rem 0 0.5rem;

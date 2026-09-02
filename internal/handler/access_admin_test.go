@@ -380,3 +380,67 @@ func TestAdminListsOfferAFilterOnlyWhenWorthIt(t *testing.T) {
 		}
 	}
 }
+
+// The organization and access-group lists are cards you scan, not stacks of
+// open forms: each renders as a collapsed <details> whose summary carries the
+// name, the count and the description, with everything editable behind it.
+func TestAdminAccessCardsStartCollapsed(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	seedAdmin(t, app)
+	cookies := loginUser(t, app, "admin", "admin123")
+	seedProject(t, app, "docs", "Docs", false)
+
+	if err := app.handler.accessGroups.Create(ctx, &database.AccessGroup{
+		Name: "engineering", Description: "Dev team",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct{ path, summary string }{
+		{"/admin/orgs", "1 project"},
+		{"/admin/access-groups", "0 grants"},
+	} {
+		_, body := adminGet(t, app, cookies, tc.path)
+
+		if !strings.Contains(body, `<details class="access-card"`) {
+			t.Errorf("%s: expected the cards to be collapsible", tc.path)
+		}
+		// "open" would defeat the point — every card unfolded on load.
+		if strings.Contains(body, `<details class="access-card" open`) {
+			t.Errorf("%s: expected the cards to start collapsed", tc.path)
+		}
+
+		summary := between(body, `<summary class="access-card-summary">`, "</summary>")
+		if summary == "" {
+			t.Fatalf("%s: no card summary rendered", tc.path)
+		}
+		if !strings.Contains(summary, tc.summary) {
+			t.Errorf("%s: expected the collapsed card to show %q, got %q", tc.path, tc.summary, summary)
+		}
+		// The edit fields belong behind the fold, not in the summary.
+		if strings.Contains(summary, "<input") {
+			t.Errorf("%s: collapsed card should not carry edit fields: %q", tc.path, summary)
+		}
+	}
+
+	// The description reads as a line under the name rather than a form value.
+	_, body := adminGet(t, app, cookies, "/admin/access-groups")
+	if s := between(body, `<summary class="access-card-summary">`, "</summary>"); !strings.Contains(s, "Dev team") {
+		t.Errorf("expected the description on the collapsed card, got %q", s)
+	}
+}
+
+func between(s, start, end string) string {
+	i := strings.Index(s, start)
+	if i < 0 {
+		return ""
+	}
+	rest := s[i+len(start):]
+	j := strings.Index(rest, end)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
+}
