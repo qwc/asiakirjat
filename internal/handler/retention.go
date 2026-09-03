@@ -103,13 +103,13 @@ func (h *Handler) versionExpiries(project *database.Project, versions []database
 }
 
 // humanizeDaysLeft renders the wait until a deletion becomes due. Retention
-// runs hourly, so a version already past its window is "soon" rather than a
-// negative count.
+// runs hourly, so a version already past its window reads "today" rather than
+// a negative count: the next pass takes it (issue #157).
 func humanizeDaysLeft(d time.Duration) string {
 	days := int(math.Ceil(d.Hours() / 24))
 	switch {
 	case days <= 0:
-		return "soon"
+		return "today"
 	case days == 1:
 		return "in 1 day"
 	default:

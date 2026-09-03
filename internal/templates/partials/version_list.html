@@ -16,10 +16,13 @@
         {{if .ExpiresIn}}
         <span class="version-badge version-badge-expiring"
               title="Not kept by this project's version pattern; retention deletes it on {{.ExpiresAt}}">Expires {{.ExpiresIn}}</span>
+        {{else if $.RetentionDays}}
+        <span class="version-badge version-badge-forever"
+              title="Kept by this project's version pattern; retention will not delete it">No expiration</span>
         {{end}}
         <span class="version-date">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
         <a href="{{url "/project/"}}{{.ProjectSlug}}/version/{{.Tag}}/download"
-           class="btn btn-tiny btn-secondary" title="{{if .IsPDF}}Download PDF{{else}}Download as ZIP{{end}}">{{if .IsPDF}}Download PDF{{else}}Download{{end}}</a>
+           class="btn btn-tiny btn-download" title="{{if .IsPDF}}Download PDF{{else}}Download as ZIP{{end}}">{{template "download_icon"}}{{if .IsPDF}}Download PDF{{else}}Download{{end}}</a>
         {{if $.CanUpload}}
             {{if and $.PinnedVersion (eq .Tag (deref $.PinnedVersion))}}
             <form method="POST" action="{{url "/project/"}}{{.ProjectSlug}}/unpin" class="inline-form">
@@ -52,3 +55,5 @@
     {{end}}
 </ul>
 {{end}}
+
+{{define "download_icon"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>{{end}}

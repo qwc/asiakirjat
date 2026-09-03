@@ -42,13 +42,16 @@ Invalid patterns are refused when you save. If one somehow reaches the database 
 ## Seeing What Will Go
 
 While a project has a retention period, its detail page states the rule above
-the version list and marks every version the rule does not keep with an
-**Expires in N days** badge, counting from the version's upload date. A version
-already past its window shows **Expires soon** — retention runs hourly, so it
-goes on the next pass.
+the version list and badges every version with what retention will do to it:
+
+| Badge | Meaning |
+|---|---|
+| **Expires in N days** | The rule does not keep this version; the count runs from its upload date |
+| **Expires today** | Already past its window — retention runs hourly, so it goes on the next pass |
+| **No expiration** | Kept indefinitely, either by the pattern or by a pin |
 
 No badges and no notice means the project has no retention period: nothing is
-deleted automatically, whatever the pattern says.
+deleted automatically, whatever the pattern says, so there is nothing to mark.
 
 ## When It Runs
 
