@@ -22,27 +22,27 @@ func TestLatestVersionTagWithPin(t *testing.T) {
 	}
 
 	// Without pin, should return semver-sorted latest
-	got := latestVersionTag(versions, nil)
+	got := latestVersionTag(versions, nil, nil)
 	if got != "v2.0.0" {
 		t.Errorf("expected v2.0.0, got %s", got)
 	}
 
 	// With pin to existing version
 	pinned := "v1.0.0"
-	got = latestVersionTag(versions, &pinned)
+	got = latestVersionTag(versions, &pinned, nil)
 	if got != "v1.0.0" {
 		t.Errorf("expected pinned v1.0.0, got %s", got)
 	}
 
 	// With pin to non-existent version, fallback to semver
 	nonExistent := "v99.0.0"
-	got = latestVersionTag(versions, &nonExistent)
+	got = latestVersionTag(versions, &nonExistent, nil)
 	if got != "v2.0.0" {
 		t.Errorf("expected fallback to v2.0.0, got %s", got)
 	}
 
 	// Empty versions
-	got = latestVersionTag(nil, nil)
+	got = latestVersionTag(nil, nil, nil)
 	if got != "" {
 		t.Errorf("expected empty string for nil versions, got %s", got)
 	}

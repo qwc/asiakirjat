@@ -99,8 +99,9 @@ func (h *Handler) serveVersionDoc(w http.ResponseWriter, r *http.Request, slug, 
 //
 // "Latest" is resolved with the same rule used for the project page's "Latest"
 // badge and the frontpage (latestVersionTag): a pinned version if set,
-// otherwise the highest semver tag. Responses are marked no-cache so a newer
-// upload is picked up on the next request rather than served stale.
+// otherwise the newest tag the project's keep pattern calls a release.
+// Responses are marked no-cache so a newer upload is picked up on the next
+// request rather than served stale.
 func (h *Handler) handleServeLatest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := auth.UserFromContext(ctx)
@@ -130,7 +131,7 @@ func (h *Handler) handleServeLatest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	tag := latestVersionTag(versions, project.PinnedVersion)
+	tag := h.projectLatestVersionTag(project, versions)
 	if tag == "" {
 		http.Error(w, "No versions available", http.StatusNotFound)
 		return

@@ -319,6 +319,24 @@ body {
     font-size: 0.7rem;
 }
 
+.btn-download {
+    background: var(--color-primary);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-download:hover {
+    background: var(--color-primary-hover);
+}
+
+.btn-download svg {
+    width: 0.85em;
+    height: 0.85em;
+    flex: none;
+}
+
 /* Forms */
 .form-group {
     margin-bottom: 1rem;
@@ -603,9 +621,11 @@ body {
     font-size: 0.8rem;
 }
 
-.version-badge-pdf {
-    background: #dc2626;
-    color: #fff;
+/* Version badges share one chip shape; a variant only names its colours.
+   The palette is deliberately quiet (issue #157). Red used to mean "PDF",
+   which reads as an error rather than a file type, and expiry is a warning
+   rather than a failure — so nothing in this list is red any more. */
+.version-badge {
     font-size: 0.65rem;
     font-weight: 700;
     padding: 0.1rem 0.4rem;
@@ -614,48 +634,43 @@ body {
     letter-spacing: 0.03em;
 }
 
-.version-badge-pinned {
-    background: var(--color-primary);
+/* A file type, not a verdict: grey. */
+.version-badge-pdf {
+    background: #6b7280;
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+}
+
+/* Pins are a deliberate human choice; purple and pink set them apart from the
+   green "Latest" the system works out on its own. */
+.version-badge-pinned {
+    background: #7c3aed;
+    color: #fff;
 }
 
 .version-badge-temp {
-    background: var(--color-warning);
+    background: #db2777;
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
 }
 
 .version-badge-latest {
     background: var(--color-success);
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
 }
 
+/* A deadline, not a fault. */
 .version-badge-expiring {
-    background: var(--color-danger);
+    background: var(--color-warning);
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+}
+
+/* Kept indefinitely. Outlined rather than solid: it marks the absence of a
+   deadline, so it should not shout as loudly as the badges that mark one.
+   The padding compensates for the border so every chip keeps one height. */
+.version-badge-forever {
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    padding: calc(0.1rem - 1px) calc(0.4rem - 1px);
 }
 
 .retention-note {
@@ -671,23 +686,11 @@ body {
 .version-badge-reupload {
     background: var(--color-warning);
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
 }
 
 .version-badge-new {
     background: var(--color-success);
     color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
 }
 
 .upload-log-section {

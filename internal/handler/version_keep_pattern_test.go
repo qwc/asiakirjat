@@ -298,9 +298,12 @@ func TestPermanentPinSurvivesRetention(t *testing.T) {
 	}
 }
 
-// TestTemporaryPinDoesNotSurviveRetention: a temporary pin is cleared by the
-// next upload, so it does not claim the version is worth keeping.
-func TestTemporaryPinDoesNotSurviveRetention(t *testing.T) {
+// TestTemporaryPinSurvivesRetentionWhileHeld covers the other half of the same
+// dangling pointer (#157). A temporary pin used to expire like any other
+// version, so the thing an editor pinned could be collected out from under the
+// readers they pinned it for — a pin that did nothing. It is protected for as
+// long as it is held.
+func TestTemporaryPinSurvivesRetentionWhileHeld(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
 
@@ -315,10 +318,42 @@ func TestTemporaryPinDoesNotSurviveRetention(t *testing.T) {
 	}
 
 	seedAgedVersion(t, app, project, pinned, 400)
+	seedAgedVersion(t, app, project, "nightly-2026-01-02", 400)
+
+	app.handler.enforceRetentionPolicy(ctx, project)
+
+	got := remainingTags(t, app, project.ID)
+	if len(got) != 1 || got[0] != pinned {
+		t.Errorf("expected the temporarily pinned version to survive and the other to expire, got %v", got)
+	}
+}
+
+// ...and the pin is the only thing holding it. Unpinning hands the version
+// straight back to retention, which is what makes the protection temporary
+// rather than a second permanent pin: an upload clears the pin before
+// retention runs, so a version already past its window goes on that pass.
+func TestUnpinningReturnsAVersionToRetention(t *testing.T) {
+	app := setupTestApp(t)
+	ctx := context.Background()
+
+	project := seedProject(t, app, "was-pinned", "Was Pinned", true)
+	days := 30
+	project.RetentionDays = &days
+	pinned := "nightly-2026-01-01"
+	project.PinnedVersion = &pinned
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	seedAgedVersion(t, app, project, pinned, 400)
+
+	project.PinnedVersion = nil
+	if err := app.handler.projects.Update(ctx, project); err != nil {
+		t.Fatal(err)
+	}
 
 	app.handler.enforceRetentionPolicy(ctx, project)
 
 	if got := remainingTags(t, app, project.ID); len(got) != 0 {
-		t.Errorf("expected a temporarily pinned version to expire like any other, got %v", got)
+		t.Errorf("expected an unpinned version past its window to expire, got %v", got)
 	}
 }

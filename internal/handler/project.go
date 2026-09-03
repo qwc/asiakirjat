@@ -103,22 +103,10 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 
 	canUpload := h.canUpload(ctx, user, project)
 
-	// Determine the computed latest version (by semver sort)
-	latestVersion := ""
-	if len(tags) > 0 {
-		latestVersion = tags[0]
-	}
-
-	// If a version is pinned, use it as latest (if it exists)
-	effectiveLatest := latestVersion
-	if project.PinnedVersion != nil {
-		for _, tag := range tags {
-			if tag == *project.PinnedVersion {
-				effectiveLatest = *project.PinnedVersion
-				break
-			}
-		}
-	}
+	// One rule for "latest", shared with the frontpage, search and the
+	// /latest/ permalink: the badge has to name the version those resolve to,
+	// or the page contradicts the link it prints two lines above the list.
+	effectiveLatest := h.projectLatestVersionTag(project, versions)
 
 	// Build base URL for API examples
 	scheme := "http"
@@ -136,7 +124,6 @@ func (h *Handler) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		"BaseURL":         baseURL,
 		"PinnedVersion":   project.PinnedVersion,
 		"PinPermanent":    project.PinPermanent,
-		"LatestVersion":   latestVersion,
 		"EffectiveLatest": effectiveLatest,
 	}
 

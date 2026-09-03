@@ -24,6 +24,18 @@ Leave the retention days empty and the project follows `retention.nonsemver_days
 Set it to `0` — the shipped default — for unlimited: nothing is ever deleted
 automatically, whatever the pattern says.
 
+## What the Pattern Also Decides
+
+The pattern is the project's own answer to "what counts as a release", so it
+decides more than deletion: the **latest** version is the newest one the
+pattern keeps. A release candidate that sorts above every release — `v2.0.0-rc1`
+over `v1.9.0` — is not what the frontpage card names, what
+`/project/{slug}/latest/` serves, or what search looks in by default.
+
+If the pattern matches none of a project's versions, the newest version is
+latest regardless: a project always has one. A [pin](pin-versions.md) overrides
+the pattern either way.
+
 ## Naming What to Keep
 
 The pattern is a [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) matched against the version tag. It matches anywhere in the tag unless you anchor it, so anchors are usually what you want:
@@ -42,20 +54,27 @@ Invalid patterns are refused when you save. If one somehow reaches the database 
 ## Seeing What Will Go
 
 While a project has a retention period, its detail page states the rule above
-the version list and marks every version the rule does not keep with an
-**Expires in N days** badge, counting from the version's upload date. A version
-already past its window shows **Expires soon** — retention runs hourly, so it
-goes on the next pass.
+the version list and badges every version with what retention will do to it:
+
+| Badge | Meaning |
+|---|---|
+| **Expires in N days** | The rule does not keep this version; the count runs from its upload date |
+| **Expires today** | Already past its window — retention runs hourly, so it goes on the next pass |
+| **No expiration** | Kept indefinitely, either by the pattern or by a pin |
 
 No badges and no notice means the project has no retention period: nothing is
-deleted automatically, whatever the pattern says.
+deleted automatically, whatever the pattern says, so there is nothing to mark.
 
 ## When It Runs
 
 Retention runs at startup, then hourly, and again right after an upload of a version the project does not keep. Deletion removes the version's files, its database record, and its search index entries. It cannot be undone, so it is worth setting the pattern before the retention days on a project with history you care about.
 
-A **permanently pinned** version is never deleted by retention, whatever the
-pattern says — a permanent pin is a statement that this is the version people
-should land on. A **temporary** pin is not protected: it is cleared by the next
-upload anyway, so it does not claim the version is worth keeping. See
-[Pin a Version as Latest](pin-versions.md).
+A **pinned** version is never deleted by retention, whatever the pattern says —
+a pin is a statement that this is the version people should land on, and
+collecting it would leave readers on a different one.
+
+This covers a **temporary** pin too, for as long as it is held. The pin is the
+point: a temporary pin that gets deleted out from under its readers is a pin
+that did nothing. The protection ends with the pin — the next upload clears a
+temporary pin before retention runs, so a version already past its window goes
+on that same pass. See [Pin a Version as Latest](pin-versions.md).

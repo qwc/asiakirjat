@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -152,5 +153,91 @@ func TestLatestAnonymousOnPrivateRedirectsLogin(t *testing.T) {
 	}
 	if got := resp.Header.Get("Location"); got != "/login" {
 		t.Errorf("expected redirect to /login, got %q", got)
+	}
+}
+
+// releaseNumbers is the shipped default keep pattern: a release number with an
+// optional v prefix, and nothing else.
+var releaseNumbers = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`).MatchString
+
+// A prerelease outsorts every release below it — v2.0.0-rc1 beats v1.0.0 — so
+// it used to become "latest" everywhere and stay there until retention deleted
+// it (issue #157). The keep pattern is the project's own definition of a real
+// release, so it decides.
+func TestLatestVersionTagPrefersAKeptRelease(t *testing.T) {
+	versions := []database.Version{{Tag: "v1.0.0"}, {Tag: "v2.0.0-rc1"}}
+
+	// Without a pattern, the sort alone still picks the prerelease. This is
+	// the behaviour being corrected, asserted so the case cannot go stale.
+	if got := latestVersionTag(versions, nil, nil); got != "v2.0.0-rc1" {
+		t.Errorf("expected the semver sort to put the prerelease first, got %s", got)
+	}
+
+	if got := latestVersionTag(versions, nil, releaseNumbers); got != "v1.0.0" {
+		t.Errorf("expected the newest kept release, got %s", got)
+	}
+
+	// A pin is an explicit statement about where readers land; it outranks
+	// the pattern, exactly as it outranks the sort.
+	pinned := "v2.0.0-rc1"
+	if got := latestVersionTag(versions, &pinned, releaseNumbers); got != "v2.0.0-rc1" {
+		t.Errorf("expected the pin to win over the keep pattern, got %s", got)
+	}
+
+	// A pattern that describes none of a project's tags must not leave it with
+	// no latest at all.
+	nothing := func(string) bool { return false }
+	if got := latestVersionTag(versions, nil, nothing); got != "v2.0.0-rc1" {
+		t.Errorf("expected a fallback to the sorted newest, got %s", got)
+	}
+}
+
+// setKeepPattern gives a project its own definition of a release.
+func setKeepPattern(t *testing.T, app *testApp, project *database.Project, pattern string) {
+	t.Helper()
+	project.VersionKeepPattern = &pattern
+	if err := app.handler.projects.Update(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The permalink is the URL people share, so it is the one that must not point
+// at a release candidate.
+func TestLatestPermalinkSkipsAPrerelease(t *testing.T) {
+	app := setupTestApp(t)
+	project := seedProject(t, app, "docs", "Documentation", true)
+	setKeepPattern(t, app, project, `^v?\d+\.\d+\.\d+$`)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "RELEASE")
+	seedVersionWithIndex(t, app, project, "v2.0.0-rc1", "CANDIDATE")
+
+	resp, err := http.Get(app.server.URL + "/project/docs/latest/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	if !strings.Contains(string(body), "RELEASE") {
+		t.Errorf("expected /latest/ to serve the newest kept release; served the candidate: %t",
+			strings.Contains(string(body), "CANDIDATE"))
+	}
+}
+
+// And the project page has to agree with the permalink it prints above the
+// version list.
+func TestProjectPageLatestAgreesWithTheKeepPattern(t *testing.T) {
+	app := setupTestApp(t)
+	project := seedProject(t, app, "agrees", "Agrees", true)
+	setKeepPattern(t, app, project, `^v?\d+\.\d+\.\d+$`)
+	seedVersionWithIndex(t, app, project, "v1.0.0", "RELEASE")
+	seedVersionWithIndex(t, app, project, "v2.0.0-rc1", "CANDIDATE")
+
+	body := projectPageBody(t, app, "agrees")
+
+	if !strings.Contains(body, "(currently v1.0.0)") {
+		t.Error("expected the permalink hint to name the newest kept release")
+	}
+	if got := strings.Count(body, "version-badge-latest"); got != 1 {
+		t.Errorf("expected exactly one Latest badge, got %d", got)
 	}
 }

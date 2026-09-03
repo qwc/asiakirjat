@@ -1,6 +1,8 @@
 # Pin a Version as Latest
 
-By default, the "latest" version of a project is determined by semantic version sorting (e.g., `v2.0.0` is newer than `v1.9.0`). You can override this by pinning any version as the latest.
+By default, the "latest" version of a project is the newest version its [keep pattern](version-retention.md) calls a release, by semantic version sorting (e.g., `v2.0.0` is newer than `v1.9.0`). A version the pattern does not keep — a release candidate, a nightly — is never picked as latest, since it is not a release the project stands behind and retention may delete it. If the pattern matches none of a project's versions, the newest version wins regardless.
+
+You can override all of this by pinning any version as the latest.
 
 ## Prerequisites
 
@@ -19,6 +21,8 @@ A permanent pin also exempts the version from [retention](version-retention.md):
 ### Temporary Pin
 
 A **temporary pin** is automatically cleared when a new version is uploaded (re-uploads of the same version do not clear it). Use this when you want to temporarily highlight a specific version but return to normal semver sorting after the next upload.
+
+A temporary pin exempts the version from [retention](version-retention.md) too, but only for as long as the pin is held: once the next upload clears it, the version is collectible again, and goes on the next pass if it is already past its retention window.
 
 ## Pinning a Version
 
@@ -41,6 +45,7 @@ When a version is pinned:
 - **Search** defaults to searching the pinned version (instead of the semver-sorted latest)
 - The pinned version gets a badge in the version list
 - The **latest permalink** (`/project/{slug}/latest/`) serves the pinned version
+- **Retention** will not delete the pinned version while the pin is held
 
 ## Upload Log
 
