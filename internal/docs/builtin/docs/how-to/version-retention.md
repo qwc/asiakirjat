@@ -57,8 +57,12 @@ deleted automatically, whatever the pattern says, so there is nothing to mark.
 
 Retention runs at startup, then hourly, and again right after an upload of a version the project does not keep. Deletion removes the version's files, its database record, and its search index entries. It cannot be undone, so it is worth setting the pattern before the retention days on a project with history you care about.
 
-A **permanently pinned** version is never deleted by retention, whatever the
-pattern says — a permanent pin is a statement that this is the version people
-should land on. A **temporary** pin is not protected: it is cleared by the next
-upload anyway, so it does not claim the version is worth keeping. See
-[Pin a Version as Latest](pin-versions.md).
+A **pinned** version is never deleted by retention, whatever the pattern says —
+a pin is a statement that this is the version people should land on, and
+collecting it would leave readers on a different one.
+
+This covers a **temporary** pin too, for as long as it is held. The pin is the
+point: a temporary pin that gets deleted out from under its readers is a pin
+that did nothing. The protection ends with the pin — the next upload clears a
+temporary pin before retention runs, so a version already past its window goes
+on that same pass. See [Pin a Version as Latest](pin-versions.md).

@@ -105,8 +105,8 @@ func TestProjectPageOmitsExpiryWhenRetentionDisabled(t *testing.T) {
 	}
 }
 
-// The badge must agree with enforceRetentionPolicy on pins (issue #141): a
-// permanent pin is exempt, a temporary one is not.
+// The badge must agree with enforceRetentionPolicy on pins: both kinds of pin
+// are exempt while they are held (issues #141 and #157).
 func TestProjectPageRespectsPinExemption(t *testing.T) {
 	app := setupTestApp(t)
 	ctx := context.Background()
@@ -131,8 +131,8 @@ func TestProjectPageRespectsPinExemption(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if body := projectPageBody(t, app, "pinned"); !strings.Contains(body, "version-badge-expiring") {
-		t.Error("a temporary pin does not protect a version from retention; it must still be badged")
+	if body := projectPageBody(t, app, "pinned"); strings.Contains(body, "version-badge-expiring") {
+		t.Error("a temporary pin protects a version while it is held; it must not be badged")
 	}
 }
 

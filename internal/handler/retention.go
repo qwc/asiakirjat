@@ -71,7 +71,7 @@ type versionExpiry struct {
 // and when, keyed by version tag. A tag absent from the map is kept.
 //
 // It mirrors enforceRetentionPolicy deliberately — same keep pattern, same
-// permanent-pin exemption, same CreatedAt window — so the badge on the project
+// pin exemption, same CreatedAt window — so the badge on the project
 // page cannot promise something the cleanup pass then contradicts. Returns nil
 // when the project has no retention period, which is the shipped default
 // (retention.nonsemver_days = 0): nothing expires, so nothing is claimed.
@@ -83,7 +83,7 @@ func (h *Handler) versionExpiries(project *database.Project, versions []database
 
 	keep := h.versionKeeper(project)
 	pinned := ""
-	if project.PinPermanent && project.PinnedVersion != nil {
+	if project.PinnedVersion != nil {
 		pinned = *project.PinnedVersion
 	}
 
@@ -127,15 +127,18 @@ func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.
 
 	keep := h.versionKeeper(project)
 
-	// A permanent pin outranks the keep pattern (issue #141). Pinning says
-	// "this is the version people should land on", which is the same claim
-	// the pattern makes, so deleting a pinned version leaves the pin dangling
-	// and silently moves readers to a different version. Temporary pins are
-	// not protected: they are cleared by the next upload anyway, so treating
-	// them as permanent would keep a version the project already moved on
-	// from.
+	// A pin outranks the keep pattern (issue #141). Pinning says "this is the
+	// version people should land on", which is the same claim the pattern
+	// makes, so deleting a pinned version leaves the pin dangling and silently
+	// moves readers to a different version.
+	//
+	// This holds for a temporary pin too, for as long as it is held (#157).
+	// The pin is the point: a temp pin that gets collected out from under the
+	// reader is a pin that did nothing. It expires with the pin rather than
+	// outliving it — the next upload clears the pin before retention runs, so
+	// a version already past its window goes on that same pass.
 	pinned := ""
-	if project.PinPermanent && project.PinnedVersion != nil {
+	if project.PinnedVersion != nil {
 		pinned = *project.PinnedVersion
 	}
 
@@ -152,7 +155,7 @@ func (h *Handler) enforceRetentionPolicy(ctx context.Context, project *database.
 			continue
 		}
 		if v.Tag == pinned {
-			h.logger.Debug("retention: keeping permanently pinned version",
+			h.logger.Debug("retention: keeping pinned version",
 				"project", project.Slug, "version", v.Tag)
 			continue
 		}

@@ -20,6 +20,8 @@ A permanent pin also exempts the version from [retention](version-retention.md):
 
 A **temporary pin** is automatically cleared when a new version is uploaded (re-uploads of the same version do not clear it). Use this when you want to temporarily highlight a specific version but return to normal semver sorting after the next upload.
 
+A temporary pin exempts the version from [retention](version-retention.md) too, but only for as long as the pin is held: once the next upload clears it, the version is collectible again, and goes on the next pass if it is already past its retention window.
+
 ## Pinning a Version
 
 1. Navigate to the project page (`/project/{slug}`)
@@ -41,6 +43,7 @@ When a version is pinned:
 - **Search** defaults to searching the pinned version (instead of the semver-sorted latest)
 - The pinned version gets a badge in the version list
 - The **latest permalink** (`/project/{slug}/latest/`) serves the pinned version
+- **Retention** will not delete the pinned version while the pin is held
 
 ## Upload Log
 
