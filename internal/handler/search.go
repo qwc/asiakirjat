@@ -273,7 +273,7 @@ func (h *Handler) getLatestVersionTags(ctx context.Context) map[string]string {
 		if err != nil || len(versions) == 0 {
 			continue
 		}
-		result[p.Slug] = latestVersionTag(versions, p.PinnedVersion)
+		result[p.Slug] = h.projectLatestVersionTag(&p, versions)
 	}
 
 	h.latestTags.set(now, result)

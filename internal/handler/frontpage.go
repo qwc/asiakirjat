@@ -29,10 +29,22 @@ type orgGroup struct {
 	Projects []projectCardData
 }
 
-// latestVersionTag returns the "latest" version tag.
-// If pinnedVersion is set and exists in the list, it takes priority.
-// Otherwise, falls back to the highest semver-sorted tag.
-func latestVersionTag(versions []database.Version, pinnedVersion *string) string {
+// latestVersionTag returns the "latest" version tag: the one the frontpage
+// card names, search defaults to, /project/{slug}/latest/ serves and the
+// project page badges.
+//
+// A pin wins outright — it is an explicit statement about where readers should
+// land. Otherwise the newest tag the keep pattern matches wins, because the
+// keep pattern is the project's own definition of a real release (issue #157).
+// Without that, a nightly that outsorts every release became "latest"
+// everywhere and stayed there until retention deleted it, which is the same
+// dangling pointer the pin exemption fixes from the other end.
+//
+// keep may be nil, and nothing matching it falls back to the plain
+// semver-sorted newest: a project whose tags the pattern does not describe
+// still needs a latest, and the alternative is a project with versions and
+// none of them latest.
+func latestVersionTag(versions []database.Version, pinnedVersion *string, keep func(tag string) bool) string {
 	if len(versions) == 0 {
 		return ""
 	}
@@ -48,7 +60,20 @@ func latestVersionTag(versions []database.Version, pinnedVersion *string) string
 		tags[i] = v.Tag
 	}
 	docs.SortVersionTags(tags)
+	if keep != nil {
+		for _, tag := range tags {
+			if keep(tag) {
+				return tag
+			}
+		}
+	}
 	return tags[0]
+}
+
+// projectLatestVersionTag resolves the latest version of one project under the
+// keep pattern that governs it.
+func (h *Handler) projectLatestVersionTag(project *database.Project, versions []database.Version) string {
+	return latestVersionTag(versions, project.PinnedVersion, h.versionKeeper(project))
 }
 
 // filterAccessibleProjects is a thin forwarder to access.Checker.FilterAccessible;
@@ -87,7 +112,7 @@ func (h *Handler) handleFrontpage(w http.ResponseWriter, r *http.Request) {
 			card.OrgName = orgNames[*p.OrgID]
 		}
 		versions, _ := h.versions.ListByProject(ctx, p.ID)
-		card.LatestVersion = latestVersionTag(versions, p.PinnedVersion)
+		card.LatestVersion = h.projectLatestVersionTag(&p, versions)
 		projects = append(projects, card)
 	}
 

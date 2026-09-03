@@ -24,6 +24,18 @@ Leave the retention days empty and the project follows `retention.nonsemver_days
 Set it to `0` — the shipped default — for unlimited: nothing is ever deleted
 automatically, whatever the pattern says.
 
+## What the Pattern Also Decides
+
+The pattern is the project's own answer to "what counts as a release", so it
+decides more than deletion: the **latest** version is the newest one the
+pattern keeps. A release candidate that sorts above every release — `v2.0.0-rc1`
+over `v1.9.0` — is not what the frontpage card names, what
+`/project/{slug}/latest/` serves, or what search looks in by default.
+
+If the pattern matches none of a project's versions, the newest version is
+latest regardless: a project always has one. A [pin](pin-versions.md) overrides
+the pattern either way.
+
 ## Naming What to Keep
 
 The pattern is a [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) matched against the version tag. It matches anywhere in the tag unless you anchor it, so anchors are usually what you want:

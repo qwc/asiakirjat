@@ -1,6 +1,8 @@
 # Pin a Version as Latest
 
-By default, the "latest" version of a project is determined by semantic version sorting (e.g., `v2.0.0` is newer than `v1.9.0`). You can override this by pinning any version as the latest.
+By default, the "latest" version of a project is the newest version its [keep pattern](version-retention.md) calls a release, by semantic version sorting (e.g., `v2.0.0` is newer than `v1.9.0`). A version the pattern does not keep — a release candidate, a nightly — is never picked as latest, since it is not a release the project stands behind and retention may delete it. If the pattern matches none of a project's versions, the newest version wins regardless.
+
+You can override all of this by pinning any version as the latest.
 
 ## Prerequisites
 
