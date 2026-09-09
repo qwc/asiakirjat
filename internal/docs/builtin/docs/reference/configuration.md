@@ -57,6 +57,13 @@ database:
 dsn: "data/asiakirjat.db"
 ```
 
+Asiakirjat appends `_pragma=foreign_keys(1)` and `_pragma=journal_mode(WAL)` to
+a SQLite DSN so both apply to every pooled connection. Foreign keys must stay
+enabled: without them a deleted project leaves its versions, upload logs,
+access rows and API tokens behind, and the orphans break later schema
+migrations. If you set either pragma yourself your value is kept, and startup
+fails with a clear error if foreign keys end up disabled.
+
 **PostgreSQL:**
 ```yaml
 dsn: "postgres://user:pass@localhost:5432/asiakirjat?sslmode=disable"
