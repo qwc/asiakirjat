@@ -131,3 +131,73 @@ func TestServeDoc(t *testing.T) {
 		t.Error("path outside base should not be safe")
 	}
 }
+
+func TestDeleteProject(t *testing.T) {
+	base := t.TempDir()
+	storage := NewFilesystemStorage(base)
+
+	// Two deployed versions, so the whole tree has to go, not just one.
+	for _, tag := range []string{"v1.0", "v2.0"} {
+		if err := storage.EnsureVersionDir("doomed", tag); err != nil {
+			t.Fatal(err)
+		}
+		doc := filepath.Join(storage.VersionPath("doomed", tag), "index.html")
+		if err := os.WriteFile(doc, []byte("<html>doc</html>"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A neighbour that must survive.
+	if err := storage.EnsureVersionDir("bystander", "v1.0"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := storage.DeleteProject("doomed"); err != nil {
+		t.Fatalf("DeleteProject: %v", err)
+	}
+
+	if _, err := os.Stat(storage.ProjectPath("doomed")); !os.IsNotExist(err) {
+		t.Errorf("project dir should be gone, stat err = %v", err)
+	}
+	if _, err := os.Stat(storage.ProjectPath("bystander")); err != nil {
+		t.Errorf("neighbouring project should be untouched: %v", err)
+	}
+}
+
+func TestDeleteProjectMissingDirIsSuccess(t *testing.T) {
+	// Unlike MoveProject, nothing is lost by deleting a project that was never
+	// deployed to, and reporting an error would fail a delete that has already
+	// happened in the database.
+	storage := NewFilesystemStorage(t.TempDir())
+	if err := storage.DeleteProject("never-deployed"); err != nil {
+		t.Errorf("deleting a project with no directory should succeed, got %v", err)
+	}
+}
+
+// TestDeleteProjectRefusesToEscapeStorage guards the RemoveAll. ProjectPath
+// joins the base path with the slug and filepath.Join cleans the result, so a
+// slug that is empty or climbs upwards resolves to the base path or above it —
+// and the delete would take every other project with it.
+func TestDeleteProjectRefusesToEscapeStorage(t *testing.T) {
+	for _, slug := range []string{"", ".", "..", "../..", "other/nested", "/"} {
+		t.Run("slug="+slug, func(t *testing.T) {
+			base := t.TempDir()
+			storage := NewFilesystemStorage(base)
+
+			if err := storage.EnsureVersionDir("keep", "v1.0"); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := storage.DeleteProject(slug); err == nil {
+				t.Errorf("DeleteProject(%q) should have been refused", slug)
+			}
+
+			if _, err := os.Stat(storage.ProjectPath("keep")); err != nil {
+				t.Errorf("unrelated project was destroyed by slug %q: %v", slug, err)
+			}
+			if _, err := os.Stat(base); err != nil {
+				t.Errorf("storage base path was destroyed by slug %q: %v", slug, err)
+			}
+		})
+	}
+}

@@ -414,7 +414,22 @@ func (h *Handler) handleAdminDeleteProject(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if err := h.projects.Delete(ctx, project.ID); err != nil {
+	// Under the per-project lock, like a rename: removing the directory while
+	// an upload is extracting into it would leave half a project on disk, and
+	// a leftover directory is exactly what this delete exists to prevent.
+	unlock := h.projectLocks.Lock(project.ID)
+	err = h.projects.Delete(ctx, project.ID)
+	if err == nil {
+		// The row is gone, so the project is deleted as far as the user is
+		// concerned. A directory that resists removal is a disk leak worth
+		// reporting, not a reason to fail a delete that already happened.
+		if storageErr := h.storage.DeleteProject(project.Slug); storageErr != nil {
+			h.logger.Error("deleting project storage", "error", storageErr, "project", project.Slug)
+		}
+	}
+	unlock()
+
+	if err != nil {
 		h.logger.Error("deleting project", "error", err)
 		http.Error(w, "Failed to delete project", http.StatusInternalServerError)
 		return
