@@ -4296,3 +4296,48 @@ func TestAdminRenameRefusedWhenStorageMissing(t *testing.T) {
 		t.Error("rename must not have been committed")
 	}
 }
+
+// TestAdminDeleteProjectRemovesStorage covers issue #164: deleting a project
+// removed its database row and left the entire documentation directory on
+// disk, where nothing would ever read it or reclaim it again.
+func TestAdminDeleteProjectRemovesStorage(t *testing.T) {
+	app := setupTestApp(t)
+	seedAdmin(t, app)
+	seedProject(t, app, "delete-me", "Delete Me", true)
+	cookies := loginUser(t, app, "admin", "admin123")
+
+	storage := app.handler.storage
+	if err := storage.EnsureVersionDir("delete-me", "v1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(storage.VersionPath("delete-me", "v1.0.0"), "index.html")
+	if err := os.WriteFile(doc, []byte("<html>doc</html>"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, _ := http.NewRequest("POST", app.server.URL+"/admin/projects/delete-me/delete", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	req.Header.Set("X-CSRF-Token", csrfTokenFor(t, app, cookies))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	if _, err := os.Stat(storage.ProjectPath("delete-me")); !os.IsNotExist(err) {
+		t.Errorf("project documentation left on disk after delete, stat err = %v", err)
+	}
+}

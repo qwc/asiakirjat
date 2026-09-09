@@ -23,6 +23,7 @@ type Storage interface {
 	EnsureVersionDir(slug, tag string) error
 	VersionExists(slug, tag string) bool
 	DeleteVersion(slug, tag string) error
+	DeleteProject(slug string) error
 	MoveProject(oldSlug, newSlug string) error
 }
 
@@ -72,6 +73,32 @@ func (s *FilesystemStorage) DeleteVersion(slug, tag string) error {
 	path := s.VersionPath(slug, tag)
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("deleting version directory: %w", err)
+	}
+	return nil
+}
+
+// DeleteProject removes a project's whole documentation directory.
+//
+// Deleting a project used to touch the database only, so every project ever
+// deleted left its files behind for good: nothing reads those directories
+// again and retention only ever looks at projects that still exist. A slug
+// reused later would then inherit the previous project's files (issue #164).
+//
+// A missing directory is success — a project can be deleted before anything
+// was ever deployed to it.
+func (s *FilesystemStorage) DeleteProject(slug string) error {
+	path := s.ProjectPath(slug)
+
+	// ProjectPath joins the base path with the slug and filepath.Join cleans
+	// the result, so a slug of "", "." or ".." resolves to the base path or
+	// above it and RemoveAll would take every other project with it. Only a
+	// direct child of the base path may be removed.
+	if filepath.Dir(path) != filepath.Clean(s.basePath) || filepath.Base(path) != slug {
+		return fmt.Errorf("refusing to delete project directory outside storage: %q", slug)
+	}
+
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("deleting project directory: %w", err)
 	}
 	return nil
 }
