@@ -62,8 +62,8 @@ into — `make demo` says so and prints the `ssh -L` line to forward the port to
 wherever your browser is.
 
 `make help` lists everything. There is no config file to write first: every
-setting has an `ASIAKIRJAT_`-prefixed environment override, and the demo uses
-those. Reach for `make config && make compose-up` when you do want to edit
+setting the demo needs has an `ASIAKIRJAT_`-prefixed environment override, and
+the demo uses those. Reach for `make config && make compose-up` when you do want to edit
 `config.yaml`.
 
 ## Building and Running
@@ -74,9 +74,12 @@ make test     # Go tests and the overlay JS tests
 make run      # build and run locally, no Docker
 ```
 
-Copy `config.yaml.example` to `config.yaml` and adjust it. Every setting can be
-overridden with environment variables prefixed `ASIAKIRJAT_` (e.g.
-`ASIAKIRJAT_DB_DRIVER`). SQLite is the default database; PostgreSQL and MySQL are
+Copy `config.yaml.example` to `config.yaml` and adjust it. Every scalar setting
+can be overridden with an `ASIAKIRJAT_`-prefixed environment variable (e.g.
+`ASIAKIRJAT_DB_DRIVER`), which is how you keep passwords out of the file. The
+names are fixed rather than derived from the YAML keys, and an unknown name is
+ignored silently, so take them from the configuration reference. SQLite is the
+default database; PostgreSQL and MySQL are
 also supported, with migrations applied automatically on startup.
 
 ## License

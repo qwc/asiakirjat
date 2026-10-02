@@ -73,7 +73,7 @@ The Dockerfile accepts a `VERSION` build arg (default `dev`) injected via ldflag
 
 ## Configuration
 
-Copy `config.yaml.example` to `config.yaml`. All settings can be overridden with environment variables prefixed `ASIAKIRJAT_` (e.g., `ASIAKIRJAT_DB_DRIVER`).
+Copy `config.yaml.example` to `config.yaml`. Scalar settings can be overridden with environment variables prefixed `ASIAKIRJAT_` (e.g., `ASIAKIRJAT_DB_DRIVER`). The names are explicit `env:` struct tags, not derived from the YAML path, and list-valued settings (`access`, `project_groups`) have no override. Keep the table in `internal/docs/builtin/docs/reference/configuration.md` in sync when adding a field.
 
 ## Built-in Documentation
 

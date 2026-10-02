@@ -8,13 +8,135 @@ Asiakirjat reads configuration from `config.yaml` (or path specified with `-conf
 
 ## Environment Variables
 
-All settings can be overridden with environment variables prefixed `ASIAKIRJAT_`. Use underscores for nested keys:
+Every scalar setting can be overridden with an `ASIAKIRJAT_`-prefixed
+environment variable.
+
+**The variable names are fixed, not derived from the YAML structure.** You
+cannot build one by joining the nested YAML keys with underscores. An
+unrecognized variable is ignored without a warning, so a wrong name looks
+exactly like a setting that has no effect:
 
 ```bash
-ASIAKIRJAT_SERVER_PORT=8080
-ASIAKIRJAT_DATABASE_DRIVER=postgres
-ASIAKIRJAT_AUTH_LDAP_ENABLED=true
+ASIAKIRJAT_DB_DRIVER=postgres        # correct
+ASIAKIRJAT_DATABASE_DRIVER=postgres  # WRONG: ignored, no error
+
+ASIAKIRJAT_LDAP_ENABLED=true         # correct
+ASIAKIRJAT_AUTH_LDAP_ENABLED=true    # WRONG: ignored, no error
+
+ASIAKIRJAT_STORAGE_PATH=/data        # correct
+ASIAKIRJAT_STORAGE_BASE_PATH=/data   # WRONG: ignored, no error
 ```
+
+Four names in particular do not follow their YAML path — see the table below:
+
+| Config key | Variable |
+|------------|----------|
+| `database.driver` / `database.dsn` | `ASIAKIRJAT_DB_...`, not `..._DATABASE_...` |
+| `server.log_level` | `ASIAKIRJAT_LOG_LEVEL`, with no `SERVER_` |
+| `auth.initial_admin.*` | `ASIAKIRJAT_ADMIN_...`, with no `AUTH_INITIAL_` |
+| `storage.base_path` | `ASIAKIRJAT_STORAGE_PATH`, not `..._BASE_PATH` |
+
+### Value parsing
+
+- **Booleans** are true for `true` (any capitalization) or `1`. Every other
+  value, including `yes` and `on`, is false.
+- **Integers** are parsed with base-10 digits only. A value that does not parse
+  is ignored and the previous value is kept, without a warning.
+- **Empty strings** are applied, not ignored: `ASIAKIRJAT_LDAP_BIND_DN=` sets
+  the bind DN to empty rather than falling back to the config file.
+
+### Complete list
+
+| Config key | Environment variable |
+|------------|----------------------|
+| `server.address` | `ASIAKIRJAT_SERVER_ADDRESS` |
+| `server.port` | `ASIAKIRJAT_SERVER_PORT` |
+| `server.base_path` | `ASIAKIRJAT_SERVER_BASE_PATH` |
+| `server.proxy_strip_path` | `ASIAKIRJAT_SERVER_PROXY_STRIP_PATH` |
+| `server.log_level` | `ASIAKIRJAT_LOG_LEVEL` |
+| `server.trusted_proxies` | `ASIAKIRJAT_SERVER_TRUSTED_PROXIES` |
+| `database.driver` | `ASIAKIRJAT_DB_DRIVER` |
+| `database.dsn` | `ASIAKIRJAT_DB_DSN` |
+| `auth.initial_admin.username` | `ASIAKIRJAT_ADMIN_USERNAME` |
+| `auth.initial_admin.password` | `ASIAKIRJAT_ADMIN_PASSWORD` |
+| `auth.session.cookie_name` | `ASIAKIRJAT_SESSION_COOKIE_NAME` |
+| `auth.session.max_age` | `ASIAKIRJAT_SESSION_MAX_AGE` |
+| `auth.session.secure` | `ASIAKIRJAT_SESSION_SECURE` |
+| `auth.ldap.enabled` | `ASIAKIRJAT_LDAP_ENABLED` |
+| `auth.ldap.url` | `ASIAKIRJAT_LDAP_URL` |
+| `auth.ldap.skip_verify` | `ASIAKIRJAT_LDAP_SKIP_VERIFY` |
+| `auth.ldap.bind_dn` | `ASIAKIRJAT_LDAP_BIND_DN` |
+| `auth.ldap.bind_password` | `ASIAKIRJAT_LDAP_BIND_PASSWORD` |
+| `auth.ldap.base_dn` | `ASIAKIRJAT_LDAP_BASE_DN` |
+| `auth.ldap.user_filter` | `ASIAKIRJAT_LDAP_USER_FILTER` |
+| `auth.ldap.admin_group` | `ASIAKIRJAT_LDAP_ADMIN_GROUP` |
+| `auth.ldap.editor_group` | `ASIAKIRJAT_LDAP_EDITOR_GROUP` |
+| `auth.ldap.viewer_group` | `ASIAKIRJAT_LDAP_VIEWER_GROUP` |
+| `auth.ldap.recursive_groups` | `ASIAKIRJAT_LDAP_RECURSIVE_GROUPS` |
+| `auth.ldap.group_prefix` | `ASIAKIRJAT_LDAP_GROUP_PREFIX` |
+| `auth.oauth2.enabled` | `ASIAKIRJAT_OAUTH2_ENABLED` |
+| `auth.oauth2.client_id` | `ASIAKIRJAT_OAUTH2_CLIENT_ID` |
+| `auth.oauth2.client_secret` | `ASIAKIRJAT_OAUTH2_CLIENT_SECRET` |
+| `auth.oauth2.auth_url` | `ASIAKIRJAT_OAUTH2_AUTH_URL` |
+| `auth.oauth2.token_url` | `ASIAKIRJAT_OAUTH2_TOKEN_URL` |
+| `auth.oauth2.userinfo_url` | `ASIAKIRJAT_OAUTH2_USERINFO_URL` |
+| `auth.oauth2.redirect_url` | `ASIAKIRJAT_OAUTH2_REDIRECT_URL` |
+| `auth.oauth2.scopes` | `ASIAKIRJAT_OAUTH2_SCOPES` |
+| `auth.oauth2.groups_claim` | `ASIAKIRJAT_OAUTH2_GROUPS_CLAIM` |
+| `auth.oauth2.admin_group` | `ASIAKIRJAT_OAUTH2_ADMIN_GROUP` |
+| `auth.oauth2.editor_group` | `ASIAKIRJAT_OAUTH2_EDITOR_GROUP` |
+| `auth.oauth2.viewer_group` | `ASIAKIRJAT_OAUTH2_VIEWER_GROUP` |
+| `storage.base_path` | `ASIAKIRJAT_STORAGE_PATH` |
+| `retention.nonsemver_days` | `ASIAKIRJAT_RETENTION_NONSEMVER_DAYS` |
+| `retention.keep_pattern` | `ASIAKIRJAT_RETENTION_KEEP_PATTERN` |
+| `branding.app_name` | `ASIAKIRJAT_BRANDING_APP_NAME` |
+| `branding.logo_url` | `ASIAKIRJAT_BRANDING_LOGO_URL` |
+| `branding.custom_css` | `ASIAKIRJAT_BRANDING_CUSTOM_CSS` |
+| `projects.auto_create` | `ASIAKIRJAT_PROJECTS_AUTO_CREATE` |
+
+### Settings with no environment override
+
+Settings that hold a list have no environment variable and can only be set in
+`config.yaml`:
+
+- the whole `access` section (`groups`, `grants`, `private`)
+- `auth.ldap.project_groups` and `auth.oauth2.project_groups`
+
+### Keeping secrets out of the config file
+
+`config.yaml` has **no variable interpolation**. Writing
+
+```yaml
+bind_password: "${LDAP_PASSWORD}"   # does NOT work
+```
+
+stores the literal string `${LDAP_PASSWORD}` as the password, and the LDAP bind
+then fails with an authentication error that gives no hint as to why.
+
+To keep a secret out of the file, leave the key out of the YAML entirely and
+set its environment variable instead. Environment variables are applied after
+the file is read, so an absent key is simply filled in. This works for
+`ASIAKIRJAT_LDAP_BIND_PASSWORD`, `ASIAKIRJAT_OAUTH2_CLIENT_SECRET`,
+`ASIAKIRJAT_ADMIN_PASSWORD` and `ASIAKIRJAT_DB_DSN`.
+
+In Kubernetes, put the config file in a ConfigMap and the secrets in a Secret:
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: asiakirjat
+          env:
+            - name: ASIAKIRJAT_LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: asiakirjat-secrets
+                  key: ldap-bind-password
+```
+
+With Docker Compose, use `env_file` or Compose secrets rather than putting the
+value in `config.yaml`.
 
 ## Server Settings
 
@@ -311,7 +433,9 @@ auth:
     enabled: true
     url: "ldaps://ldap.company.com:636"
     bind_dn: "cn=asiakirjat,ou=services,dc=company,dc=com"
-    bind_password: "${LDAP_PASSWORD}"
+    # Set via ASIAKIRJAT_LDAP_BIND_PASSWORD instead of writing it here.
+    # This file has no variable interpolation: "${LDAP_PASSWORD}" would
+    # be stored verbatim as the password.
     base_dn: "ou=users,dc=company,dc=com"
     user_filter: "(uid={{.Username}})"
     editor_group: "cn=writers,ou=groups,dc=company,dc=com"
@@ -335,3 +459,13 @@ access:
 1. Environment variables (highest priority)
 2. Config file
 3. Default values (lowest priority)
+
+Each setting is resolved independently, so a config file may set some values
+while the environment supplies others. A key that is absent from the config
+file is not an error; it keeps its default until an environment variable or the
+admin UI changes it.
+
+A missing config file is also not an error: Asiakirjat starts on defaults plus
+whatever the environment provides. If you pass `-config` a path that does not
+exist, it is skipped silently, so check the path when settings seem to be
+ignored wholesale.
