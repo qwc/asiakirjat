@@ -208,6 +208,22 @@ func isBlockElement(tag string) bool {
 func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, projectName, versionTag, storagePath string) error {
 	batch := si.index.NewBatch()
 
+	// Flush as we walk. A batch holds the full extracted text of every
+	// document in it, so accumulating one over an entire version made peak
+	// memory a function of how much documentation somebody uploaded — a large
+	// generated tree, or a PDF contributing one document per page, could grow
+	// it without bound. Flushing keeps it a function of indexBatchSize.
+	flushIfFull := func() error {
+		if batch.Size() < indexBatchSize {
+			return nil
+		}
+		if err := si.index.Batch(batch); err != nil {
+			return err
+		}
+		batch = si.index.NewBatch()
+		return nil
+	}
+
 	err := filepath.Walk(storagePath, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return nil // skip files we can't access
@@ -247,6 +263,9 @@ func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, pro
 					VersionID:   versionID,
 				}
 				batch.Index(docID, doc)
+				if err := flushIfFull(); err != nil {
+					return err
+				}
 			}
 			return nil
 
@@ -278,12 +297,15 @@ func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, pro
 		}
 
 		batch.Index(docID, doc)
-		return nil
+		return flushIfFull()
 	})
 	if err != nil {
 		return fmt.Errorf("walking version directory: %w", err)
 	}
 
+	if batch.Size() == 0 {
+		return nil
+	}
 	if err := si.index.Batch(batch); err != nil {
 		return fmt.Errorf("indexing batch: %w", err)
 	}
