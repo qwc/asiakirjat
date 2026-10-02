@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -68,8 +69,14 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Ensure database directory exists (SQLite needs it before opening)
-	if dbDir := filepath.Dir(cfg.Database.DSN); dbDir != "" && dbDir != "." {
-		os.MkdirAll(dbDir, 0755)
+	if dbDir := sqliteDataDir(cfg.Database.Driver, cfg.Database.DSN); dbDir != "" {
+		if err := ensureDir(dbDir, "database"); err != nil {
+			logger.Error("preparing database directory", "error", err)
+			os.Exit(1)
+		}
+		if abs, err := filepath.Abs(dbDir); err == nil {
+			logger.Info("database directory ready", "path", abs)
+		}
 	}
 
 	// Open database
@@ -129,7 +136,13 @@ func main() {
 	storage := docs.NewFilesystemStorage(cfg.Storage.BasePath)
 
 	// Ensure storage directory exists
-	os.MkdirAll(cfg.Storage.BasePath, 0755)
+	if err := ensureDir(cfg.Storage.BasePath, "storage"); err != nil {
+		logger.Error("preparing storage directory", "error", err)
+		os.Exit(1)
+	}
+	if abs, err := filepath.Abs(cfg.Storage.BasePath); err == nil {
+		logger.Info("storage directory ready", "path", abs)
+	}
 
 	// Repair projects whose documentation directory no longer matches their
 	// slug, left behind by renames that predate the fix for issue #122. This
@@ -367,6 +380,49 @@ var insecureInitialAdminPasswords = map[string]bool{
 // password is one we refuse to start with: empty, on the explicit
 // banned-defaults list, or below the minimum length. Pure function so
 // it's testable without booting main.
+// ensureDir creates a directory Asiakirjat needs to write into, reporting why
+// it could not. Startup failures here are configuration problems — a volume
+// mounted over the path arrives owned by another user, or the filesystem is
+// read-only — and this is the last point at which they can still be named.
+// Letting the error through to the database driver instead yields
+// SQLITE_CANTOPEN, which the driver renders as "unable to open database file:
+// out of memory (14)" and sends the reader looking for a memory leak.
+func ensureDir(path, purpose string) error {
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return fmt.Errorf("creating %s directory %q: %w", purpose, path, err)
+	}
+	return nil
+}
+
+// sqliteDataDir reports the directory holding the SQLite database, or "" when
+// there is no directory to create: a non-SQLite driver, an in-memory database,
+// or a bare filename in the working directory.
+//
+// The driver check matters. PostgreSQL and MySQL DSNs are connection strings,
+// not paths, so running one through filepath.Dir would have us creating a
+// directory named after a fragment of a DSN — with the password in its name.
+func sqliteDataDir(driver, dsn string) string {
+	if database.DetectDialect(driver) != database.DialectSQLite {
+		return ""
+	}
+
+	// SQLite accepts file: URIs with query parameters; neither belongs in a path.
+	path := strings.TrimPrefix(dsn, "file:")
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	if path == "" || strings.HasPrefix(path, ":") {
+		return "" // :memory: and friends
+	}
+
+	switch dir := filepath.Dir(path); dir {
+	case "", ".", string(filepath.Separator):
+		return ""
+	default:
+		return dir
+	}
+}
+
 func isInsecureInitialAdminPassword(pw string) bool {
 	if insecureInitialAdminPasswords[pw] {
 		return true
