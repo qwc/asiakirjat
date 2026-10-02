@@ -127,12 +127,21 @@ When documentation is uploaded:
 5. Batch index documents
 ```
 
+Documents are flushed to the index in batches of 500 rather than accumulated
+and written once. A batch holds the extracted text of everything in it, so
+flushing keeps the memory a large upload needs bounded by the batch size
+instead of by the size of the documentation set.
+
 ### On Version Delete
 
 ```
-1. Query all documents with project_id/version_id prefix
-2. Batch delete matching documents
+1. Walk every document id in the index
+2. Batch delete those with the project_id/version_id prefix
 ```
+
+The walk covers the whole index. A search request would be the obvious way to
+find the documents, but a search always has a result size, and anything past it
+would be left behind — pages of a deleted version would stay searchable.
 
 ### Full Reindex
 
@@ -144,6 +153,9 @@ Admins can rebuild the entire index:
    3. For each version:
       4. Re-extract and index all HTML files
 ```
+
+If step 1 cannot complete, the reindex stops and reports the failure rather than
+indexing on top of documents it failed to clear.
 
 This is useful after:
 - Index corruption
