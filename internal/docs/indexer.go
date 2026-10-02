@@ -15,6 +15,12 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
+// indexBatchSize is how many documents accumulate in a bleve batch before it
+// is flushed. A batch holds the full extracted text of everything in it, so an
+// unbounded one makes peak memory a function of how large a documentation set
+// somebody uploads.
+const indexBatchSize = 500
+
 // SearchIndex wraps a bleve index for full-text search of documentation content.
 type SearchIndex struct {
 	index bleve.Index
@@ -289,28 +295,93 @@ func (si *SearchIndex) IndexVersion(projectID, versionID int64, projectSlug, pro
 func (si *SearchIndex) DeleteVersion(projectID, versionID int64) error {
 	prefix := fmt.Sprintf("%d/%d/", projectID, versionID)
 
-	q := bleve.NewMatchAllQuery()
-	req := bleve.NewSearchRequest(q)
-	req.Size = 10000
-	req.Fields = []string{}
-
-	results, err := si.index.Search(req)
+	ids, err := si.allDocIDs()
 	if err != nil {
-		return fmt.Errorf("searching for version docs: %w", err)
+		return fmt.Errorf("listing version docs: %w", err)
 	}
 
-	batch := si.index.NewBatch()
-	for _, hit := range results.Hits {
-		if strings.HasPrefix(hit.ID, prefix) {
-			batch.Delete(hit.ID)
+	matching := ids[:0]
+	for _, id := range ids {
+		if strings.HasPrefix(id, prefix) {
+			matching = append(matching, id)
 		}
 	}
 
-	if err := si.index.Batch(batch); err != nil {
+	if err := si.deleteDocIDs(matching); err != nil {
 		return fmt.Errorf("deleting version docs: %w", err)
 	}
 
 	return nil
+}
+
+// allDocIDs returns the id of every document in the index.
+//
+// A search request cannot answer this. It has a size, and the deletion paths
+// used to ask for one page of 10000 hits and silently ignore everything past
+// it: on a larger index, deleting a version left most of its pages searchable
+// and a full reindex could not clear out documents whose files were gone.
+// Walking the index reader has no cap, scores nothing, and visits each
+// document once.
+func (si *SearchIndex) allDocIDs() ([]string, error) {
+	idx, err := si.index.Advanced()
+	if err != nil {
+		return nil, fmt.Errorf("accessing index: %w", err)
+	}
+
+	reader, err := idx.Reader()
+	if err != nil {
+		return nil, fmt.Errorf("opening index reader: %w", err)
+	}
+	defer reader.Close()
+
+	docIDs, err := reader.DocIDReaderAll()
+	if err != nil {
+		return nil, fmt.Errorf("reading document ids: %w", err)
+	}
+	defer docIDs.Close()
+
+	var ids []string
+	for {
+		internalID, err := docIDs.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading document ids: %w", err)
+		}
+		if internalID == nil {
+			break
+		}
+
+		id, err := reader.ExternalID(internalID)
+		if err != nil {
+			return nil, fmt.Errorf("resolving document id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// deleteDocIDs removes the given documents, flushing in batches so that
+// clearing a large index does not hold one unbounded batch in memory.
+func (si *SearchIndex) deleteDocIDs(ids []string) error {
+	batch := si.index.NewBatch()
+	for _, id := range ids {
+		batch.Delete(id)
+
+		if batch.Size() >= indexBatchSize {
+			if err := si.index.Batch(batch); err != nil {
+				return err
+			}
+			batch = si.index.NewBatch()
+		}
+	}
+
+	if batch.Size() == 0 {
+		return nil
+	}
+	return si.index.Batch(batch)
 }
 
 // Search performs a full-text search across indexed documentation.
@@ -455,19 +526,15 @@ func (si *SearchIndex) ReindexAll(projects []ReindexProject, versions []ReindexV
 
 // ReindexAllWithProgress rebuilds the index with progress reporting.
 func (si *SearchIndex) ReindexAllWithProgress(projects []ReindexProject, versions []ReindexVersion, progressFn ReindexProgressFunc) error {
-	// Delete all existing documents
-	q := bleve.NewMatchAllQuery()
-	req := bleve.NewSearchRequest(q)
-	req.Size = 10000
-	req.Fields = []string{}
-
-	results, err := si.index.Search(req)
-	if err == nil {
-		batch := si.index.NewBatch()
-		for _, hit := range results.Hits {
-			batch.Delete(hit.ID)
-		}
-		si.index.Batch(batch)
+	// Delete all existing documents. A partial clear would leave documents
+	// behind that nothing will index again, which is the state a reindex is
+	// meant to repair, so this is a hard failure rather than a best effort.
+	ids, err := si.allDocIDs()
+	if err != nil {
+		return fmt.Errorf("listing documents to clear: %w", err)
+	}
+	if err := si.deleteDocIDs(ids); err != nil {
+		return fmt.Errorf("clearing index: %w", err)
 	}
 
 	projectMap := make(map[int64]ReindexProject)
